@@ -242,8 +242,13 @@ function AuthScreen({ onAuth }) {
     if (tab === "register") {
       const res = await sbAuth.signUp(email.trim(), pass, name.trim());
       if (res.error) { setErr(res.error.message || "Sign-up failed."); }
-      else if (res.session) { await onAuth(res.session, res.user, true, name.trim()); }
-      else { setInfo("✓ Check your email to confirm, then sign in."); setTab("login"); }
+else if (res.session) { await onAuth(res.session, res.user, true, name.trim()); }
+else if (res.user) {
+  const login = await sbAuth.signIn(email.trim(), pass);
+  if (login.access_token) { await onAuth(login, login.user, true, name.trim()); }
+  else { setInfo("✓ Check your email to confirm, then sign in."); setTab("login"); }
+}
+else { setErr(res.error?.message || "Sign-up failed."); }
     } else {
       const res = await sbAuth.signIn(email.trim(), pass);
       if (res.error) { setErr(res.error.message || "Invalid credentials."); }
