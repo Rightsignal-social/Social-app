@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 
 // ─── CONFIG ──────────────────────────────────────────────────────
-const SB_URL = import.meta.env.VITE_SB_URL || "https://nuezathpwztaktkqrxil.supabase.co";
+const SB_URL = import.meta.env.VITE_SB_URL || "https://kzdjzasopqwzctwebiap.supabase.co";
 const SB_KEY = import.meta.env.VITE_SB_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt6ZGp6YXNvcHF3emN0d2ViaWFwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY1MjM1NTgsImV4cCI6MjA5MjA5OTU1OH0.VqGDt7JVvkP413tl40EIh3IFqtyhX1OMrv3iCGaMvls";
 const H = { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`, "Content-Type": "application/json" };
 
