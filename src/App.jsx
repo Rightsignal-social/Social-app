@@ -1,4 +1,3 @@
-
 // src/App.jsx — RightSignal v2 — All Features Functional
 import { useState, useEffect, useCallback, useRef } from "react";
 import {
