@@ -101,6 +101,7 @@ const GlobalCSS = ({ dk }) => (
     @keyframes spin     { to   { transform:rotate(360deg); } }
     @keyframes floatUp  { 0%,100% { transform:translateY(0); } 50% { transform:translateY(-8px); } }
     @keyframes glow     { 0%,100% { box-shadow:0 0 8px rgba(245,158,11,.4); } 50% { box-shadow:0 0 22px rgba(245,158,11,.9); } }
+    @keyframes popIn    { 0% { transform:scale(.7); opacity:0; } 80% { transform:scale(1.1); } 100% { transform:scale(1); opacity:1; } }
     ::-webkit-scrollbar { width: 4px; }
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: ${dk ? "#1c2d47" : "#d1d5db"}; border-radius: 99px; }
@@ -229,6 +230,15 @@ function CopyBtn({ text, label = "Copy" }) {
     <button onClick={copy} style={{ display: "flex", alignItems: "center", gap: 5, background: ok ? "#10b98120" : "transparent", border: `1px solid ${ok ? "#10b981" : "#d1d5db"}`, borderRadius: 8, padding: "5px 10px", fontSize: 12, fontWeight: 600, cursor: "pointer", color: ok ? "#10b981" : "#6b7280", transition: "all .2s" }}>
       {ok ? <><Check size={12} />Copied!</> : <><Copy size={12} />{label}</>}
     </button>
+  );
+}
+
+function TokenPop({ amount, onDone }) {
+  useEffect(() => { const t = setTimeout(onDone, 2500); return () => clearTimeout(t); }, [onDone]);
+  return (
+    <div style={{ position: "fixed", bottom: 80, right: 24, background: "linear-gradient(135deg,#f59e0b,#f97316)", color: "#fff", borderRadius: 14, padding: "12px 20px", fontWeight: 800, fontSize: 15, zIndex: 9999, animation: "popIn .4s ease", boxShadow: "0 8px 30px rgba(245,158,11,.5)", display: "flex", alignItems: "center", gap: 8 }}>
+      ◈ +{amount} SGN earned!
+    </div>
   );
 }
 
