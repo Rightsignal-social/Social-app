@@ -3054,7 +3054,7 @@ useEffect(() => {
 localStorage.removeItem("rs_session");
 sessionStorage.removeItem("rs_oauth_return");
 return false;
-}   // ✅ fixed (no semicolon)
+
 
 ;(async () => {   // ✅ fixed (added ;)
   // Priority 1: Fresh OAuth return
