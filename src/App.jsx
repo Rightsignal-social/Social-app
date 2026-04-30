@@ -3093,7 +3093,6 @@ function AdminApp({ me, myProfile, bals, profiles, dk, setDk, onSignOut }) {
 
     await trySession(sess);
   }
-}
 
 })();   // ✅ ✅ ADD THIS LINE
 
