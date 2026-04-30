@@ -3050,21 +3050,23 @@ useEffect(() => {
           return true;
         }
       } catch {}
-      localStorage.removeItem("rs_session");
-      sessionStorage.removeItem("rs_oauth_return");
-      return false;
-    };
 
-    (async () => {
-      // Priority 1: Fresh OAuth return (detected before React mounted)
-      const oauthReturn = sessionStorage.getItem("rs_oauth_return");
-      if (oauthReturn) {
-        sessionStorage.removeItem("rs_oauth_return");
-        try {
-          const sess = JSON.parse(oauthReturn);
-          if (await trySession(sess)) return;
-        } catch {}
-      }
+localStorage.removeItem("rs_session");
+sessionStorage.removeItem("rs_oauth_return");
+return false;
+}   // ✅ fixed (no semicolon)
+
+;(async () => {   // ✅ fixed (added ;)
+  // Priority 1: Fresh OAuth return
+  const oauthReturn = sessionStorage.getItem("rs_oauth_return");
+
+  if (oauthReturn) {
+    sessionStorage.removeItem("rs_oauth_return");
+    try {
+      const sess = JSON.parse(oauthReturn);
+      if (await trySession(sess)) return;
+    } catch {}
+  }
 
       // Priority 2: Existing valid session in localStorage
       const stored = localStorage.getItem("rs_session");
