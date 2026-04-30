@@ -3176,3 +3176,6 @@ return () => { cancelled = true; };
       </div>
     </div>
   );
+  }   // ✅ closes function App
+
+export default App;   // ✅ required for React
