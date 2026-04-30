@@ -3035,21 +3035,7 @@ function AdminApp({ me, myProfile, bals, profiles, dk, setDk, onSignOut }) {
 useEffect(() => {
   let cancelled = false;
 
-  const trySession = async (sess) => {
-    try {
-      const u = await sbAuth.getUser(sess.access_token);
-      if (!cancelled && u && u.id) {
-        await handleAuth(sess, u, false, "");
-        return true;
-      }
-    } catch {}
-
-    localStorage.removeItem("rs_session");
-    sessionStorage.removeItem("rs_oauth_return");
-    return false;
-  };
-
-  (async () => {
+  const run = async () => {
     const oauthReturn = sessionStorage.getItem("rs_oauth_return");
 
     if (oauthReturn) {
@@ -3078,9 +3064,7 @@ useEffect(() => {
         const sess = {
           access_token: token,
           refresh_token: params.get("refresh_token") || "",
-          expires_at:
-            Math.floor(Date.now() / 1000) +
-            parseInt(params.get("expires_in") || "0"),
+          expires_at: Math.floor(Date.now() / 1000) + parseInt(params.get("expires_in") || "0")
         };
 
         localStorage.setItem("rs_session", JSON.stringify(sess));
@@ -3089,7 +3073,9 @@ useEffect(() => {
         await trySession(sess);
       }
     }
-  })();
+  };
+
+  run();
 
   return () => {
     cancelled = true;
@@ -3171,5 +3157,7 @@ useEffect(() => {
         </div>
       </div>
           </div>
-      );
+        );
+}   // closes App
+
 export default App;
