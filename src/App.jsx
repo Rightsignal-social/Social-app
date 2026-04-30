@@ -1983,776 +1983,11 @@ function Onboarding({ user, onComplete }) {
   );
 }
 
-// ═══════════════════════════════════════════════════════════════
-// COLAB FEATURE — Add this entire block to App.jsx
-// Place it BEFORE the closing AdminApp function (before line ~2290)
-// ═══════════════════════════════════════════════════════════════
-
-// ─── COLAB UTILS ─────────────────────────────────────────────────
-const genStartupCode = name =>
-  name.toUpperCase().replace(/\s+/g, "").slice(0, 5) +
-  "-" + Math.random().toString(36).slice(2, 6).toUpperCase();
-
-const ROOM_TYPES = [
-  { id: "investor", label: "Investor Room", e: "💰", c: "#10b981", desc: "For investors & advisors" },
-  { id: "tech", label: "Tech Room", e: "👾", c: "#3b82f6", desc: "Engineers & developers" },
-  { id: "marketing", label: "Marketing Room", e: "📣", c: "#f97316", desc: "Growth & marketing team" },
-  { id: "operations", label: "Operations", e: "⚙️", c: "#8b5cf6", desc: "Ops & business dev" },
-  { id: "design", label: "Design Room", e: "🎨", c: "#ec4899", desc: "UI/UX & branding" },
-  { id: "general", label: "General Room", e: "🌐", c: "#6b7280", desc: "Open to all members" },
-];
-
-const ROLE_TYPES = [
-  { id: "investor", label: "Investor", e: "💰" },
-  { id: "tech", label: "Tech / Developer", e: "👾" },
-  { id: "marketing", label: "Marketing", e: "📣" },
-  { id: "operations", label: "Operations", e: "⚙️" },
-  { id: "design", label: "Designer", e: "🎨" },
-  { id: "intern", label: "Intern", e: "🎓" },
-  { id: "advisor", label: "Advisor", e: "🧠" },
-  { id: "other", label: "Other", e: "✨" },
-];
-
-// ─── JOIN REQUEST MODAL ───────────────────────────────────────────
-function JoinRequestModal({ startup, rooms, me, myProfile, onClose, onSubmit, dk }) {
-  const th = T(dk);
-  const [selectedRoom, setSelectedRoom] = useState(rooms[0]?.id || "");
-  const [selectedRole, setSelectedRole] = useState("tech");
-  const [message, setMessage] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-
-  const submit = async () => {
-    if (!selectedRoom || !selectedRole) return;
-    setSubmitting(true);
-    await onSubmit({ startup_id: startup.id, room_id: selectedRoom, selected_role: selectedRole, message });
-    setSubmitting(false);
-    onClose();
-  };
-
-  return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.65)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
-      <div onClick={e => e.stopPropagation()} style={{ background: th.surf, borderRadius: 20, padding: 24, width: "100%", maxWidth: 420, boxShadow: "0 24px 60px rgba(0,0,0,.35)", animation: "fadeUp .25s ease" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-          <div>
-            <h3 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: th.txt }}>Join {startup.name}</h3>
-            <p style={{ margin: "3px 0 0", fontSize: 13, color: th.txt3 }}>Select a room and your role</p>
-          </div>
-          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: th.txt3, display: "flex" }}><X size={18} /></button>
-        </div>
-
-        <div style={{ marginBottom: 16 }}>
-          <label style={{ fontSize: 12, fontWeight: 700, color: th.txt2, display: "block", marginBottom: 8, letterSpacing: .4 }}>SELECT ROOM</label>
-          <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
-            {rooms.map(r => {
-              const rt = ROOM_TYPES.find(x => x.id === r.name?.toLowerCase()) || ROOM_TYPES[5];
-              const sel = selectedRoom === r.id;
-              return (
-                <button key={r.id} onClick={() => setSelectedRoom(r.id)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", borderRadius: 12, border: `1.5px solid ${sel ? rt.c : th.bdr}`, background: sel ? rt.c + "15" : "transparent", cursor: "pointer", textAlign: "left" }}>
-                  <span style={{ fontSize: 18 }}>{rt.e}</span>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: sel ? rt.c : th.txt }}>{r.name}</div>
-                    <div style={{ fontSize: 11, color: th.txt3 }}>{r.description || rt.desc}</div>
-                  </div>
-                  {sel && <Check size={14} color={rt.c} />}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        <div style={{ marginBottom: 16 }}>
-          <label style={{ fontSize: 12, fontWeight: 700, color: th.txt2, display: "block", marginBottom: 8, letterSpacing: .4 }}>YOUR ROLE</label>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 7 }}>
-            {ROLE_TYPES.map(r => {
-              const sel = selectedRole === r.id;
-              return (
-                <button key={r.id} onClick={() => setSelectedRole(r.id)} style={{ display: "flex", alignItems: "center", gap: 7, padding: "8px 12px", borderRadius: 10, border: `1.5px solid ${sel ? "#3b82f6" : th.bdr}`, background: sel ? "#3b82f615" : "transparent", cursor: "pointer" }}>
-                  <span style={{ fontSize: 15 }}>{r.e}</span>
-                  <span style={{ fontSize: 12, fontWeight: sel ? 700 : 500, color: sel ? "#3b82f6" : th.txt2 }}>{r.label}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        <div style={{ marginBottom: 20 }}>
-          <label style={{ fontSize: 12, fontWeight: 700, color: th.txt2, display: "block", marginBottom: 6, letterSpacing: .4 }}>MESSAGE (OPTIONAL)</label>
-          <textarea value={message} onChange={e => setMessage(e.target.value)} placeholder="Why do you want to join? What can you contribute?" rows={3} style={{ width: "100%", background: th.inp, border: `1px solid ${th.inpB}`, borderRadius: 10, padding: "8px 12px", fontSize: 13, outline: "none", resize: "none", fontFamily: "inherit", color: th.txt, boxSizing: "border-box" }} />
-        </div>
-
-        <div style={{ display: "flex", gap: 10 }}>
-          <button onClick={onClose} style={{ flex: 1, padding: "10px", background: "transparent", border: `1px solid ${th.bdr}`, borderRadius: 12, cursor: "pointer", color: th.txt2, fontWeight: 600, fontSize: 13 }}>Cancel</button>
-          <button onClick={submit} disabled={submitting || !selectedRoom} style={{ flex: 2, padding: "10px", background: selectedRoom ? "linear-gradient(135deg,#3b82f6,#8b5cf6)" : th.surf2, border: "none", borderRadius: 12, cursor: selectedRoom ? "pointer" : "default", color: selectedRoom ? "#fff" : th.txt3, fontWeight: 700, fontSize: 13 }}>
-            {submitting ? "Sending Request…" : "Send Join Request"}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── REFERRAL JOIN MODAL ──────────────────────────────────────────
-function ReferralJoinModal({ me, onClose, onSuccess, dk }) {
-  const th = T(dk);
-  const [code, setCode] = useState("");
-  const [startup, setStartup] = useState(null);
-  const [rooms, setRooms] = useState([]);
-  const [checking, setChecking] = useState(false);
-  const [err, setErr] = useState("");
-  const [showJoin, setShowJoin] = useState(false);
-
-  const checkCode = async () => {
-    if (!code.trim()) return;
-    setChecking(true); setErr(""); setStartup(null);
-    const rows = await db.get("rs_startups", `referral_code=eq.${code.trim().toUpperCase()}`);
-    if (!rows?.length) { setErr("Invalid code. Please check and try again."); setChecking(false); return; }
-    const s = rows[0];
-    const rm = await db.get("rs_startup_rooms", `startup_id=eq.${s.id}&order=created_at.asc`);
-    setStartup(s); setRooms(rm || []);
-    setChecking(false);
-  };
-
-  const handleJoin = async (data) => {
-    await db.post("rs_room_requests", { ...data, status: "pending" });
-    onSuccess(startup);
-    onClose();
-  };
-
-  if (showJoin && startup) return (
-    <JoinRequestModal startup={startup} rooms={rooms} me={me} onClose={onClose} onSubmit={handleJoin} dk={dk} />
-  );
-
-  return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.65)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
-      <div onClick={e => e.stopPropagation()} style={{ background: th.surf, borderRadius: 20, padding: 24, width: "100%", maxWidth: 380, animation: "fadeUp .25s ease" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-          <h3 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: th.txt }}>Join via Referral Code</h3>
-          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: th.txt3 }}><X size={18} /></button>
-        </div>
-        <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
-          <input value={code} onChange={e => { setCode(e.target.value.toUpperCase()); setErr(""); setStartup(null); }} onKeyDown={e => e.key === "Enter" && checkCode()} placeholder="e.g. SKILL-A3B2" style={{ flex: 1, background: th.inp, border: `1.5px solid ${err ? "#ef4444" : startup ? "#10b981" : th.inpB}`, borderRadius: 10, padding: "9px 12px", fontSize: 14, outline: "none", color: th.txt, fontFamily: "monospace", letterSpacing: 1 }} />
-          <button onClick={checkCode} disabled={checking || !code.trim()} style={{ background: "#3b82f6", border: "none", borderRadius: 10, padding: "0 16px", color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>{checking ? "…" : "Check"}</button>
-        </div>
-        {err && <p style={{ fontSize: 13, color: "#ef4444", margin: "0 0 12px", display: "flex", alignItems: "center", gap: 5 }}><AlertCircle size={13} />{err}</p>}
-        {startup && (
-          <div style={{ background: th.surf2, borderRadius: 14, padding: 14, marginBottom: 16, border: `1px solid #10b98130` }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
-              <div style={{ width: 40, height: 40, borderRadius: 10, background: "linear-gradient(135deg,#3b82f6,#8b5cf6)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>
-                {startup.logo || "🚀"}
-              </div>
-              <div>
-                <div style={{ fontWeight: 800, fontSize: 15, color: th.txt }}>{startup.name}</div>
-                <div style={{ fontSize: 12, color: "#10b981", fontWeight: 600 }}>✓ Valid startup found</div>
-              </div>
-            </div>
-            <p style={{ fontSize: 13, color: th.txt2, margin: "0 0 10px", lineHeight: 1.5 }}>{startup.description?.slice(0, 100)}…</p>
-            <div style={{ fontSize: 12, color: th.txt3 }}>{rooms.length} room{rooms.length !== 1 ? "s" : ""} available</div>
-          </div>
-        )}
-        {startup && (
-          <button onClick={() => setShowJoin(true)} style={{ width: "100%", padding: "11px", background: "linear-gradient(135deg,#3b82f6,#8b5cf6)", border: "none", borderRadius: 12, color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>
-            View Rooms & Join →
-          </button>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ─── CREATE / EDIT STARTUP MODAL ──────────────────────────────────
-function CreateStartupModal({ me, myProfile, existing, onClose, onSave, dk }) {
-  const th = T(dk);
-  const [form, setForm] = useState({
-    name: existing?.name || "",
-    logo: existing?.logo || "",
-    description: existing?.description || "",
-    website: existing?.website || "",
-    github_link: existing?.github_link || "",
-    twitter: existing?.twitter || "",
-    linkedin: existing?.linkedin || "",
-  });
-  const [submitting, setSubmitting] = useState(false);
-  const setF = (k, v) => setForm(p => ({ ...p, [k]: v }));
-  const canSave = form.name.trim() && form.description.trim();
-
-  const handleSave = async () => {
-    if (!canSave) return;
-    setSubmitting(true);
-    const payload = {
-      ...form,
-      name: form.name.trim(),
-      description: form.description.trim(),
-      created_by: me,
-      founders: existing?.founders || [me],
-      referral_code: existing?.referral_code || genStartupCode(form.name),
-      social_links: { twitter: form.twitter, linkedin: form.linkedin },
-    };
-    let saved;
-    if (existing?.id) {
-      await db.patch("rs_startups", `id=eq.${existing.id}`, payload);
-      saved = { ...existing, ...payload };
-    } else {
-      saved = await db.post("rs_startups", payload);
-    }
-    setSubmitting(false);
-    onSave(saved);
-    onClose();
-  };
-
-  const inp = { width: "100%", background: th.inp, border: `1px solid ${th.inpB}`, borderRadius: 10, padding: "9px 12px", fontSize: 13, outline: "none", boxSizing: "border-box", color: th.txt };
-
-  return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.65)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 16, overflowY: "auto" }}>
-      <div onClick={e => e.stopPropagation()} style={{ background: th.surf, borderRadius: 20, padding: 24, width: "100%", maxWidth: 460, animation: "fadeUp .25s ease", margin: "auto" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-          <h3 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: th.txt }}>{existing ? "Edit Startup" : "Create Startup"}</h3>
-          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: th.txt3 }}><X size={18} /></button>
-        </div>
-
-        {[
-          { k: "name", l: "Startup Name *", p: "e.g. SkillSwap" },
-          { k: "logo", l: "Logo Emoji", p: "e.g. 🚀" },
-          { k: "website", l: "Website", p: "https://…" },
-          { k: "github_link", l: "GitHub", p: "https://github.com/…" },
-          { k: "twitter", l: "Twitter / X", p: "https://twitter.com/…" },
-          { k: "linkedin", l: "LinkedIn", p: "https://linkedin.com/company/…" },
-        ].map(f => (
-          <div key={f.k} style={{ marginBottom: 12 }}>
-            <label style={{ fontSize: 12, fontWeight: 600, color: th.txt2, display: "block", marginBottom: 4 }}>{f.l}</label>
-            <input value={form[f.k]} onChange={e => setF(f.k, e.target.value)} placeholder={f.p} style={inp} />
-          </div>
-        ))}
-
-        <div style={{ marginBottom: 20 }}>
-          <label style={{ fontSize: 12, fontWeight: 600, color: th.txt2, display: "block", marginBottom: 4 }}>Description / Problem & Solution *</label>
-          <textarea value={form.description} onChange={e => setF("description", e.target.value)} placeholder="What problem are you solving and how?" rows={4} style={{ ...inp, resize: "vertical", fontFamily: "inherit" }} />
-        </div>
-
-        <div style={{ display: "flex", gap: 10 }}>
-          <button onClick={onClose} style={{ flex: 1, padding: "10px", background: "transparent", border: `1px solid ${th.bdr}`, borderRadius: 12, cursor: "pointer", color: th.txt2, fontWeight: 600 }}>Cancel</button>
-          <button onClick={handleSave} disabled={!canSave || submitting} style={{ flex: 2, padding: "10px", background: canSave ? "linear-gradient(135deg,#3b82f6,#8b5cf6)" : th.surf2, border: "none", borderRadius: 12, cursor: canSave ? "pointer" : "default", color: canSave ? "#fff" : th.txt3, fontWeight: 700, fontSize: 14 }}>
-            {submitting ? "Saving…" : existing ? "Save Changes" : "Create Startup 🚀"}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── CREATE ROOM MODAL ────────────────────────────────────────────
-function CreateRoomModal({ startupId, onClose, onSave, dk }) {
-  const th = T(dk);
-  const [selected, setSelected] = useState("");
-  const [desc, setDesc] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-
-  const handleSave = async () => {
-    if (!selected) return;
-    setSubmitting(true);
-    const rt = ROOM_TYPES.find(r => r.id === selected);
-    const saved = await db.post("rs_startup_rooms", {
-      startup_id: startupId,
-      name: rt.label,
-      description: desc.trim() || rt.desc,
-      visibility: "members",
-    });
-    setSubmitting(false);
-    onSave(saved);
-    onClose();
-  };
-
-  return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.65)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
-      <div onClick={e => e.stopPropagation()} style={{ background: th.surf, borderRadius: 20, padding: 24, width: "100%", maxWidth: 400, animation: "fadeUp .25s ease" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-          <h3 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: th.txt }}>Add Room</h3>
-          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: th.txt3 }}><X size={18} /></button>
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
-          {ROOM_TYPES.map(r => {
-            const sel = selected === r.id;
-            return (
-              <button key={r.id} onClick={() => setSelected(r.id)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", borderRadius: 12, border: `1.5px solid ${sel ? r.c : th.bdr}`, background: sel ? r.c + "15" : "transparent", cursor: "pointer", textAlign: "left" }}>
-                <span style={{ fontSize: 20 }}>{r.e}</span>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: sel ? r.c : th.txt }}>{r.label}</div>
-                  <div style={{ fontSize: 11, color: th.txt3 }}>{r.desc}</div>
-                </div>
-                {sel && <Check size={14} color={r.c} />}
-              </button>
-            );
-          })}
-        </div>
-        <div style={{ marginBottom: 16 }}>
-          <label style={{ fontSize: 12, fontWeight: 600, color: th.txt2, display: "block", marginBottom: 6 }}>Custom Description (optional)</label>
-          <input value={desc} onChange={e => setDesc(e.target.value)} placeholder="Brief description of this room's purpose" style={{ width: "100%", background: th.inp, border: `1px solid ${th.inpB}`, borderRadius: 10, padding: "9px 12px", fontSize: 13, outline: "none", boxSizing: "border-box", color: th.txt }} />
-        </div>
-        <div style={{ display: "flex", gap: 10 }}>
-          <button onClick={onClose} style={{ flex: 1, padding: "10px", background: "transparent", border: `1px solid ${th.bdr}`, borderRadius: 12, cursor: "pointer", color: th.txt2, fontWeight: 600 }}>Cancel</button>
-          <button onClick={handleSave} disabled={!selected || submitting} style={{ flex: 2, padding: "10px", background: selected ? "linear-gradient(135deg,#3b82f6,#8b5cf6)" : th.surf2, border: "none", borderRadius: 12, cursor: selected ? "pointer" : "default", color: selected ? "#fff" : th.txt3, fontWeight: 700 }}>
-            {submitting ? "Creating…" : "Create Room"}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── ROOM DETAIL (inside a startup, members only) ─────────────────
-function RoomDetail({ room, startup, me, profiles, dk, onBack }) {
-  const th = T(dk);
-  const [members, setMembers] = useState([]);
-  const [updates, setUpdates] = useState([]);
-  const [newUpdate, setNewUpdate] = useState("");
-  const [posting, setPosting] = useState(false);
-  const [tab, setTab] = useState("updates");
-
-  useEffect(() => {
-    (async () => {
-      const [ms, us] = await Promise.all([
-        db.get("rs_room_members", `room_id=eq.${room.id}&status=eq.approved`),
-        db.get("rs_startup_updates", `room_id=eq.${room.id}&order=created_at.desc&limit=30`),
-      ]);
-      setMembers(ms || []);
-      setUpdates(us || []);
-    })();
-  }, [room.id]);
-
-  const postUpdate = async () => {
-    if (!newUpdate.trim()) return;
-    setPosting(true);
-    const saved = await db.post("rs_startup_updates", {
-      startup_id: startup.id,
-      room_id: room.id,
-      content: newUpdate.trim(),
-      created_by: me,
-    });
-    if (saved) setUpdates(us => [saved, ...us]);
-    setNewUpdate("");
-    setPosting(false);
-  };
-
-  const rt = ROOM_TYPES.find(r => room.name?.toLowerCase().includes(r.id)) || ROOM_TYPES[5];
-
-  return (
-    <div style={{ animation: "fadeUp .3s ease" }}>
-      <button onClick={onBack} style={{ display: "flex", alignItems: "center", gap: 6, background: "transparent", border: "none", cursor: "pointer", color: th.txt2, fontSize: 13, fontWeight: 600, padding: "0 0 14px", marginBottom: 4 }}><ArrowLeft size={15} /> Back to {startup.name}</button>
-
-      <div style={{ background: `linear-gradient(135deg,${rt.c}22,${rt.c}08)`, border: `1px solid ${rt.c}30`, borderRadius: 16, padding: 18, marginBottom: 16 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <div style={{ width: 44, height: 44, borderRadius: 12, background: rt.c + "25", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22 }}>{rt.e}</div>
-          <div>
-            <div style={{ fontWeight: 800, fontSize: 17, color: th.txt }}>{room.name}</div>
-            <div style={{ fontSize: 13, color: th.txt2 }}>{room.description || rt.desc}</div>
-          </div>
-          <div style={{ marginLeft: "auto", textAlign: "right" }}>
-            <div style={{ fontWeight: 700, fontSize: 18, color: rt.c }}>{members.length}</div>
-            <div style={{ fontSize: 11, color: th.txt3 }}>Members</div>
-          </div>
-        </div>
-      </div>
-
-      <div style={{ display: "flex", gap: 4, marginBottom: 16, background: th.surf2, borderRadius: 12, padding: 4, border: `1px solid ${th.bdr}` }}>
-        {["updates", "members"].map(t => (
-          <button key={t} onClick={() => setTab(t)} style={{ flex: 1, padding: "7px", borderRadius: 9, border: "none", background: tab === t ? rt.c : "transparent", color: tab === t ? "#fff" : th.txt2, fontSize: 13, fontWeight: 600, cursor: "pointer", textTransform: "capitalize", transition: "all .2s" }}>{t}</button>
-        ))}
-      </div>
-
-      {tab === "updates" && (
-        <>
-          <Card dk={dk} anim={false} style={{ marginBottom: 14 }}>
-            <div style={{ display: "flex", gap: 10 }}>
-              <Av profile={profiles[me] || {}} size={34} />
-              <div style={{ flex: 1 }}>
-                <textarea value={newUpdate} onChange={e => setNewUpdate(e.target.value)} placeholder={`Post an update in ${room.name}…`} rows={2} style={{ width: "100%", background: "transparent", border: "none", outline: "none", fontSize: 14, lineHeight: 1.6, resize: "none", fontFamily: "inherit", color: th.txt, boxSizing: "border-box" }} />
-                <div style={{ display: "flex", justifyContent: "flex-end", borderTop: `1px solid ${th.bdr}`, paddingTop: 8, marginTop: 4 }}>
-                  <button onClick={postUpdate} disabled={!newUpdate.trim() || posting} style={{ background: newUpdate.trim() ? rt.c : "transparent", border: `1px solid ${newUpdate.trim() ? "transparent" : th.bdr}`, borderRadius: 10, padding: "6px 18px", color: newUpdate.trim() ? "#fff" : th.txt3, fontSize: 13, fontWeight: 700, cursor: newUpdate.trim() ? "pointer" : "default" }}>
-                    {posting ? "Posting…" : "Post Update"}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </Card>
-          {updates.length === 0 ? (
-            <div style={{ textAlign: "center", padding: 40, color: th.txt3 }}><div style={{ fontSize: 36, marginBottom: 10 }}>📭</div><p>No updates yet. Post the first one!</p></div>
-          ) : updates.map(u => {
-            const author = profiles[u.created_by] || { name: "Member" };
-            return (
-              <Card dk={dk} key={u.id}>
-                <div style={{ display: "flex", gap: 10 }}>
-                  <Av profile={author} size={34} />
-                  <div style={{ flex: 1 }}>
-                    <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 5 }}>
-                      <span style={{ fontWeight: 700, fontSize: 13, color: th.txt }}>{author.name}</span>
-                      <span style={{ fontSize: 11, color: th.txt3 }}>{ago(new Date(u.created_at).getTime())}</span>
-                    </div>
-                    <p style={{ margin: 0, fontSize: 14, color: th.txt, lineHeight: 1.65, whiteSpace: "pre-wrap" }}>{u.content}</p>
-                  </div>
-                </div>
-              </Card>
-            );
-          })}
-        </>
-      )}
-
-      {tab === "members" && (
-        <div>
-          {members.length === 0 ? (
-            <div style={{ textAlign: "center", padding: 40, color: th.txt3 }}><Users size={36} style={{ marginBottom: 10 }} /><p>No approved members yet.</p></div>
-          ) : members.map(m => {
-            const p = profiles[m.user_id] || { name: "Member" };
-            const roleOpt = ROLE_TYPES.find(r => r.id === m.role_type) || ROLE_TYPES[7];
-            return (
-              <Card dk={dk} key={m.id}>
-                <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-                  <Av profile={p} size={40} />
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 700, fontSize: 14, color: th.txt }}>{p.name}</div>
-                    <div style={{ fontSize: 12, color: th.txt3 }}>{p.handle ? `@${p.handle}` : p.email}</div>
-                  </div>
-                  <span style={{ background: rt.c + "18", color: rt.c, fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 99 }}>{roleOpt.e} {roleOpt.label}</span>
-                </div>
-              </Card>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── FOUNDER DASHBOARD ────────────────────────────────────────────
-function FounderDashboard({ startup, me, profiles, dk, onBack, onStartupUpdated }) {
-  const th = T(dk);
-  const [tab, setTab] = useState("requests");
-  const [requests, setRequests] = useState([]);
-  const [rooms, setRooms] = useState([]);
-  const [updates, setUpdates] = useState([]);
-  const [newUpdate, setNewUpdate] = useState("");
-  const [showEditStartup, setShowEditStartup] = useState(false);
-  const [showAddRoom, setShowAddRoom] = useState(false);
-  const [posting, setPosting] = useState(false);
-  const [loading, setLoading] = useState(true);
-
-  const load = useCallback(async () => {
-    const [rq, rm, us] = await Promise.all([
-      db.get("rs_room_requests", `startup_id=eq.${startup.id}&order=created_at.desc`),
-      db.get("rs_startup_rooms", `startup_id=eq.${startup.id}&order=created_at.asc`),
-      db.get("rs_startup_updates", `startup_id=eq.${startup.id}&order=created_at.desc&limit=20`),
-    ]);
-    setRequests(rq || []);
-    setRooms(rm || []);
-    setUpdates(us || []);
-    setLoading(false);
-  }, [startup.id]);
-
-  useEffect(() => { load(); }, [load]);
-
-  const handleRequest = async (req, status) => {
-    await db.patch("rs_room_requests", `id=eq.${req.id}`, { status });
-    if (status === "approved") {
-      await db.upsert("rs_room_members", { room_id: req.room_id, user_id: req.user_id, role_type: req.selected_role, status: "approved" });
-    }
-    setRequests(rs => rs.map(r => r.id === req.id ? { ...r, status } : r));
-  };
-
-  const postUpdate = async () => {
-    if (!newUpdate.trim()) return;
-    setPosting(true);
-    const saved = await db.post("rs_startup_updates", { startup_id: startup.id, content: newUpdate.trim(), created_by: me });
-    if (saved) setUpdates(us => [saved, ...us]);
-    setNewUpdate("");
-    setPosting(false);
-  };
-
-  const pending = requests.filter(r => r.status === "pending");
-
-  return (
-    <div style={{ animation: "fadeUp .3s ease" }}>
-      {showEditStartup && <CreateStartupModal me={me} myProfile={profiles[me]} existing={startup} onClose={() => setShowEditStartup(false)} onSave={onStartupUpdated} dk={dk} />}
-      {showAddRoom && <CreateRoomModal startupId={startup.id} onClose={() => setShowAddRoom(false)} onSave={r => { setRooms(rm => [...rm, r]); }} dk={dk} />}
-
-      <button onClick={onBack} style={{ display: "flex", alignItems: "center", gap: 6, background: "transparent", border: "none", cursor: "pointer", color: th.txt2, fontSize: 13, fontWeight: 600, padding: "0 0 14px" }}><ArrowLeft size={15} /> Back to Colab</button>
-
-      <div style={{ background: "linear-gradient(135deg,#1e3a8a22,#5b21b622)", border: `1px solid #3b82f630`, borderRadius: 16, padding: 18, marginBottom: 16 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
-          <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-            <div style={{ width: 50, height: 50, borderRadius: 14, background: "linear-gradient(135deg,#3b82f6,#8b5cf6)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 26 }}>{startup.logo || "🚀"}</div>
-            <div>
-              <div style={{ fontWeight: 800, fontSize: 18, color: th.txt }}>{startup.name}</div>
-              <div style={{ fontSize: 12, color: th.txt3 }}>Founder Dashboard</div>
-            </div>
-          </div>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <div style={{ background: "#f59e0b18", border: "1px solid #f59e0b40", borderRadius: 10, padding: "6px 14px" }}>
-              <div style={{ fontSize: 10, color: "#f59e0b", fontWeight: 700 }}>REFERRAL CODE</div>
-              <div style={{ fontFamily: "monospace", fontSize: 14, fontWeight: 800, color: "#f59e0b", letterSpacing: 1 }}>{startup.referral_code}</div>
-            </div>
-            <CopyBtn text={startup.referral_code} label="Copy Code" />
-            <button onClick={() => setShowEditStartup(true)} style={{ display: "flex", alignItems: "center", gap: 5, background: "transparent", border: `1px solid ${th.bdr}`, borderRadius: 10, padding: "6px 12px", cursor: "pointer", color: th.txt2, fontSize: 12, fontWeight: 600 }}><Edit3 size={12} />Edit</button>
-          </div>
-        </div>
-      </div>
-
-      <div style={{ display: "flex", gap: 4, marginBottom: 16, background: th.surf2, borderRadius: 12, padding: 4, border: `1px solid ${th.bdr}` }}>
-        {[
-          ["requests", `Requests${pending.length ? ` (${pending.length})` : ""}`],
-          ["rooms", "Rooms"],
-          ["updates", "Updates"],
-        ].map(([id, label]) => (
-          <button key={id} onClick={() => setTab(id)} style={{ flex: 1, padding: "7px", borderRadius: 9, border: "none", background: tab === id ? "#3b82f6" : "transparent", color: tab === id ? "#fff" : th.txt2, fontSize: 13, fontWeight: 600, cursor: "pointer", transition: "all .2s" }}>{label}</button>
-        ))}
-      </div>
-
-      {loading ? <Spin dk={dk} msg="Loading dashboard…" /> : (
-        <>
-          {tab === "requests" && (
-            <div>
-              {requests.length === 0 ? (
-                <div style={{ textAlign: "center", padding: 40, color: th.txt3 }}><Users size={36} style={{ marginBottom: 10 }} /><p>No join requests yet.</p></div>
-              ) : requests.map(req => {
-                const p = profiles[req.user_id] || { name: "Applicant" };
-                const roomName = rooms.find(r => r.id === req.room_id)?.name || "Room";
-                const roleOpt = ROLE_TYPES.find(r => r.id === req.selected_role) || ROLE_TYPES[7];
-                return (
-                  <Card dk={dk} key={req.id} anim={false}>
-                    <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
-                      <Av profile={p} size={42} />
-                      <div style={{ flex: 1 }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 8 }}>
-                          <div>
-                            <div style={{ fontWeight: 700, fontSize: 14, color: th.txt }}>{p.name}</div>
-                            <div style={{ fontSize: 12, color: th.txt3 }}>{p.handle ? `@${p.handle}` : ""}</div>
-                            <div style={{ display: "flex", gap: 6, marginTop: 5, flexWrap: "wrap" }}>
-                              <span style={{ background: "#3b82f618", color: "#3b82f6", fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 99 }}>→ {roomName}</span>
-                              <span style={{ background: "#8b5cf618", color: "#8b5cf6", fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 99 }}>{roleOpt.e} {roleOpt.label}</span>
-                            </div>
-                            {req.message && <p style={{ fontSize: 12, color: th.txt2, margin: "6px 0 0", fontStyle: "italic" }}>"{req.message}"</p>}
-                          </div>
-                          <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 99, background: req.status === "approved" ? "#10b98118" : req.status === "rejected" ? "#ef444418" : "#f59e0b18", color: req.status === "approved" ? "#10b981" : req.status === "rejected" ? "#ef4444" : "#f59e0b" }}>{req.status?.toUpperCase()}</span>
-                        </div>
-                        {req.status === "pending" && (
-                          <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-                            <button onClick={() => handleRequest(req, "approved")} style={{ display: "flex", alignItems: "center", gap: 5, background: "#10b98118", border: "1px solid #10b98140", borderRadius: 8, padding: "6px 14px", cursor: "pointer", color: "#10b981", fontSize: 12, fontWeight: 700 }}><Check size={12} />Approve</button>
-                            <button onClick={() => handleRequest(req, "rejected")} style={{ display: "flex", alignItems: "center", gap: 5, background: "#ef444418", border: "1px solid #ef444440", borderRadius: 8, padding: "6px 14px", cursor: "pointer", color: "#ef4444", fontSize: 12, fontWeight: 700 }}><X size={12} />Reject</button>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </Card>
-                );
-              })}
-            </div>
-          )}
-
-          {tab === "rooms" && (
-            <div>
-              <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
-                <button onClick={() => setShowAddRoom(true)} style={{ display: "flex", alignItems: "center", gap: 6, background: "#3b82f6", border: "none", borderRadius: 10, padding: "8px 16px", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer" }}><Plus size={14} />Add Room</button>
-              </div>
-              {rooms.length === 0 ? (
-                <div style={{ textAlign: "center", padding: 40, color: th.txt3 }}><div style={{ fontSize: 36, marginBottom: 10 }}>🚪</div><p>No rooms yet. Add your first room.</p></div>
-              ) : rooms.map(r => {
-                const rt = ROOM_TYPES.find(x => r.name?.toLowerCase().includes(x.id)) || ROOM_TYPES[5];
-                return (
-                  <Card dk={dk} key={r.id} anim={false}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                      <div style={{ width: 38, height: 38, borderRadius: 10, background: rt.c + "20", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>{rt.e}</div>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontWeight: 700, fontSize: 14, color: th.txt }}>{r.name}</div>
-                        <div style={{ fontSize: 12, color: th.txt3 }}>{r.description}</div>
-                      </div>
-                      <button onClick={() => db.del("rs_startup_rooms", `id=eq.${r.id}`).then(() => setRooms(rm => rm.filter(x => x.id !== r.id)))} style={{ background: "#ef444415", border: "1px solid #ef444430", borderRadius: 8, padding: "5px 8px", cursor: "pointer", color: "#ef4444", display: "flex" }}><Trash2 size={13} /></button>
-                    </div>
-                  </Card>
-                );
-              })}
-            </div>
-          )}
-
-          {tab === "updates" && (
-            <div>
-              <Card dk={dk} anim={false} style={{ marginBottom: 14 }}>
-                <div style={{ display: "flex", gap: 10 }}>
-                  <Av profile={profiles[me] || {}} size={34} />
-                  <div style={{ flex: 1 }}>
-                    <textarea value={newUpdate} onChange={e => setNewUpdate(e.target.value)} placeholder="Post a startup update visible to all rooms…" rows={3} style={{ width: "100%", background: "transparent", border: "none", outline: "none", fontSize: 14, lineHeight: 1.6, resize: "none", fontFamily: "inherit", color: th.txt, boxSizing: "border-box" }} />
-                    <div style={{ display: "flex", justifyContent: "flex-end", borderTop: `1px solid ${th.bdr}`, paddingTop: 8 }}>
-                      <button onClick={postUpdate} disabled={!newUpdate.trim() || posting} style={{ background: newUpdate.trim() ? "#3b82f6" : "transparent", border: `1px solid ${newUpdate.trim() ? "transparent" : th.bdr}`, borderRadius: 10, padding: "7px 20px", color: newUpdate.trim() ? "#fff" : th.txt3, fontSize: 13, fontWeight: 700, cursor: newUpdate.trim() ? "pointer" : "default" }}>
-                        {posting ? "Posting…" : "Post Update"}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </Card>
-              {updates.map(u => {
-                const author = profiles[u.created_by] || { name: "Founder" };
-                return (
-                  <Card dk={dk} key={u.id}>
-                    <div style={{ display: "flex", gap: 10 }}>
-                      <Av profile={author} size={34} />
-                      <div style={{ flex: 1 }}>
-                        <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 5 }}>
-                          <span style={{ fontWeight: 700, fontSize: 13, color: th.txt }}>{author.name}</span>
-                          <span style={{ fontSize: 11, color: th.txt3 }}>{ago(new Date(u.created_at).getTime())}</span>
-                        </div>
-                        <p style={{ margin: 0, fontSize: 14, color: th.txt, lineHeight: 1.65, whiteSpace: "pre-wrap" }}>{u.content}</p>
-                      </div>
-                    </div>
-                  </Card>
-                );
-              })}
-            </div>
-          )}
-        </>
-      )}
-    </div>
-  );
-}
-
-// ─── STARTUP DETAIL PAGE ──────────────────────────────────────────
-function StartupDetail({ startup: initialStartup, me, profiles, dk, onBack, onProfile }) {
-  const th = T(dk);
-  const [startup, setStartup] = useState(initialStartup);
-  const [rooms, setRooms] = useState([]);
-  const [updates, setUpdates] = useState([]);
-  const [memberRooms, setMemberRooms] = useState([]);
-  const [showJoin, setShowJoin] = useState(false);
-  const [activeRoom, setActiveRoom] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [myRequest, setMyRequest] = useState(null);
-
-  const isFounder = startup.created_by === me || (startup.founders || []).includes(me);
-
-  useEffect(() => {
-    (async () => {
-      const [rm, us, rq, mm] = await Promise.all([
-        db.get("rs_startup_rooms", `startup_id=eq.${startup.id}&order=created_at.asc`),
-        db.get("rs_startup_updates", `startup_id=eq.${startup.id}&room_id=is.null&order=created_at.desc&limit=10`),
-        db.get("rs_room_requests", `startup_id=eq.${startup.id}&user_id=eq.${me}&order=created_at.desc&limit=1`),
-        db.get("rs_room_members", `user_id=eq.${me}&status=eq.approved`),
-      ]);
-      setRooms(rm || []);
-      setUpdates(us || []);
-      setMyRequest(rq?.[0] || null);
-      setMemberRooms((mm || []).map(m => m.room_id));
-      setLoading(false);
-    })();
-  }, [startup.id, me]);
-
-  const handleJoinSubmit = async (data) => {
-    const saved = await db.post("rs_room_requests", { ...data, user_id: me, status: "pending" });
-    if (saved) setMyRequest(saved);
-  };
-
-  if (isFounder) return <FounderDashboard startup={startup} me={me} profiles={profiles} dk={dk} onBack={onBack} onStartupUpdated={s => setStartup(s)} />;
-
-  if (activeRoom) return <RoomDetail room={activeRoom} startup={startup} me={me} profiles={profiles} dk={dk} onBack={() => setActiveRoom(null)} />;
-
-  const founders = (startup.founders || [startup.created_by]).map(id => profiles[id]).filter(Boolean);
-
-  return (
-    <div style={{ animation: "fadeUp .3s ease" }}>
-      {showJoin && <JoinRequestModal startup={startup} rooms={rooms} me={me} myProfile={profiles[me]} onClose={() => setShowJoin(false)} onSubmit={handleJoinSubmit} dk={dk} />}
-
-      <button onClick={onBack} style={{ display: "flex", alignItems: "center", gap: 6, background: "transparent", border: "none", cursor: "pointer", color: th.txt2, fontSize: 13, fontWeight: 600, padding: "0 0 14px" }}><ArrowLeft size={15} /> Back to Colab</button>
-
-      {/* Header */}
-      <div style={{ background: `linear-gradient(135deg,#1e3a8a18,#5b21b618)`, border: `1px solid #3b82f628`, borderRadius: 20, padding: 20, marginBottom: 16 }}>
-        <div style={{ display: "flex", gap: 14, alignItems: "flex-start", flexWrap: "wrap" }}>
-          <div style={{ width: 60, height: 60, borderRadius: 16, background: "linear-gradient(135deg,#3b82f6,#8b5cf6)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 30, flexShrink: 0 }}>{startup.logo || "🚀"}</div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <h2 style={{ margin: "0 0 4px", fontSize: 22, fontWeight: 800, color: th.txt }}>{startup.name}</h2>
-            <p style={{ margin: "0 0 12px", fontSize: 14, color: th.txt2, lineHeight: 1.6 }}>{startup.description}</p>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              {startup.website && <a href={startup.website} target="_blank" rel="noopener noreferrer" style={{ display: "flex", alignItems: "center", gap: 4, background: th.surf2, border: `1px solid ${th.bdr}`, borderRadius: 8, padding: "4px 10px", fontSize: 12, color: th.txt2, fontWeight: 600 }}><Globe size={12} />Website</a>}
-              {startup.github_link && <a href={startup.github_link} target="_blank" rel="noopener noreferrer" style={{ display: "flex", alignItems: "center", gap: 4, background: th.surf2, border: `1px solid ${th.bdr}`, borderRadius: 8, padding: "4px 10px", fontSize: 12, color: th.txt2, fontWeight: 600 }}>⚡ GitHub</a>}
-              {startup.social_links?.twitter && <a href={startup.social_links.twitter} target="_blank" rel="noopener noreferrer" style={{ display: "flex", alignItems: "center", gap: 4, background: "#1da1f215", border: "1px solid #1da1f230", borderRadius: 8, padding: "4px 10px", fontSize: 12, color: "#1da1f2", fontWeight: 600 }}><Twitter size={12} />Twitter</a>}
-              {startup.social_links?.linkedin && <a href={startup.social_links.linkedin} target="_blank" rel="noopener noreferrer" style={{ display: "flex", alignItems: "center", gap: 4, background: "#0a66c215", border: "1px solid #0a66c230", borderRadius: 8, padding: "4px 10px", fontSize: 12, color: "#0a66c2", fontWeight: 600 }}><Linkedin size={12} />LinkedIn</a>}
-            </div>
-          </div>
-          <div style={{ flexShrink: 0 }}>
-            {myRequest ? (
-              <span style={{ background: myRequest.status === "approved" ? "#10b98118" : myRequest.status === "rejected" ? "#ef444418" : "#f59e0b18", color: myRequest.status === "approved" ? "#10b981" : myRequest.status === "rejected" ? "#ef4444" : "#f59e0b", fontSize: 12, fontWeight: 700, padding: "6px 14px", borderRadius: 99, border: `1px solid currentColor` }}>
-                {myRequest.status === "approved" ? "✓ Approved" : myRequest.status === "rejected" ? "✗ Rejected" : "⏳ Pending"}
-              </span>
-            ) : (
-              <button onClick={() => setShowJoin(true)} style={{ background: "linear-gradient(135deg,#3b82f6,#8b5cf6)", border: "none", borderRadius: 12, padding: "10px 20px", color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer", boxShadow: "0 0 20px rgba(59,130,246,.3)" }}>Join Startup</button>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Founders */}
-      {founders.length > 0 && (
-        <Card dk={dk} anim={false} style={{ marginBottom: 14 }}>
-          <div style={{ fontWeight: 700, fontSize: 14, color: th.txt, marginBottom: 10 }}>👥 Founders</div>
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-            {founders.map(f => (
-              <div key={f.id} onClick={() => onProfile(f.id)} style={{ display: "flex", alignItems: "center", gap: 8, background: th.surf2, border: `1px solid ${th.bdr}`, borderRadius: 12, padding: "8px 12px", cursor: "pointer" }}>
-                <Av profile={f} size={28} />
-                <div><div style={{ fontSize: 13, fontWeight: 700, color: th.txt }}>{f.name}</div><div style={{ fontSize: 11, color: th.txt3 }}>{f.role || "Founder"}</div></div>
-              </div>
-            ))}
-          </div>
-        </Card>
-      )}
-
-      {/* Rooms */}
-      {loading ? <Spin dk={dk} /> : (
-        <>
-          <div style={{ fontWeight: 700, fontSize: 15, color: th.txt, marginBottom: 10 }}>🚪 Rooms ({rooms.length})</div>
-          {rooms.length === 0 ? (
-            <p style={{ color: th.txt3, fontSize: 14, textAlign: "center", padding: 20 }}>No rooms created yet.</p>
-          ) : rooms.map(r => {
-            const rt = ROOM_TYPES.find(x => r.name?.toLowerCase().includes(x.id)) || ROOM_TYPES[5];
-            const isMember = memberRooms.includes(r.id);
-            return (
-              <Card dk={dk} key={r.id} anim={false}>
-                <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-                  <div style={{ width: 42, height: 42, borderRadius: 12, background: rt.c + "20", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, flexShrink: 0 }}>{rt.e}</div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 700, fontSize: 14, color: th.txt }}>{r.name}</div>
-                    <div style={{ fontSize: 12, color: th.txt3 }}>{r.description || rt.desc}</div>
-                  </div>
-                  {isMember ? (
-                    <button onClick={() => setActiveRoom(r)} style={{ background: rt.c, border: "none", borderRadius: 10, padding: "7px 16px", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>Enter →</button>
-                  ) : (
-                    <span style={{ fontSize: 11, color: th.txt3, background: th.surf2, border: `1px solid ${th.bdr}`, borderRadius: 8, padding: "5px 10px" }}>🔒 Members only</span>
-                  )}
-                </div>
-              </Card>
-            );
-          })}
-
-          {/* Updates */}
-          {updates.length > 0 && (
-            <>
-              <div style={{ fontWeight: 700, fontSize: 15, color: th.txt, margin: "20px 0 10px" }}>📢 Latest Updates</div>
-              {updates.map(u => {
-                const author = profiles[u.created_by] || { name: "Founder" };
-                return (
-                  <Card dk={dk} key={u.id}>
-                    <div style={{ display: "flex", gap: 10 }}>
-                      <Av profile={author} size={32} />
-                      <div style={{ flex: 1 }}>
-                        <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 5 }}>
-                          <span style={{ fontWeight: 700, fontSize: 13, color: th.txt }}>{author.name}</span>
-                          <span style={{ fontSize: 11, color: th.txt3 }}>{ago(new Date(u.created_at).getTime())}</span>
-                        </div>
-                        <p style={{ margin: 0, fontSize: 14, color: th.txt, lineHeight: 1.65 }}>{u.content}</p>
-                      </div>
-                    </div>
-                  </Card>
-                );
-              })}
-            </>
-          )}
-        </>
-      )}
-    </div>
-  );
-}
+// ═══════════════════════════════════════════════════════════════════
+// COLAB COMPLETION CODE
+// Paste this after your existing ColabView, replacing everything from
+// "handleStartupCreated" onward through the end of the file.
+// ═══════════════════════════════════════════════════════════════════
 
 // ─── COLAB MAIN VIEW ─────────────────────────────────────────────
 function ColabView({ me, dk, profiles, onProfile, addNotif }) {
@@ -2774,113 +2009,636 @@ function ColabView({ me, dk, profiles, onProfile, addNotif }) {
   useEffect(() => { load(); }, [load]);
 
   const handleStartupCreated = s => {
-    if (s) { setStartups(ss => [s, ...ss.filter(x => x.id !== s.id)]); setActiveStartup(s); }
+    if (s) {
+      setStartups(ss => [s, ...ss.filter(x => x.id !== s.id)]);
+      setActiveStartup(s);
+    }
   };
 
-  const filtered = startups.filter(s =>
-    !search || s.name?.toLowerCase().includes(search.toLowerCase()) || s.description?.toLowerCase().includes(search.toLowerCase())
-  );
+  const handleJoinSuccess = s => {
+    addNotif({ type: "sandbox", msg: `🚀 Join request sent to ${s.name}!` });
+  };
 
-  if (activeStartup) return (
-    <StartupDetail
-      startup={activeStartup} me={me} profiles={profiles} dk={dk}
-      onBack={() => { setActiveStartup(null); load(); }}
-      onProfile={onProfile}
-    />
+  if (activeStartup) {
+    return (
+      <StartupDetail
+        startup={activeStartup}
+        me={me}
+        profiles={profiles}
+        dk={dk}
+        onBack={() => setActiveStartup(null)}
+        onProfile={onProfile}
+      />
+    );
+  }
+
+  const myStartups = startups.filter(s =>
+    s.created_by === me || (s.founders || []).includes(me)
+  );
+  const otherStartups = startups.filter(s =>
+    s.created_by !== me && !(s.founders || []).includes(me)
+  );
+  const filtered = [...myStartups, ...otherStartups].filter(s =>
+    !search.trim() ||
+    s.name?.toLowerCase().includes(search.toLowerCase()) ||
+    s.description?.toLowerCase().includes(search.toLowerCase())
   );
 
   return (
     <div>
-      {showCreate && <CreateStartupModal me={me} myProfile={profiles[me]} onClose={() => setShowCreate(false)} onSave={handleStartupCreated} dk={dk} />}
-      {showReferral && <ReferralJoinModal me={me} onClose={() => setShowReferral(false)} onSuccess={s => { addNotif({ type: "sandbox", msg: `🚀 Request sent to join ${s.name}` }); }} dk={dk} />}
+      {showCreate && (
+        <CreateStartupModal
+          me={me}
+          myProfile={profiles[me]}
+          existing={null}
+          onClose={() => setShowCreate(false)}
+          onSave={handleStartupCreated}
+          dk={dk}
+        />
+      )}
+      {showReferral && (
+        <ReferralJoinModal
+          me={me}
+          onClose={() => setShowReferral(false)}
+          onSuccess={handleJoinSuccess}
+          dk={dk}
+        />
+      )}
 
       {/* Header */}
-      <div style={{ background: "linear-gradient(135deg,#1e3a8a,#4c1d95)", borderRadius: 18, padding: 22, marginBottom: 18 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 14 }}>
+      <div style={{ background: "linear-gradient(135deg,#1e3a8a,#5b21b6)", borderRadius: 18, padding: 22, marginBottom: 18 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
           <div>
-            <h2 style={{ margin: "0 0 4px", fontSize: 22, fontWeight: 800, color: "#fff" }}>🚀 Colab</h2>
-            <p style={{ margin: 0, fontSize: 14, color: "rgba(255,255,255,.6)" }}>Discover startups · Join rooms · Build together</p>
+            <h2 style={{ fontSize: 22, fontWeight: 900, margin: "0 0 4px", color: "#fff" }}>🚀 Colab</h2>
+            <p style={{ color: "rgba(255,255,255,.6)", fontSize: 13, margin: 0 }}>
+              Build startups together · {startups.length} active startup{startups.length !== 1 ? "s" : ""}
+            </p>
           </div>
-          <div style={{ display: "flex", gap: 8 }}>
-            <button onClick={() => setShowReferral(true)} style={{ display: "flex", alignItems: "center", gap: 6, background: "rgba(255,255,255,.1)", border: "1px solid rgba(255,255,255,.2)", borderRadius: 10, padding: "8px 14px", color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer" }}><Hash size={13} />Join via Code</button>
-            <button onClick={() => setShowCreate(true)} style={{ display: "flex", alignItems: "center", gap: 6, background: "#fff", border: "none", borderRadius: 10, padding: "8px 16px", color: "#1e3a8a", fontSize: 13, fontWeight: 800, cursor: "pointer" }}><Plus size={13} />Create Startup</button>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button
+              onClick={() => setShowReferral(true)}
+              style={{ display: "flex", alignItems: "center", gap: 6, background: "rgba(255,255,255,.15)", border: "1px solid rgba(255,255,255,.25)", borderRadius: 10, padding: "8px 16px", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer" }}
+            >
+              <Link size={13} /> Join via Code
+            </button>
+            <button
+              onClick={() => setShowCreate(true)}
+              style={{ display: "flex", alignItems: "center", gap: 6, background: "#fff", border: "none", borderRadius: 10, padding: "8px 18px", color: "#1e3a8a", fontSize: 13, fontWeight: 800, cursor: "pointer" }}
+            >
+              <Plus size={14} /> Create Startup
+            </button>
           </div>
-        </div>
-        <div style={{ position: "relative", marginTop: 16 }}>
-          <Search size={14} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "rgba(255,255,255,.4)" }} />
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search startups…" style={{ width: "100%", background: "rgba(255,255,255,.1)", border: "1px solid rgba(255,255,255,.15)", borderRadius: 10, padding: "9px 12px 9px 34px", fontSize: 13, outline: "none", color: "#fff", boxSizing: "border-box" }} />
         </div>
       </div>
 
-      {/* Stats bar */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 18 }}>
-        {[
-          { l: "Startups", v: startups.length, e: "🚀", c: "#3b82f6" },
-          { l: "Open Rooms", v: "∞", e: "🚪", c: "#8b5cf6" },
-          { l: "Builders", v: Object.keys(profiles).length, e: "👥", c: "#10b981" },
-        ].map(s => (
-          <div key={s.l} style={{ background: th.surf, border: `1px solid ${th.bdr}`, borderRadius: 14, padding: "12px 14px" }}>
-            <div style={{ fontSize: 20, marginBottom: 4 }}>{s.e}</div>
-            <div style={{ fontSize: 22, fontWeight: 800, color: s.c }}>{s.v}</div>
-            <div style={{ fontSize: 11, color: th.txt3 }}>{s.l}</div>
-          </div>
-        ))}
+      {/* Search */}
+      <div style={{ position: "relative", marginBottom: 16 }}>
+        <Search size={14} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: th.txt3 }} />
+        <input
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Search startups…"
+          style={{ width: "100%", background: th.surf, border: `1px solid ${th.bdr}`, borderRadius: 12, padding: "9px 12px 9px 36px", fontSize: 13, outline: "none", color: th.txt, boxSizing: "border-box" }}
+        />
       </div>
 
-      {/* Startup listing */}
-      {loading ? <Spin dk={dk} msg="Loading startups…" /> : filtered.length === 0 ? (
-        <div style={{ textAlign: "center", padding: 56, color: th.txt3 }}>
-          <div style={{ fontSize: 52, marginBottom: 12 }}>🚀</div>
-          <p style={{ fontSize: 16, fontWeight: 600, margin: "0 0 6px", color: th.txt }}>No startups yet</p>
-          <p style={{ fontSize: 14, margin: "0 0 20px" }}>Be the first to create one!</p>
-          <button onClick={() => setShowCreate(true)} style={{ background: "linear-gradient(135deg,#3b82f6,#8b5cf6)", border: "none", borderRadius: 12, padding: "10px 24px", color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>Create Startup</button>
+      {/* My Startups section */}
+      {myStartups.length > 0 && !search && (
+        <div style={{ marginBottom: 8 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: th.txt3, letterSpacing: 0.5, marginBottom: 8 }}>YOUR STARTUPS</div>
+          {myStartups.map(s => <StartupCard key={s.id} startup={s} me={me} profiles={profiles} dk={dk} onClick={() => setActiveStartup(s)} isOwner />)}
+          {otherStartups.length > 0 && <div style={{ fontSize: 11, fontWeight: 700, color: th.txt3, letterSpacing: 0.5, margin: "16px 0 8px" }}>DISCOVER STARTUPS</div>}
         </div>
-      ) : filtered.map(s => {
-        const isFounder = s.created_by === me || (s.founders || []).includes(me);
-        const founders = (s.founders || [s.created_by]).map(id => profiles[id]).filter(Boolean);
-        return (
-          <Card dk={dk} key={s.id} style={{ cursor: "pointer" }}>
-            <div onClick={() => setActiveStartup(s)}>
-              <div style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
-                <div style={{ width: 52, height: 52, borderRadius: 14, background: "linear-gradient(135deg,#3b82f6,#8b5cf6)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 26, flexShrink: 0 }}>{s.logo || "🚀"}</div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 8, marginBottom: 5 }}>
-                    <div style={{ fontWeight: 800, fontSize: 16, color: th.txt }}>{s.name}</div>
-                    {isFounder && <span style={{ background: "#f59e0b18", color: "#f59e0b", fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 99, border: "1px solid #f59e0b40" }}>YOUR STARTUP</span>}
-                  </div>
-                  <p style={{ margin: "0 0 10px", fontSize: 13, color: th.txt2, lineHeight: 1.55 }}>{s.description?.slice(0, 120)}{s.description?.length > 120 ? "…" : ""}</p>
-                  {founders.length > 0 && (
-                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
-                      <div style={{ display: "flex" }}>
-                        {founders.slice(0, 3).map((f, i) => (
-                          <div key={f.id} onClick={e => { e.stopPropagation(); onProfile(f.id); }} style={{ marginLeft: i > 0 ? -8 : 0, zIndex: 3 - i, border: `2px solid ${th.surf}`, borderRadius: "50%" }}>
-                            <Av profile={f} size={22} />
-                          </div>
-                        ))}
-                      </div>
-                      <span style={{ fontSize: 12, color: th.txt3 }}>by {founders.map(f => f.name?.split(" ")[0]).join(", ")}</span>
-                    </div>
-                  )}
-                  <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
-                    {s.website && <span style={{ fontSize: 11, color: "#3b82f6", fontWeight: 600 }}>🌐 Website</span>}
-                    {s.github_link && <span style={{ fontSize: 11, color: "#6b7280", fontWeight: 600 }}>⚡ GitHub</span>}
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div style={{ borderTop: `1px solid ${th.bdr}`, marginTop: 12, paddingTop: 12, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <span style={{ fontSize: 12, color: th.txt3 }}>{ago(new Date(s.created_at).getTime())} ago</span>
-              <button onClick={() => setActiveStartup(s)} style={{ background: "linear-gradient(135deg,#3b82f6,#8b5cf6)", border: "none", borderRadius: 10, padding: "7px 18px", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
-                {isFounder ? "Manage →" : "Explore →"}
-              </button>
-            </div>
-          </Card>
-        );
-      })}
+      )}
+
+      {/* All startups */}
+      {loading ? <Spin dk={dk} msg="Loading startups…" /> : (
+        (search ? filtered : otherStartups).length === 0 && myStartups.length === 0 ? (
+          <div style={{ textAlign: "center", padding: 56, color: th.txt3 }}>
+            <div style={{ fontSize: 48, marginBottom: 12 }}>🚀</div>
+            <h3 style={{ fontWeight: 700, color: th.txt, margin: "0 0 8px" }}>No startups yet</h3>
+            <p style={{ fontSize: 14, margin: "0 0 20px" }}>Be the first to create one, or join with a referral code.</p>
+            <button onClick={() => setShowCreate(true)} style={{ background: "#3b82f6", border: "none", borderRadius: 10, padding: "10px 24px", color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>
+              Create First Startup
+            </button>
+          </div>
+        ) : (
+          (search ? filtered : otherStartups).map(s => (
+            <StartupCard key={s.id} startup={s} me={me} profiles={profiles} dk={dk} onClick={() => setActiveStartup(s)} />
+          ))
+        )
+      )}
     </div>
   );
 }
 
+// ─── STARTUP CARD (used in ColabView list) ────────────────────────
+function StartupCard({ startup, me, profiles, dk, onClick, isOwner }) {
+  const th = T(dk);
+  const founders = (startup.founders || [startup.created_by]).map(id => profiles[id]).filter(Boolean);
+
+  return (
+    <Card dk={dk} style={{ cursor: "pointer", transition: "all .2s" }} anim={false}>
+      <div onClick={onClick} style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
+        <div style={{ width: 52, height: 52, borderRadius: 14, background: "linear-gradient(135deg,#3b82f6,#8b5cf6)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 26, flexShrink: 0 }}>
+          {startup.logo || "🚀"}
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, flexWrap: "wrap" }}>
+            <div>
+              <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+                <span style={{ fontWeight: 800, fontSize: 15, color: th.txt }}>{startup.name}</span>
+                {isOwner && (
+                  <span style={{ background: "#3b82f618", color: "#3b82f6", fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 99 }}>FOUNDER</span>
+                )}
+              </div>
+              <p style={{ fontSize: 13, color: th.txt2, margin: "4px 0 8px", lineHeight: 1.5 }}>
+                {(startup.description || "").slice(0, 100)}{startup.description?.length > 100 ? "…" : ""}
+              </p>
+            </div>
+          </div>
+          {/* Stacked founder avatars */}
+          {founders.length > 0 && (
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+              <StackedAvatars uids={founders.map(f => f.id)} profiles={profiles} size={24} max={4} />
+              <span style={{ fontSize: 12, color: th.txt3 }}>
+                {founders.slice(0, 2).map(f => f.name?.split(" ")[0]).join(", ")}
+                {founders.length > 2 ? ` +${founders.length - 2}` : ""}
+              </span>
+            </div>
+          )}
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            {startup.website && (
+              <span style={{ fontSize: 11, color: "#10b981", fontWeight: 600, display: "flex", alignItems: "center", gap: 3 }}>
+                <Globe size={10} /> Website
+              </span>
+            )}
+            {startup.referral_code && isOwner && (
+              <span style={{ background: "#f59e0b18", color: "#f59e0b", fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 99, fontFamily: "monospace", letterSpacing: 0.5 }}>
+                {startup.referral_code}
+              </span>
+            )}
+            <span style={{ fontSize: 11, color: th.txt3 }}>→ View pages</span>
+          </div>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// ─── AUTH SCREENS ─────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════
+
+function AuthScreen({ onAuth, dk }) {
+  const th = T(dk);
+  const [mode, setMode] = useState("login"); // login | signup | forgot
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [name, setName] = useState("");
+  const [err, setErr] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [showPw, setShowPw] = useState(false);
+  const [done, setDone] = useState(false);
+
+  const submit = async () => {
+    setErr(""); setLoading(true);
+    try {
+      if (mode === "signup") {
+        const r = await sbAuth.signUp(email, password, name);
+        if (r.error) { setErr(r.error.message); setLoading(false); return; }
+        setDone(true);
+      } else {
+        const r = await sbAuth.signIn(email, password);
+        if (r.error || !r.access_token) { setErr(r.error?.message || "Invalid credentials"); setLoading(false); return; }
+        localStorage.setItem("rs_session", JSON.stringify(r));
+        onAuth(r);
+      }
+    } catch { setErr("Network error. Please try again."); }
+    setLoading(false);
+  };
+
+  const inp = { width: "100%", background: th.inp, border: `1px solid ${th.inpB}`, borderRadius: 12, padding: "11px 14px", fontSize: 14, outline: "none", color: th.txt, boxSizing: "border-box", fontFamily: "inherit" };
+
+  if (done) return (
+    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: th.bg }}>
+      <div style={{ textAlign: "center", padding: 40 }}>
+        <div style={{ fontSize: 56, marginBottom: 16 }}>📬</div>
+        <h2 style={{ fontSize: 22, fontWeight: 800, color: th.txt, margin: "0 0 8px" }}>Check your email!</h2>
+        <p style={{ color: th.txt2, fontSize: 14 }}>We sent a confirmation link to <strong>{email}</strong>.</p>
+        <button onClick={() => { setDone(false); setMode("login"); }} style={{ marginTop: 20, background: "#3b82f6", color: "#fff", border: "none", borderRadius: 10, padding: "10px 24px", cursor: "pointer", fontWeight: 700 }}>
+          Back to Login
+        </button>
+      </div>
+    </div>
+  );
+
+  return (
+    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: th.bg, padding: 16 }}>
+      <div style={{ width: "100%", maxWidth: 400 }}>
+        <div style={{ textAlign: "center", marginBottom: 32 }}>
+          <RightSignalLogo size={48} dk={dk} />
+          <p style={{ color: th.txt2, fontSize: 14, margin: "12px 0 0" }}>Signal Over Noise</p>
+        </div>
+        <div style={{ background: th.surf, border: `1px solid ${th.bdr}`, borderRadius: 20, padding: 28 }}>
+          <h2 style={{ fontSize: 20, fontWeight: 800, color: th.txt, margin: "0 0 20px", textAlign: "center" }}>
+            {mode === "login" ? "Welcome back" : mode === "signup" ? "Join RightSignal" : "Reset password"}
+          </h2>
+
+          <button
+            onClick={sbAuth.googleOAuth}
+            style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, width: "100%", padding: "11px", background: th.surf2, border: `1px solid ${th.bdr}`, borderRadius: 12, cursor: "pointer", fontSize: 14, fontWeight: 600, color: th.txt, marginBottom: 16 }}
+          >
+            <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.35-8.16 2.35-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+            Continue with Google
+          </button>
+
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+            <div style={{ flex: 1, height: 1, background: th.bdr }} />
+            <span style={{ fontSize: 12, color: th.txt3 }}>or</span>
+            <div style={{ flex: 1, height: 1, background: th.bdr }} />
+          </div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {mode === "signup" && (
+              <input value={name} onChange={e => setName(e.target.value)} placeholder="Full name" style={inp} />
+            )}
+            <input value={email} onChange={e => setEmail(e.target.value)} placeholder="Email address" type="email" style={inp} />
+            {mode !== "forgot" && (
+              <div style={{ position: "relative" }}>
+                <input
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  onKeyDown={e => e.key === "Enter" && submit()}
+                  placeholder="Password"
+                  type={showPw ? "text" : "password"}
+                  style={{ ...inp, paddingRight: 40 }}
+                />
+                <button onClick={() => setShowPw(x => !x)} style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: th.txt3, display: "flex" }}>
+                  {showPw ? <EyeOff size={15} /> : <Eye size={15} />}
+                </button>
+              </div>
+            )}
+          </div>
+
+          {err && (
+            <div style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 10, padding: "8px 12px", background: "#ef444418", border: "1px solid #ef444440", borderRadius: 8 }}>
+              <AlertCircle size={13} color="#ef4444" />
+              <span style={{ fontSize: 12, color: "#ef4444" }}>{err}</span>
+            </div>
+          )}
+
+          <button
+            onClick={submit}
+            disabled={loading}
+            style={{ width: "100%", marginTop: 16, padding: "12px", background: "linear-gradient(135deg,#3b82f6,#8b5cf6)", border: "none", borderRadius: 12, color: "#fff", fontSize: 14, fontWeight: 700, cursor: loading ? "default" : "pointer", opacity: loading ? 0.7 : 1 }}
+          >
+            {loading ? "Please wait…" : mode === "login" ? "Sign In" : mode === "signup" ? "Create Account" : "Send Reset Link"}
+          </button>
+
+          <div style={{ textAlign: "center", marginTop: 16, fontSize: 13, color: th.txt3 }}>
+            {mode === "login" ? (
+              <>
+                Don't have an account?{" "}
+                <button onClick={() => { setMode("signup"); setErr(""); }} style={{ background: "none", border: "none", cursor: "pointer", color: "#3b82f6", fontWeight: 700, fontSize: 13 }}>Sign up</button>
+                {" · "}
+                <button onClick={() => { setMode("forgot"); setErr(""); }} style={{ background: "none", border: "none", cursor: "pointer", color: th.txt3, fontSize: 13 }}>Forgot password?</button>
+              </>
+            ) : (
+              <>
+                Already have an account?{" "}
+                <button onClick={() => { setMode("login"); setErr(""); }} style={{ background: "none", border: "none", cursor: "pointer", color: "#3b82f6", fontWeight: 700, fontSize: 13 }}>Sign in</button>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── ONBOARDING SCREEN ────────────────────────────────────────────
+function OnboardingScreen({ me, onDone, dk }) {
+  const th = T(dk);
+  const [step, setStep] = useState(0); // 0=who, 1=interests, 2=done
+  const [who, setWho] = useState("");
+  const [interests, setInterests] = useState([]);
+  const [saving, setSaving] = useState(false);
+
+  const toggleInterest = id => {
+    setInterests(is => is.includes(id) ? is.filter(x => x !== id) : [...is, id]);
+  };
+
+  const save = async () => {
+    if (!who) return;
+    setSaving(true);
+    const name = "New Member";
+    const handle = genHandle(name);
+    const refCode = genRefCode(name);
+    await db.upsert("rs_user_profiles", {
+      id: me,
+      name,
+      handle,
+      ref_code: refCode,
+      who,
+      interests,
+      hue: strColor(me),
+      onboarded: true,
+    });
+    await db.upsert("rs_token_balances", { uid: me, balance: 5 });
+    await db.post("rs_token_txns", { uid: me, type: "earn", amount: 5, description: "Welcome bonus" });
+    setSaving(false);
+    onDone({ id: me, name, handle, ref_code: refCode, who, interests, hue: strColor(me), onboarded: true });
+  };
+
+  return (
+    <div style={{ minHeight: "100vh", background: th.bg, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+      <div style={{ width: "100%", maxWidth: 480 }}>
+        <div style={{ textAlign: "center", marginBottom: 28 }}>
+          <RightSignalLogo size={42} dk={dk} />
+        </div>
+
+        <div style={{ background: th.surf, border: `1px solid ${th.bdr}`, borderRadius: 20, padding: 28 }}>
+          {/* Progress */}
+          <div style={{ display: "flex", gap: 6, marginBottom: 24 }}>
+            {[0, 1].map(i => (
+              <div key={i} style={{ flex: 1, height: 4, borderRadius: 99, background: i <= step ? "#3b82f6" : th.bdr, transition: "all .3s" }} />
+            ))}
+          </div>
+
+          {step === 0 && (
+            <>
+              <h2 style={{ fontSize: 20, fontWeight: 800, color: th.txt, margin: "0 0 6px" }}>Who are you?</h2>
+              <p style={{ color: th.txt2, fontSize: 13, margin: "0 0 20px" }}>Help us personalize your RightSignal experience.</p>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+                {WHO_OPTS.map(o => (
+                  <button key={o.id} onClick={() => setWho(o.id)} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, padding: "14px 8px", borderRadius: 14, border: `1.5px solid ${who === o.id ? o.c : th.bdr}`, background: who === o.id ? o.c + "18" : "transparent", cursor: "pointer", transition: "all .15s" }}>
+                    <span style={{ fontSize: 22 }}>{o.e}</span>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: who === o.id ? o.c : th.txt2 }}>{o.label}</span>
+                  </button>
+                ))}
+              </div>
+              <button onClick={() => who && setStep(1)} disabled={!who} style={{ width: "100%", marginTop: 20, padding: "11px", background: who ? "#3b82f6" : th.surf2, border: "none", borderRadius: 12, color: who ? "#fff" : th.txt3, fontSize: 14, fontWeight: 700, cursor: who ? "pointer" : "default" }}>
+                Continue →
+              </button>
+            </>
+          )}
+
+          {step === 1 && (
+            <>
+              <h2 style={{ fontSize: 20, fontWeight: 800, color: th.txt, margin: "0 0 6px" }}>What interests you?</h2>
+              <p style={{ color: th.txt2, fontSize: 13, margin: "0 0 20px" }}>Pick at least 3 topics (choose as many as you like).</p>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 20 }}>
+                {INT_OPTS.map(o => (
+                  <button key={o.id} onClick={() => toggleInterest(o.id)} style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", borderRadius: 12, border: `1.5px solid ${interests.includes(o.id) ? o.c : th.bdr}`, background: interests.includes(o.id) ? o.c + "15" : "transparent", cursor: "pointer", transition: "all .15s" }}>
+                    <span style={{ fontSize: 18 }}>{o.e}</span>
+                    <span style={{ fontSize: 12, fontWeight: interests.includes(o.id) ? 700 : 500, color: interests.includes(o.id) ? o.c : th.txt2, flex: 1, textAlign: "left" }}>{o.label}</span>
+                    {interests.includes(o.id) && <Check size={13} color={o.c} />}
+                  </button>
+                ))}
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button onClick={() => setStep(0)} style={{ padding: "11px 20px", background: "transparent", border: `1px solid ${th.bdr}`, borderRadius: 12, cursor: "pointer", color: th.txt2, fontWeight: 600 }}>Back</button>
+                <button onClick={save} disabled={interests.length < 1 || saving} style={{ flex: 1, padding: "11px", background: interests.length >= 1 ? "linear-gradient(135deg,#3b82f6,#8b5cf6)" : th.surf2, border: "none", borderRadius: 12, color: interests.length >= 1 ? "#fff" : th.txt3, fontSize: 14, fontWeight: 700, cursor: interests.length >= 1 ? "pointer" : "default" }}>
+                  {saving ? "Setting up…" : "🎉 Enter RightSignal (+5 SGN)"}
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// ─── MAIN APP ─────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════
+
+export default function App() {
+  const [dk, setDk] = useState(() => localStorage.getItem("rs_dk") !== "0");
+  const [session, setSession] = useState(null);
+  const [me, setMe] = useState(null);
+  const [myProfile, setMyProfile] = useState(null);
+  const [profiles, setProfiles] = useState({});
+  const [bals, setBals] = useState({});
+  const [view, setView] = useState("feed");
+  const [profileUid, setProfileUid] = useState(null);
+  const [msgUid, setMsgUid] = useState(null);
+  const [bookmarks, setBookmarks] = useState([]);
+  const [notifs, setNotifs] = useState([]);
+  const [showNotifs, setShowNotifs] = useState(false);
+  const [tokenPop, setTokenPop] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const notifRef = useRef();
+
+  const th = T(dk);
+
+  // ── Dark mode persistence
+  useEffect(() => { localStorage.setItem("rs_dk", dk ? "1" : "0"); }, [dk]);
+
+  // ── Close notif panel on outside click
+  useEffect(() => {
+    const h = e => { if (notifRef.current && !notifRef.current.contains(e.target)) setShowNotifs(false); };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, []);
+
+  // ── Session bootstrap
+  useEffect(() => {
+    (async () => {
+      // Check OAuth return
+      const oauthReturn = sessionStorage.getItem("rs_oauth_return");
+      if (oauthReturn) {
+        sessionStorage.removeItem("rs_oauth_return");
+        const sess = JSON.parse(oauthReturn);
+        await loadSession(sess);
+        return;
+      }
+      // Check stored session
+      const stored = localStorage.getItem("rs_session");
+      if (stored) {
+        try {
+          const sess = JSON.parse(stored);
+          if (sess?.access_token) { await loadSession(sess); return; }
+        } catch {}
+      }
+      setAuthLoading(false);
+    })();
+  }, []);
+
+  const loadSession = async sess => {
+    const user = await sbAuth.getUser(sess.access_token);
+    if (!user?.id) { localStorage.removeItem("rs_session"); setAuthLoading(false); return; }
+    localStorage.setItem("rs_session", JSON.stringify(sess));
+    setSession(sess);
+    setMe(user.id);
+    await loadAllData(user.id);
+    setAuthLoading(false);
+  };
+
+  const loadAllData = async uid => {
+    const [profRows, balRows, bkRows] = await Promise.all([
+      db.get("rs_user_profiles", "select=*"),
+      db.get("rs_token_balances", "select=*"),
+      db.get("rs_bookmarks", `uid=eq.${uid}&select=post_id`),
+    ]);
+    const pMap = {};
+    (profRows || []).forEach(p => { pMap[p.id] = p; });
+    setProfiles(pMap);
+    setMyProfile(pMap[uid] || null);
+    const bMap = {};
+    (balRows || []).forEach(b => { bMap[b.uid] = b.balance || 0; });
+    setBals(bMap);
+    setBookmarks((bkRows || []).map(b => b.post_id));
+  };
+
+  const addNotif = useCallback(n => {
+    const id = genId();
+    setNotifs(ns => [{ ...n, id, ts: Date.now(), read: false }, ...ns].slice(0, 50));
+    if (n.type === "token") setTokenPop({ amount: n.amount, id });
+  }, []);
+
+  const handleBookmark = async postId => {
+    const on = bookmarks.includes(postId);
+    setBookmarks(bk => on ? bk.filter(x => x !== postId) : [...bk, postId]);
+    if (on) await db.del("rs_bookmarks", `uid=eq.${me}&post_id=eq.${postId}`);
+    else await db.upsert("rs_bookmarks", { uid: me, post_id: postId });
+  };
+
+  const handleProfile = uid => { setProfileUid(uid); setView("profile"); };
+  const handleMessage = uid => { setMsgUid(uid); setView("messages"); };
+
+  const handleSignOut = async () => {
+    if (session) await sbAuth.signOut(session.access_token);
+    localStorage.removeItem("rs_session");
+    setSession(null); setMe(null); setMyProfile(null); setProfiles({}); setBals({});
+    setView("feed"); setNotifs([]);
+  };
+
+  const unread = notifs.filter(n => !n.read).length;
+
+  // ── Loading state
+  if (authLoading) return (
+    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: th.bg }}>
+      <GlobalCSS dk={dk} />
+      <div style={{ textAlign: "center" }}>
+        <RightSignalLogo size={48} dk={dk} />
+        <Spin dk={dk} msg="Starting up…" />
+      </div>
+    </div>
+  );
+
+  // ── Not logged in
+  if (!me) return (
+    <>
+      <GlobalCSS dk={dk} />
+      <AuthScreen onAuth={loadSession} dk={dk} />
+    </>
+  );
+
+  // ── Needs onboarding
+  if (myProfile && !myProfile.onboarded) return (
+    <>
+      <GlobalCSS dk={dk} />
+      <OnboardingScreen me={me} onDone={p => { setMyProfile(p); setProfiles(prev => ({ ...prev, [me]: p })); }} dk={dk} />
+    </>
+  );
+
+  if (!myProfile) return (
+    <>
+      <GlobalCSS dk={dk} />
+      <OnboardingScreen me={me} onDone={p => { setMyProfile(p); setProfiles(prev => ({ ...prev, [me]: p })); }} dk={dk} />
+    </>
+  );
+
+  // ── Main app
+  const renderView = () => {
+    switch (view) {
+      case "feed":
+        return <FeedView me={me} dk={dk} myProfile={myProfile} onProfile={handleProfile} bals={bals} profiles={profiles} addNotif={addNotif} bookmarks={bookmarks} onBookmark={handleBookmark} />;
+      case "network":
+        return <NetworkView me={me} dk={dk} onProfile={handleProfile} bals={bals} profiles={profiles} addNotif={addNotif} />;
+      case "messages":
+        return <MessengerView me={me} dk={dk} profiles={profiles} initialUid={msgUid} />;
+      case "colab":
+        return <ColabView me={me} dk={dk} profiles={profiles} onProfile={handleProfile} addNotif={addNotif} />;
+      case "events":
+        return <EventsView dk={dk} addNotif={addNotif} />;
+      case "sandbox":
+        return <SandboxView me={me} dk={dk} />;
+      case "contribute":
+        return <ContributeView me={me} dk={dk} />;
+      case "wallet":
+        return <WalletView me={me} bals={bals} setBals={setBals} dk={dk} myProfile={myProfile} />;
+      case "ads":
+        return isAdmin(myProfile) || canManageAds(myProfile) ? <AdsManagerView me={me} dk={dk} myProfile={myProfile} /> : <FeedView me={me} dk={dk} myProfile={myProfile} onProfile={handleProfile} bals={bals} profiles={profiles} addNotif={addNotif} bookmarks={bookmarks} onBookmark={handleBookmark} />;
+      case "profile":
+        return <ProfileView uid={profileUid || me} me={me} dk={dk} onBack={() => setView("feed")} bals={bals} profiles={profiles} setBals={setBals} onMessage={handleMessage} />;
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <div style={{ minHeight: "100vh", background: th.bg, color: th.txt }}>
+      <GlobalCSS dk={dk} />
+      {tokenPop && <TokenPop amount={tokenPop.amount} onDone={() => setTokenPop(null)} />}
+
+      <div style={{ display: "flex", maxWidth: 1200, margin: "0 auto", minHeight: "100vh" }}>
+
+        {/* Sidebar */}
+        <Sidebar view={view} setView={v => { setView(v); if (v !== "messages") setMsgUid(null); if (v !== "profile") setProfileUid(null); }} me={me} dk={dk} bals={bals} myProfile={myProfile} />
+
+        {/* Main area */}
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
+
+          {/* Topbar */}
+          <div style={{ position: "sticky", top: 0, zIndex: 50, background: th.top, backdropFilter: "blur(12px)", borderBottom: `1px solid ${th.bdr}`, padding: "10px 16px", display: "flex", alignItems: "center", gap: 12 }}>
+            <SearchBar dk={dk} profiles={profiles} onProfile={handleProfile} onTag={tag => setView("feed")} />
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginLeft: "auto" }}>
+              <button onClick={() => setDk(x => !x)} style={{ background: "transparent", border: `1px solid ${th.bdr}`, borderRadius: 8, padding: "6px 8px", cursor: "pointer", color: th.txt2, display: "flex", alignItems: "center" }}>
+                {dk ? <Sun size={15} /> : <Moon size={15} />}
+              </button>
+              <div ref={notifRef} style={{ position: "relative" }}>
+                <button onClick={() => setShowNotifs(x => !x)} style={{ background: "transparent", border: `1px solid ${th.bdr}`, borderRadius: 8, padding: "6px 8px", cursor: "pointer", color: th.txt2, display: "flex", alignItems: "center", position: "relative" }}>
+                  <Bell size={15} />
+                  {unread > 0 && (
+                    <div style={{ position: "absolute", top: -4, right: -4, width: 16, height: 16, borderRadius: "50%", background: "#ef4444", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 800, color: "#fff" }}>{unread > 9 ? "9+" : unread}</div>
+                  )}
+                </button>
+                {showNotifs && <NotifPanel notifs={notifs} setNotifs={setNotifs} onClose={() => setShowNotifs(false)} dk={dk} />}
+              </div>
+              <button onClick={handleSignOut} title="Sign out" style={{ background: "transparent", border: `1px solid ${th.bdr}`, borderRadius: 8, padding: "6px 8px", cursor: "pointer", color: th.txt2, display: "flex", alignItems: "center" }}>
+                <LogOut size={15} />
+              </button>
+            </div>
+          </div>
+
+          {/* Content */}
+          <div style={{ flex: 1, display: "flex", gap: 16, padding: "16px 16px" }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              {renderView()}
+            </div>
+
+            {/* Right panel — only show on feed/network */}
+            {["feed", "network", "contribute"].includes(view) && (
+              <RightPanel
+                dk={dk}
+                myProfile={myProfile}
+                onProfile={handleProfile}
+                bals={bals}
+                onWallet={() => setView("wallet")}
+                profiles={profiles}
+                onTag={tag => setView("feed")}
+              />
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // ═══════════════════════════════════════════════════════════════
 // ─── ADMIN PORTAL ────────────────────────────────────────────────
