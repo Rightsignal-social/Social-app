@@ -3091,7 +3091,7 @@ function AdminApp({ me, myProfile, bals, profiles, dk, setDk, onSignOut }) {
           await trySession(sess);
         }
       }
-    })();
+    )();
 
     return () => { cancelled = true; };
   }, []);
