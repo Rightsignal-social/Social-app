@@ -3175,7 +3175,8 @@ return () => { cancelled = true; };
         </div>
       </div>
           </div>
-    );
-}   // only ONE closing brace
-
-export default App;
+      );
+ }  // closes App
+ }  // 🔥 ADD THIS LINE (missing closing block)
+ 
+ export default App;
