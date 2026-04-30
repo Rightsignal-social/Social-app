@@ -3032,16 +3032,17 @@ function AdminApp({ me, myProfile, bals, profiles, dk, setDk, onSignOut }) {
   const handleTag = tag => { setActiveTag(tag); navTo("feed"); };
 
   // Restore session from localStorage on mount
-  useEffect(() => {
-    let cancelled = false;
+useEffect(() => {
+  let cancelled = false;
 
-    const trySession = async (sess) => {
-      if (!sess?.access_token) return false;
-      if (sess.expires_at && sess.expires_at < Math.floor(Date.now() / 1000)) {
-        localStorage.removeItem("rs_session");
-        sessionStorage.removeItem("rs_oauth_return");
-        return false;
-      }
+  (async () => {
+    // your logic
+  })();   // ✅ THIS LINE IS CRITICAL
+
+  return () => {
+    cancelled = true;
+  };
+}, []);
       try {
         const u = await sbAuth.getUser(sess.access_token);
         if (!cancelled && u && u.id) {
@@ -3177,6 +3178,5 @@ return () => { cancelled = true; };
           </div>
       );
  }  // closes App
- }  // 🔥 ADD THIS LINE (missing closing block)
- 
- export default App;
+
+export default App;
