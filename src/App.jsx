@@ -3078,21 +3078,27 @@ function AdminApp({ me, myProfile, bals, profiles, dk, setDk, onSignOut }) {
       // Priority 3: Check URL hash directly (fallback)
       const hash = window.location.hash;
       if (hash && hash.includes("access_token")) {
-        const params = new URLSearchParams(hash.slice(1));
-        const token = params.get("access_token");
-        if (token) {
-          const sess = {
-            access_token: token,
-            refresh_token: params.get("refresh_token") || "",
-            expires_at: Math.floor(Date.now() / 1000) + parseInt(params.get("expires_in") || "3600", 10),
-          };
-          localStorage.setItem("rs_session", JSON.stringify(sess));
-          window.history.replaceState({}, "", window.location.pathname);
-          await trySession(sess);
-        }
+  const params = new URLSearchParams(hash.slice(1));
+  const token = params.get("access_token");
 
-    return () => { cancelled = true; };
-  }, []);
+  if (token) {
+    const sess = {
+      access_token: token,
+      refresh_token: params.get("refresh_token") || "",
+      expires_at: Math.floor(Date.now() / 1000) + parseInt(params.get("expires_in") || "0")
+    };
+
+    localStorage.setItem("rs_session", JSON.stringify(sess));
+    window.history.replaceState({}, "", window.location.pathname);
+
+    await trySession(sess);
+  }
+}
+
+})();   // ✅ ✅ ADD THIS LINE
+
+return () => { cancelled = true; };
+}, []);
 
   if (screen === "loading") return (
     <div style={{ minHeight: "100vh", background: "linear-gradient(135deg,#040a14,#0c1929)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16 }}>
