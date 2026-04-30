@@ -1180,44 +1180,168 @@ function ContributeView({ me, dk }) {
 // ─── WALLET VIEW ─────────────────────────────────────────────────
 function WalletView({ me, bals, setBals, dk, myProfile }) {
   const th = T(dk);
-  const myBal = bals[me] ?? 0;
-  const [txns, setTxns] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const balance = bals[me] ?? 0;
+  const refCode = myProfile?.ref_code || "";
+  const refLink = `${window.location.origin}?ref=${refCode}`;
+  const [wallet, setWallet] = useState(null);
+  const [loadW, setLoadW] = useState(true);
+  const [creating, setCreating] = useState(false);
+  const [showKey, setShowKey] = useState(false);
+  const [txs, setTxs] = useState([]);
+  const [redAmt, setRedAmt] = useState("");
+  const [redeeming, setRedeeming] = useState(false);
+  const [msg, setMsg] = useState("");
 
   useEffect(() => {
-    db.get("rs_token_txns", `uid=eq.${me}&order=created_at.desc&limit=30`).then(d => { setTxns(d || []); setLoading(false); });
+    (async () => {
+      const [w, t] = await Promise.all([db.get("rs_wallets", `uid=eq.${me}`), db.get("rs_token_txns", `uid=eq.${me}&order=created_at.desc&limit=30`)]);
+      setWallet(w?.[0] || null); setTxs(t || []); setLoadW(false);
+    })();
   }, [me]);
 
-  const claim = async (amount, desc) => {
-    const newBal = myBal + amount;
-    await db.upsert("rs_token_balances", { uid: me, balance: newBal });
-    await db.post("rs_token_txns", { uid: me, type: "earn", amount, description: desc });
-    setBals(b => ({ ...b, [me]: newBal }));
-    setTxns(ts => [{ id: genId(), uid: me, type: "earn", amount, description: desc, created_at: new Date().toISOString() }, ...ts]);
+  const createWallet = async () => {
+    setCreating(true);
+    const addr = "0x" + hexStr(40), pk = hexStr(64);
+    const saved = await db.upsert("rs_wallets", { uid: me, address: addr, private_key: pk });
+    if (saved) setWallet(saved); setCreating(false);
   };
 
+  const redeem = async () => {
+    const amt = parseInt(redAmt);
+    if (!amt || amt <= 0 || amt > balance || !wallet) return;
+    setRedeeming(true); setMsg("");
+    const nb = balance - amt;
+    await Promise.all([
+      db.upsert("rs_token_balances", { uid: me, balance: nb }),
+      db.post("rs_token_txns", { uid: me, type: "redeem", amount: -amt, description: `Redeemed to ${wallet.address.slice(0, 10)}…` }),
+    ]);
+    setBals(b => ({ ...b, [me]: nb }));
+    setTxs(t => [{ id: genId(), type: "redeem", amount: -amt, description: `Redeemed to ${wallet.address.slice(0, 10)}…`, created_at: new Date().toISOString() }, ...t]);
+    setMsg(`✓ ${amt} SGN redeemed!`); setRedAmt(""); setRedeeming(false);
+  };
+
+  const shareVia = platform => {
+    const shareMsg = `Join me on RightSignal! Use my referral code ${refCode} to join: ${refLink}`;
+    const urls = {
+      whatsapp: `https://wa.me/?text=${encodeURIComponent(shareMsg)}`,
+      twitter: `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareMsg)}`,
+      telegram: `https://t.me/share/url?url=${encodeURIComponent(refLink)}&text=${encodeURIComponent("Join RightSignal! Code: " + refCode)}`,
+      linkedin: `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(refLink)}`,
+    };
+    window.open(urls[platform], "_blank");
+  };
+
+  const earnedTotal = txs.filter(t => t.type === "earn").reduce((s, t) => s + (t.amount || 0), 0);
+  const redeemedTotal = txs.filter(t => t.type === "redeem").reduce((s, t) => s + Math.abs(t.amount), 0);
+
   return (
-    <div>
-      <div style={{ background: "linear-gradient(135deg,#78350f,#d97706)", borderRadius: 20, padding: 24, marginBottom: 20, boxShadow: "0 4px 30px rgba(245,158,11,.25)" }}>
-        <div style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,.6)", letterSpacing: 1, marginBottom: 8 }}>SIGNAL TOKEN BALANCE</div>
-        <div style={{ fontSize: 48, fontWeight: 900, color: "#fff", lineHeight: 1, marginBottom: 4 }}>◈ {myBal}</div>
-        <div style={{ fontSize: 14, color: "rgba(255,255,255,.65)" }}>SGN · RightSignal Network</div>
+    <div style={{ animation: "fadeUp .3s ease" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
+        <div style={{ width: 48, height: 48, borderRadius: 14, background: "linear-gradient(135deg,#f59e0b,#f97316)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, boxShadow: "0 0 20px rgba(245,158,11,.4)" }}>◈</div>
+        <div><h2 style={{ fontSize: 20, fontWeight: 800, margin: "0 0 2px", color: th.txt }}>Signal Wallet</h2><p style={{ fontSize: 13, color: th.txt2, margin: 0 }}>Tokens earned through referrals only</p></div>
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 20 }}>
-        {[{ l: "Daily Streak", e: "🔥", amount: 1, desc: "Daily login reward" }, { l: "Share Referral", e: "🔗", amount: 2, desc: "Referral link shared" }, { l: "Post Content", e: "📝", amount: 1, desc: "Content contribution" }, { l: "Engage", e: "💬", amount: 1, desc: "Community engagement" }].map(a => (
-          <button key={a.l} onClick={() => claim(a.amount, a.desc)} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, background: th.surf, border: `1px solid ${th.bdr}`, borderRadius: 14, padding: 16, cursor: "pointer" }}>
-            <span style={{ fontSize: 28 }}>{a.e}</span>
-            <span style={{ fontSize: 12, fontWeight: 600, color: th.txt }}>{a.l}</span>
-            <span style={{ fontSize: 11, color: "#f59e0b", fontWeight: 700 }}>+{a.amount} SGN</span>
-          </button>
-        ))}
+      {/* Balance */}
+      <div style={{ background: "linear-gradient(135deg,#78350f,#b45309,#d97706)", borderRadius: 16, padding: 20, marginBottom: 16, boxShadow: "0 0 40px rgba(245,158,11,.25)", position: "relative", overflow: "hidden" }}>
+        <div style={{ position: "absolute", top: -20, right: -20, width: 120, height: 120, borderRadius: "50%", background: "rgba(255,255,255,.06)" }} />
+        <div style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,.6)", letterSpacing: 1, marginBottom: 4 }}>TOTAL BALANCE</div>
+        <div style={{ fontSize: 48, fontWeight: 900, color: "#fff", lineHeight: 1, marginBottom: 4 }}>◈ {balance} <span style={{ fontSize: 18, opacity: .7 }}>SGN</span></div>
+        <div style={{ display: "flex", gap: 12, marginTop: 14 }}>
+          {[{ l: "Balance", v: balance }, { l: "Redeemed", v: redeemedTotal }, { l: "Total Earned", v: earnedTotal }].map((s, i) => (
+            <div key={i} style={{ background: "rgba(255,255,255,.12)", borderRadius: 10, padding: "8px 14px", textAlign: "center" }}>
+              <div style={{ fontSize: 20, fontWeight: 800, color: "#fff" }}>{s.v}</div>
+              <div style={{ fontSize: 10, color: "rgba(255,255,255,.6)" }}>{s.l}</div>
+            </div>
+          ))}
+        </div>
       </div>
+      {/* Referral */}
       <Card dk={dk} anim={false}>
-        <h3 style={{ fontSize: 15, fontWeight: 700, margin: "0 0 14px", color: th.txt }}>Transaction History</h3>
-        {loading ? <Spin dk={dk} size={24} /> : txns.length === 0 ? <p style={{ color: th.txt3, textAlign: "center", padding: 16 }}>No transactions yet.</p> : txns.map(t => (
-          <div key={t.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "9px 0", borderBottom: `1px solid ${th.bdr}` }}>
-            <div><div style={{ fontSize: 13, fontWeight: 600, color: th.txt }}>{t.description}</div><div style={{ fontSize: 11, color: th.txt3 }}>{fmtDate(t.created_at)}</div></div>
-            <span style={{ fontWeight: 700, fontSize: 14, color: t.type === "earn" ? "#10b981" : "#ef4444" }}>{t.type === "earn" ? "+" : "-"}◈ {t.amount}</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+          <Gift size={16} style={{ color: "#f59e0b" }} />
+          <span style={{ fontWeight: 700, fontSize: 15, color: th.txt }}>Referral Program</span>
+          <span style={{ background: "#f59e0b18", color: "#f59e0b", fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 99 }}>You +2 SGN · Friend +1 SGN</span>
+        </div>
+        <div style={{ background: "linear-gradient(135deg,#78350f18,#d9770618)", border: "1px solid #f59e0b30", borderRadius: 12, padding: 14, marginBottom: 16 }}>
+          <div style={{ display: "flex", gap: 16, justifyContent: "center" }}>
+            {[{ v: "+2 SGN", l: "You earn per referral" }, { v: "+1 SGN", l: "Your friend earns" }].map((r, i) => (
+              <div key={i} style={{ textAlign: "center", flex: 1 }}>
+                <div style={{ fontSize: 26, fontWeight: 900, color: "#f59e0b" }}>{r.v}</div>
+                <div style={{ fontSize: 11, color: th.txt3 }}>{r.l}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <label style={{ fontSize: 12, fontWeight: 600, color: th.txt2, display: "block", marginBottom: 6 }}>Your Referral Code</label>
+        <div style={{ background: th.surf2, border: `1px solid ${th.bdr}`, borderRadius: 10, padding: "10px 14px", display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+          <span style={{ fontSize: 18, fontWeight: 900, color: "#f59e0b", letterSpacing: 2, fontFamily: "monospace", flex: 1 }}>{refCode || "—"}</span>
+          {refCode && <CopyBtn text={refCode} />}
+        </div>
+        <label style={{ fontSize: 12, fontWeight: 600, color: th.txt2, display: "block", marginBottom: 6 }}>Your Referral Link</label>
+        <div style={{ background: th.surf2, border: `1px solid ${th.bdr}`, borderRadius: 10, padding: "9px 12px", display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+          <Link size={12} style={{ color: th.txt3, flexShrink: 0 }} />
+          <span style={{ fontSize: 11, color: th.txt2, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: "monospace" }}>{refLink}</span>
+          <CopyBtn text={refLink} label="Copy" />
+        </div>
+        <label style={{ fontSize: 12, fontWeight: 600, color: th.txt2, display: "block", marginBottom: 8 }}>Share via</label>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {[{ id: "whatsapp", l: "WhatsApp", bg: "#25D366", icon: "💬" }, { id: "twitter", l: "Twitter / X", bg: "#1DA1F2", icon: "🐦" }, { id: "telegram", l: "Telegram", bg: "#2AABEE", icon: "✈️" }, { id: "linkedin", l: "LinkedIn", bg: "#0077B5", icon: "💼" }].map(s => (
+            <button key={s.id} onClick={() => shareVia(s.id)} style={{ display: "flex", alignItems: "center", gap: 6, background: s.bg, border: "none", borderRadius: 10, padding: "8px 14px", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>{s.icon} {s.l}</button>
+          ))}
+        </div>
+      </Card>
+      {/* On-chain wallet */}
+      <Card dk={dk} anim={false}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+          <Wallet size={15} style={{ color: "#3b82f6" }} />
+          <span style={{ fontWeight: 700, fontSize: 14, color: th.txt }}>On-Chain Wallet</span>
+          {wallet && <span style={{ background: "#10b98118", color: "#10b981", fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 99 }}>● Connected</span>}
+        </div>
+        {loadW ? <Spin size={24} dk={dk} /> : !wallet ? (
+          <div style={{ textAlign: "center", padding: "16px 0" }}>
+            <div style={{ fontSize: 36, marginBottom: 10 }}>🔐</div>
+            <p style={{ fontSize: 14, color: th.txt2, margin: "0 0 4px" }}>Create a wallet to redeem SGN tokens</p>
+            <button onClick={createWallet} disabled={creating} style={{ background: "linear-gradient(135deg,#3b82f6,#8b5cf6)", border: "none", borderRadius: 10, padding: "10px 24px", color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer", marginTop: 12, display: "inline-flex", alignItems: "center", gap: 8, opacity: creating ? .7 : 1 }}>
+              {creating ? <><Spin size={15} />Creating…</> : <><Wallet size={15} />Create Signal Wallet</>}
+            </button>
+          </div>
+        ) : (
+          <div>
+            <div style={{ background: th.surf2, border: `1px solid ${th.bdr}`, borderRadius: 10, padding: 12, marginBottom: 10 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: th.txt3, marginBottom: 4 }}>WALLET ADDRESS</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ fontSize: 11, color: "#10b981", fontFamily: "monospace", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{wallet.address}</span>
+                <CopyBtn text={wallet.address} />
+              </div>
+            </div>
+            <div style={{ background: th.surf2, border: `1px solid ${th.bdr}`, borderRadius: 10, padding: 12, marginBottom: 12 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: th.txt3 }}>PRIVATE KEY</div>
+                <button onClick={() => setShowKey(x => !x)} style={{ background: "none", border: "none", cursor: "pointer", color: th.txt3, display: "flex" }}>{showKey ? <EyeOff size={13} /> : <Eye size={13} />}</button>
+              </div>
+              {showKey ? <span style={{ fontSize: 10, color: "#ef4444", fontFamily: "monospace", wordBreak: "break-all" }}>{wallet.private_key}</span> : <span style={{ fontSize: 12, color: th.txt3 }}>••••••••••••••••••••••••••••••••</span>}
+              <div style={{ display: "flex", gap: 4, alignItems: "center", marginTop: 6 }}><AlertCircle size={11} style={{ color: "#f59e0b" }} /><span style={{ fontSize: 11, color: "#f59e0b" }}>Never share your private key</span></div>
+            </div>
+            <label style={{ fontSize: 12, fontWeight: 600, color: th.txt2, display: "block", marginBottom: 6 }}>Redeem SGN · Balance: <strong style={{ color: "#f59e0b" }}>◈ {balance}</strong></label>
+            <div style={{ display: "flex", gap: 8, marginBottom: 6 }}>
+              <input type="number" value={redAmt} onChange={e => setRedAmt(e.target.value)} placeholder="Amount" min="1" max={balance} style={{ flex: 1, background: th.inp, border: `1px solid ${th.inpB}`, borderRadius: 10, padding: "8px 10px", fontSize: 14, outline: "none", color: th.txt }} />
+              <button onClick={redeem} disabled={redeeming || !redAmt || parseInt(redAmt) <= 0 || parseInt(redAmt) > balance} style={{ background: (!redAmt || parseInt(redAmt) <= 0 || parseInt(redAmt) > balance) ? "transparent" : "linear-gradient(135deg,#f59e0b,#f97316)", border: `1px solid ${(!redAmt || parseInt(redAmt) <= 0 || parseInt(redAmt) > balance) ? "#f59e0b44" : "transparent"}`, borderRadius: 10, padding: "8px 18px", color: (!redAmt || parseInt(redAmt) <= 0 || parseInt(redAmt) > balance) ? "#f59e0b" : "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer", minWidth: 90 }}>
+                {redeeming ? <Spin size={14} /> : "Redeem"}
+              </button>
+            </div>
+            {msg && <p style={{ fontSize: 12, color: msg.startsWith("✓") ? "#10b981" : "#ef4444", margin: 0 }}>{msg}</p>}
+          </div>
+        )}
+      </Card>
+      {/* Transaction history */}
+      <Card dk={dk} anim={false}>
+        <h3 style={{ fontSize: 14, fontWeight: 700, margin: "0 0 12px", color: th.txt }}>Transaction History</h3>
+        {txs.length === 0 ? <p style={{ color: th.txt3, fontSize: 13, textAlign: "center", padding: 16 }}>No transactions yet. Refer friends to earn SGN!</p> : txs.map(tx => (
+          <div key={tx.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "9px 0", borderBottom: `1px solid ${th.bdr}` }}>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <div style={{ width: 30, height: 30, borderRadius: 8, background: tx.type === "earn" ? "#10b98118" : "#ef444418", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13 }}>{tx.type === "earn" ? "◈" : "↑"}</div>
+              <div><div style={{ fontSize: 13, fontWeight: 600, color: th.txt }}>{tx.description}</div><div style={{ fontSize: 11, color: th.txt3 }}>{ago(new Date(tx.created_at).getTime())}</div></div>
+            </div>
+            <span style={{ fontSize: 15, fontWeight: 800, color: tx.amount > 0 ? "#10b981" : "#ef4444" }}>{tx.amount > 0 ? "+" : ""}{tx.amount} SGN</span>
           </div>
         ))}
       </Card>
