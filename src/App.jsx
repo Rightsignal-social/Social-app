@@ -3097,10 +3097,9 @@ return false;
     await trySession(sess);
   }
 
-
+})();
 
 return () => { cancelled = true; };
-
 
   if (screen === "loading") return (
     <div style={{ minHeight: "100vh", background: "linear-gradient(135deg,#040a14,#0c1929)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16 }}>
@@ -3181,4 +3180,4 @@ return () => { cancelled = true; };
       );
  }  // closes App
 
-export default App;
+})() export default App;
