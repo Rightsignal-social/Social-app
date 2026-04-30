@@ -1983,211 +1983,1583 @@ function Onboarding({ user, onComplete }) {
   );
 }
 
-// ═══════════════════════════════════════════════════════════════════
-// COLAB COMPLETION CODE
-// Paste this after your existing ColabView, replacing everything from
-// "handleStartupCreated" onward through the end of the file.
-// ═══════════════════════════════════════════════════════════════════
+// ============================================================
+// COLAB COMPLETE — Single File
+// Copy sections into your project as needed
+// ============================================================
 
-// ─── COLAB MAIN VIEW ─────────────────────────────────────────────
-function ColabView({ me, dk, profiles, onProfile, addNotif }) {
-  const th = T(dk);
-  const [startups, setStartups] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [activeStartup, setActiveStartup] = useState(null);
-  const [showCreate, setShowCreate] = useState(false);
-  const [showReferral, setShowReferral] = useState(false);
-  const [search, setSearch] = useState("");
+// ─────────────────────────────────────────────────────────────
+// SECTION 1: BACKEND MODELS
+// ─────────────────────────────────────────────────────────────
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    const data = await db.get("rs_startups", "order=created_at.desc&limit=50");
-    setStartups(data || []);
-    setLoading(false);
-  }, []);
+/* ── models/Startup.js ─────────────────────────────────────── */
+/*
+const mongoose = require('mongoose');
+const { v4: uuidv4 } = require('uuid');
 
-  useEffect(() => { load(); }, [load]);
+const StartupSchema = new mongoose.Schema({
+  name:         { type: String, required: true, trim: true },
+  logo:         { type: String, default: '' },
+  description:  { type: String, required: true, trim: true },
+  social_links: {
+    linkedin: { type: String, default: '' },
+    twitter:  { type: String, default: '' },
+    website:  { type: String, default: '' },
+    github:   { type: String, default: '' },
+  },
+  created_by:   { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  founders:     [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+  referral_code:{ type: String, unique: true, default: () => uuidv4().split('-')[0].toUpperCase() },
+  created_at:   { type: Date, default: Date.now },
+});
 
-  const handleStartupCreated = s => {
-    if (s) {
-      setStartups(ss => [s, ...ss.filter(x => x.id !== s.id)]);
-      setActiveStartup(s);
-    }
-  };
+module.exports = mongoose.model('Startup', StartupSchema);
+*/
 
-  const handleJoinSuccess = s => {
-    addNotif({ type: "sandbox", msg: `🚀 Join request sent to ${s.name}!` });
-  };
+/* ── models/StartupPage.js ─────────────────────────────────── */
+/*
+const mongoose = require('mongoose');
 
-  if (activeStartup) {
-    return (
-      <StartupDetail
-        startup={activeStartup}
-        me={me}
-        profiles={profiles}
-        dk={dk}
-        onBack={() => setActiveStartup(null)}
-        onProfile={onProfile}
-      />
-    );
+const DEFAULT_PAGES = [
+  { name: 'Investor',         description: 'For investors and funding discussions' },
+  { name: 'Tech',             description: 'Engineering and technical discussions' },
+  { name: 'Marketing',        description: 'Marketing strategy and campaigns' },
+  { name: 'Operations',       description: 'Operational workflows and processes' },
+  { name: 'Partnership',      description: 'Partnership and collaboration opportunities' },
+  { name: 'Client',           description: 'Client relations and support' },
+  { name: 'General Audience', description: 'Open discussions for all members' },
+];
+
+const StartupPageSchema = new mongoose.Schema({
+  startup_id:  { type: mongoose.Schema.Types.ObjectId, ref: 'Startup', required: true },
+  name:        { type: String, required: true },
+  description: { type: String, default: '' },
+  created_at:  { type: Date, default: Date.now },
+});
+
+StartupPageSchema.statics.DEFAULT_PAGES = DEFAULT_PAGES;
+module.exports = mongoose.model('StartupPage', StartupPageSchema);
+*/
+
+/* ── models/PageAccess.js ──────────────────────────────────── */
+/*
+const mongoose = require('mongoose');
+
+const PageAccessSchema = new mongoose.Schema({
+  startup_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Startup',     required: true },
+  page_id:    { type: mongoose.Schema.Types.ObjectId, ref: 'StartupPage', required: true },
+  user_id:    { type: mongoose.Schema.Types.ObjectId, ref: 'User',        required: true },
+  status:     { type: String, enum: ['approved'], default: 'approved' },
+  granted_at: { type: Date, default: Date.now },
+});
+
+PageAccessSchema.index({ page_id: 1, user_id: 1 }, { unique: true });
+module.exports = mongoose.model('PageAccess', PageAccessSchema);
+*/
+
+/* ── models/PageAccessRequest.js ───────────────────────────── */
+/*
+const mongoose = require('mongoose');
+
+const PageAccessRequestSchema = new mongoose.Schema({
+  startup_id:      { type: mongoose.Schema.Types.ObjectId, ref: 'Startup', required: true },
+  user_id:         { type: mongoose.Schema.Types.ObjectId, ref: 'User',    required: true },
+  requested_pages: [{ type: mongoose.Schema.Types.ObjectId, ref: 'StartupPage' }],
+  status:          { type: String, enum: ['pending','approved','rejected'], default: 'pending' },
+  created_at:      { type: Date, default: Date.now },
+  updated_at:      { type: Date, default: Date.now },
+});
+
+module.exports = mongoose.model('PageAccessRequest', PageAccessRequestSchema);
+*/
+
+/* ── models/StartupUpdate.js ───────────────────────────────── */
+/*
+const mongoose = require('mongoose');
+
+const StartupUpdateSchema = new mongoose.Schema({
+  startup_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Startup', required: true },
+  content:    { type: String, required: true },
+  created_by: { type: mongoose.Schema.Types.ObjectId, ref: 'User',    required: true },
+  created_at: { type: Date, default: Date.now },
+});
+
+module.exports = mongoose.model('StartupUpdate', StartupUpdateSchema);
+*/
+
+/* ── models/StartupFeedback.js ─────────────────────────────── */
+/*
+const mongoose = require('mongoose');
+
+const StartupFeedbackSchema = new mongoose.Schema({
+  startup_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Startup', required: true },
+  user_id:    { type: mongoose.Schema.Types.ObjectId, ref: 'User',    required: true },
+  message:    { type: String, required: true, trim: true },
+  created_at: { type: Date, default: Date.now },
+});
+
+module.exports = mongoose.model('StartupFeedback', StartupFeedbackSchema);
+*/
+
+/* ── models/PageMeeting.js ─────────────────────────────────── */
+/*
+const mongoose = require('mongoose');
+
+const PageMeetingSchema = new mongoose.Schema({
+  page_id:      { type: mongoose.Schema.Types.ObjectId, ref: 'StartupPage', required: true },
+  startup_id:   { type: mongoose.Schema.Types.ObjectId, ref: 'Startup',     required: true },
+  title:        { type: String, required: true },
+  meeting_type: { type: String, enum: ['google_meet','zoom'], required: true },
+  meeting_link: { type: String, required: true },
+  scheduled_at: { type: Date, required: true },
+  created_by:   { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  participants: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+  created_at:   { type: Date, default: Date.now },
+});
+
+module.exports = mongoose.model('PageMeeting', PageMeetingSchema);
+*/
+
+// ─────────────────────────────────────────────────────────────
+// SECTION 2: MIDDLEWARE
+// ─────────────────────────────────────────────────────────────
+
+/* ── middleware/colabAuth.js ───────────────────────────────── */
+/*
+const PageAccess = require('../models/PageAccess');
+const Startup    = require('../models/Startup');
+
+const isFounder = async (req, res, next) => {
+  try {
+    const startup = await Startup.findById(req.params.startupId || req.body.startup_id);
+    if (!startup) return res.status(404).json({ error: 'Startup not found' });
+
+    const userId      = req.user._id.toString();
+    const isCreator   = startup.created_by.toString() === userId;
+    const isFounderMember = startup.founders.map(f => f.toString()).includes(userId);
+
+    if (!isCreator && !isFounderMember)
+      return res.status(403).json({ error: 'Access denied. Founders only.' });
+
+    req.startup = startup;
+    next();
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
+};
 
-  const myStartups = startups.filter(s =>
-    s.created_by === me || (s.founders || []).includes(me)
-  );
-  const otherStartups = startups.filter(s =>
-    s.created_by !== me && !(s.founders || []).includes(me)
-  );
-  const filtered = [...myStartups, ...otherStartups].filter(s =>
-    !search.trim() ||
-    s.name?.toLowerCase().includes(search.toLowerCase()) ||
-    s.description?.toLowerCase().includes(search.toLowerCase())
-  );
+const hasPageAccess = async (req, res, next) => {
+  try {
+    const { pageId } = req.params;
+    const userId     = req.user._id;
+
+    // Founders bypass page-level check
+    const startup = await Startup.findOne({ founders: userId });
+    if (startup) return next();
+
+    const access = await PageAccess.findOne({ page_id: pageId, user_id: userId, status: 'approved' });
+    if (!access) return res.status(403).json({ error: 'Access denied. Page access required.' });
+    next();
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+module.exports = { isFounder, hasPageAccess };
+*/
+
+// ─────────────────────────────────────────────────────────────
+// SECTION 3: BACKEND ROUTES  (routes/colab.js)
+// ─────────────────────────────────────────────────────────────
+
+/* ── routes/colab.js ───────────────────────────────────────── */
+/*
+const express  = require('express');
+const router   = express.Router();
+const multer   = require('multer');
+const path     = require('path');
+const { protect }                  = require('../middleware/auth');
+const { isFounder, hasPageAccess } = require('../middleware/colabAuth');
+
+const Startup           = require('../models/Startup');
+const StartupPage       = require('../models/StartupPage');
+const PageAccess        = require('../models/PageAccess');
+const PageAccessRequest = require('../models/PageAccessRequest');
+const StartupUpdate     = require('../models/StartupUpdate');
+const StartupFeedback   = require('../models/StartupFeedback');
+const PageMeeting       = require('../models/PageMeeting');
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, 'uploads/'),
+  filename:    (req, file, cb) => cb(null, Date.now() + path.extname(file.originalname)),
+});
+const upload = multer({ storage });
+
+// ── LIST ALL STARTUPS
+router.get('/', protect, async (req, res) => {
+  try {
+    const startups = await Startup.find()
+      .populate('created_by', 'name avatar username')
+      .populate('founders',   'name avatar username')
+      .sort({ created_at: -1 });
+
+    const data = await Promise.all(
+      startups.map(async (s) => {
+        const updates = await StartupUpdate.find({ startup_id: s._id })
+          .populate('created_by', 'name avatar')
+          .sort({ created_at: -1 })
+          .limit(2);
+        const feedbackCount = await StartupFeedback.countDocuments({ startup_id: s._id });
+        return { ...s.toObject(), latest_updates: updates, feedback_count: feedbackCount };
+      })
+    );
+    res.json(data);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ── CREATE STARTUP
+router.post('/', protect, upload.single('logo'), async (req, res) => {
+  try {
+    const { name, description, social_links } = req.body;
+    const logo = req.file ? `/uploads/${req.file.filename}` : '';
+
+    const startup = await Startup.create({
+      name, description, logo,
+      social_links: typeof social_links === 'string' ? JSON.parse(social_links) : social_links,
+      created_by: req.user._id,
+      founders: [req.user._id],
+    });
+
+    const defaultPages = StartupPage.DEFAULT_PAGES.map(p => ({
+      startup_id: startup._id, name: p.name, description: p.description,
+    }));
+    await StartupPage.insertMany(defaultPages);
+    res.status(201).json(startup);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ── STARTUP DETAIL
+router.get('/:startupId', protect, async (req, res) => {
+  try {
+    const startup = await Startup.findById(req.params.startupId)
+      .populate('created_by', 'name avatar username')
+      .populate('founders',   'name avatar username');
+    if (!startup) return res.status(404).json({ error: 'Startup not found' });
+
+    const pages    = await StartupPage.find({ startup_id: startup._id });
+    const updates  = await StartupUpdate.find({ startup_id: startup._id })
+      .populate('created_by', 'name avatar').sort({ created_at: -1 });
+    const feedback = await StartupFeedback.find({ startup_id: startup._id })
+      .populate('user_id', 'name avatar username').sort({ created_at: -1 });
+
+    const approvedAccess = await PageAccess.find({
+      startup_id: startup._id, user_id: req.user._id, status: 'approved',
+    });
+    const approvedPageIds = approvedAccess.map(a => a.page_id.toString());
+
+    const pendingRequest = await PageAccessRequest.findOne({
+      startup_id: startup._id, user_id: req.user._id, status: 'pending',
+    });
+
+    const pagesWithStatus = pages.map(p => ({
+      ...p.toObject(),
+      access: approvedPageIds.includes(p._id.toString()) ? 'approved' : 'locked',
+    }));
+
+    res.json({ startup, pages: pagesWithStatus, updates, feedback, pending_request: pendingRequest });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ── EDIT STARTUP (founders only)
+router.put('/:startupId', protect, isFounder, upload.single('logo'), async (req, res) => {
+  try {
+    const { name, description, social_links } = req.body;
+    const updates = { name, description };
+    if (req.file)        updates.logo         = `/uploads/${req.file.filename}`;
+    if (social_links)    updates.social_links = typeof social_links === 'string' ? JSON.parse(social_links) : social_links;
+    const startup = await Startup.findByIdAndUpdate(req.params.startupId, updates, { new: true });
+    res.json(startup);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ── REFERRAL CODE LOOKUP
+router.get('/ref/:code', protect, async (req, res) => {
+  try {
+    const startup = await Startup.findOne({ referral_code: req.params.code.toUpperCase() })
+      .populate('founders', 'name avatar username');
+    if (!startup) return res.status(404).json({ error: 'Invalid referral code' });
+    const pages = await StartupPage.find({ startup_id: startup._id });
+    res.json({ startup, pages });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ── SUBMIT JOIN REQUEST
+router.post('/:startupId/request', protect, async (req, res) => {
+  try {
+    const { requested_pages } = req.body;
+    if (!requested_pages?.length)
+      return res.status(400).json({ error: 'Select at least one page' });
+
+    const existing = await PageAccessRequest.findOne({
+      startup_id: req.params.startupId, user_id: req.user._id, status: 'pending',
+    });
+    if (existing) return res.status(400).json({ error: 'You already have a pending request' });
+
+    const alreadyApproved = await PageAccess.find({
+      startup_id: req.params.startupId, user_id: req.user._id,
+      status: 'approved', page_id: { $in: requested_pages },
+    });
+    const approvedIds   = alreadyApproved.map(a => a.page_id.toString());
+    const filteredPages = requested_pages.filter(id => !approvedIds.includes(id));
+    if (!filteredPages.length)
+      return res.status(400).json({ error: 'All selected pages already approved' });
+
+    const request = await PageAccessRequest.create({
+      startup_id: req.params.startupId, user_id: req.user._id, requested_pages: filteredPages,
+    });
+    res.status(201).json(request);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ── FOUNDER DASHBOARD
+router.get('/:startupId/dashboard', protect, isFounder, async (req, res) => {
+  try {
+    const pages    = await StartupPage.find({ startup_id: req.params.startupId });
+    const requests = await PageAccessRequest.find({ startup_id: req.params.startupId, status: 'pending' })
+      .populate('user_id', 'name avatar username email')
+      .populate('requested_pages')
+      .sort({ created_at: -1 });
+    res.json({ startup: req.startup, pages, requests });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ── APPROVE REQUEST
+router.post('/:startupId/requests/:requestId/approve', protect, isFounder, async (req, res) => {
+  try {
+    const { page_ids } = req.body;
+    const request = await PageAccessRequest.findById(req.params.requestId);
+    if (!request) return res.status(404).json({ error: 'Request not found' });
+
+    const accessDocs = page_ids.map(pageId => ({
+      startup_id: req.params.startupId, page_id: pageId, user_id: request.user_id, status: 'approved',
+    }));
+    await PageAccess.insertMany(accessDocs, { ordered: false }).catch(() => {});
+
+    request.status     = 'approved';
+    request.updated_at = Date.now();
+    await request.save();
+    res.json({ message: 'Access granted' });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ── REJECT REQUEST
+router.post('/:startupId/requests/:requestId/reject', protect, isFounder, async (req, res) => {
+  try {
+    await PageAccessRequest.findByIdAndUpdate(req.params.requestId, { status: 'rejected', updated_at: Date.now() });
+    res.json({ message: 'Request rejected' });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ── POST UPDATE (founders only)
+router.post('/:startupId/updates', protect, isFounder, async (req, res) => {
+  try {
+    const update = await StartupUpdate.create({
+      startup_id: req.params.startupId, content: req.body.content, created_by: req.user._id,
+    });
+    await update.populate('created_by', 'name avatar');
+    res.status(201).json(update);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ── GET FEEDBACK
+router.get('/:startupId/feedback', protect, async (req, res) => {
+  try {
+    const feedback = await StartupFeedback.find({ startup_id: req.params.startupId })
+      .populate('user_id', 'name avatar username').sort({ created_at: -1 });
+    res.json(feedback);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ── POST FEEDBACK
+router.post('/:startupId/feedback', protect, async (req, res) => {
+  try {
+    const fb = await StartupFeedback.create({
+      startup_id: req.params.startupId, user_id: req.user._id, message: req.body.message,
+    });
+    await fb.populate('user_id', 'name avatar username');
+    res.status(201).json(fb);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ── PAGE WORKSPACE (approved users only)
+router.get('/pages/:pageId', protect, hasPageAccess, async (req, res) => {
+  try {
+    const page     = await StartupPage.findById(req.params.pageId);
+    if (!page) return res.status(404).json({ error: 'Page not found' });
+    const meetings = await PageMeeting.find({ page_id: req.params.pageId })
+      .populate('created_by', 'name avatar').sort({ scheduled_at: 1 });
+    res.json({ page, meetings });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ── BOOK MEETING
+router.post('/pages/:pageId/meetings', protect, hasPageAccess, async (req, res) => {
+  try {
+    const { title, meeting_type, meeting_link, scheduled_at } = req.body;
+    const page    = await StartupPage.findById(req.params.pageId);
+    const meeting = await PageMeeting.create({
+      page_id: req.params.pageId, startup_id: page.startup_id,
+      title, meeting_type, meeting_link, scheduled_at, created_by: req.user._id,
+    });
+    res.status(201).json(meeting);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+module.exports = router;
+*/
+
+// ─────────────────────────────────────────────────────────────
+// SECTION 4: FRONTEND SERVICE
+// ─────────────────────────────────────────────────────────────
+
+/* ── src/services/colabService.js ──────────────────────────── */
+/*
+import axios from 'axios';
+const API = '/api/colab';
+
+export const colabService = {
+  getAllStartups:  ()                           => axios.get(API),
+  getStartup:     (id)                         => axios.get(`${API}/${id}`),
+  createStartup:  (formData)                   => axios.post(API, formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
+  updateStartup:  (id, formData)               => axios.put(`${API}/${id}`, formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
+  findByReferral: (code)                       => axios.get(`${API}/ref/${code}`),
+  submitRequest:  (startupId, pageIds)         => axios.post(`${API}/${startupId}/request`, { requested_pages: pageIds }),
+  getDashboard:   (startupId)                  => axios.get(`${API}/${startupId}/dashboard`),
+  approveRequest: (startupId, requestId, pageIds) => axios.post(`${API}/${startupId}/requests/${requestId}/approve`, { page_ids: pageIds }),
+  rejectRequest:  (startupId, requestId)       => axios.post(`${API}/${startupId}/requests/${requestId}/reject`),
+  postUpdate:     (startupId, content)         => axios.post(`${API}/${startupId}/updates`, { content }),
+  getFeedback:    (startupId)                  => axios.get(`${API}/${startupId}/feedback`),
+  postFeedback:   (startupId, message)         => axios.post(`${API}/${startupId}/feedback`, { message }),
+  getPage:        (pageId)                     => axios.get(`${API}/pages/${pageId}`),
+  bookMeeting:    (pageId, data)               => axios.post(`${API}/pages/${pageId}/meetings`, data),
+};
+*/
+
+// ─────────────────────────────────────────────────────────────
+// SECTION 5: FRONTEND COMPONENTS (React JSX — copy as .jsx files)
+// ─────────────────────────────────────────────────────────────
+
+// ════════════════════════════════════════════════════════════
+// src/components/colab/StackedAvatars.jsx
+// ════════════════════════════════════════════════════════════
+/*
+import React from 'react';
+import { useNavigate } from 'react-router-dom';
+
+const StackedAvatars = ({ users = [], max = 4, size = 32 }) => {
+  const navigate = useNavigate();
+  const visible  = users.slice(0, max);
+  const extra    = users.length - max;
 
   return (
-    <div>
-      {showCreate && (
-        <CreateStartupModal
-          me={me}
-          myProfile={profiles[me]}
-          existing={null}
-          onClose={() => setShowCreate(false)}
-          onSave={handleStartupCreated}
-          dk={dk}
-        />
-      )}
-      {showReferral && (
-        <ReferralJoinModal
-          me={me}
-          onClose={() => setShowReferral(false)}
-          onSuccess={handleJoinSuccess}
-          dk={dk}
-        />
-      )}
-
-      {/* Header */}
-      <div style={{ background: "linear-gradient(135deg,#1e3a8a,#5b21b6)", borderRadius: 18, padding: 22, marginBottom: 18 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
-          <div>
-            <h2 style={{ fontSize: 22, fontWeight: 900, margin: "0 0 4px", color: "#fff" }}>🚀 Colab</h2>
-            <p style={{ color: "rgba(255,255,255,.6)", fontSize: 13, margin: 0 }}>
-              Build startups together · {startups.length} active startup{startups.length !== 1 ? "s" : ""}
-            </p>
-          </div>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <button
-              onClick={() => setShowReferral(true)}
-              style={{ display: "flex", alignItems: "center", gap: 6, background: "rgba(255,255,255,.15)", border: "1px solid rgba(255,255,255,.25)", borderRadius: 10, padding: "8px 16px", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer" }}
-            >
-              <Link size={13} /> Join via Code
-            </button>
-            <button
-              onClick={() => setShowCreate(true)}
-              style={{ display: "flex", alignItems: "center", gap: 6, background: "#fff", border: "none", borderRadius: 10, padding: "8px 18px", color: "#1e3a8a", fontSize: 13, fontWeight: 800, cursor: "pointer" }}
-            >
-              <Plus size={14} /> Create Startup
-            </button>
-          </div>
-        </div>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+      <div style={{ display: 'flex' }}>
+        {visible.map((user, i) => (
+          <img
+            key={user._id}
+            src={user.avatar || '/default-avatar.png'}
+            alt={user.name}
+            title={user.name}
+            onClick={() => navigate(`/profile/${user.username}`)}
+            style={{
+              width: size, height: size, borderRadius: '50%',
+              border: '2px solid var(--bg-primary, #fff)',
+              marginLeft: i === 0 ? 0 : -size * 0.35,
+              cursor: 'pointer', objectFit: 'cover',
+              position: 'relative', zIndex: visible.length - i,
+              transition: 'transform 0.15s',
+            }}
+            onMouseEnter={e => (e.target.style.transform = 'scale(1.15)')}
+            onMouseLeave={e => (e.target.style.transform = 'scale(1)')}
+          />
+        ))}
       </div>
-
-      {/* Search */}
-      <div style={{ position: "relative", marginBottom: 16 }}>
-        <Search size={14} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: th.txt3 }} />
-        <input
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          placeholder="Search startups…"
-          style={{ width: "100%", background: th.surf, border: `1px solid ${th.bdr}`, borderRadius: 12, padding: "9px 12px 9px 36px", fontSize: 13, outline: "none", color: th.txt, boxSizing: "border-box" }}
-        />
-      </div>
-
-      {/* My Startups section */}
-      {myStartups.length > 0 && !search && (
-        <div style={{ marginBottom: 8 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: th.txt3, letterSpacing: 0.5, marginBottom: 8 }}>YOUR STARTUPS</div>
-          {myStartups.map(s => <StartupCard key={s.id} startup={s} me={me} profiles={profiles} dk={dk} onClick={() => setActiveStartup(s)} isOwner />)}
-          {otherStartups.length > 0 && <div style={{ fontSize: 11, fontWeight: 700, color: th.txt3, letterSpacing: 0.5, margin: "16px 0 8px" }}>DISCOVER STARTUPS</div>}
-        </div>
-      )}
-
-      {/* All startups */}
-      {loading ? <Spin dk={dk} msg="Loading startups…" /> : (
-        (search ? filtered : otherStartups).length === 0 && myStartups.length === 0 ? (
-          <div style={{ textAlign: "center", padding: 56, color: th.txt3 }}>
-            <div style={{ fontSize: 48, marginBottom: 12 }}>🚀</div>
-            <h3 style={{ fontWeight: 700, color: th.txt, margin: "0 0 8px" }}>No startups yet</h3>
-            <p style={{ fontSize: 14, margin: "0 0 20px" }}>Be the first to create one, or join with a referral code.</p>
-            <button onClick={() => setShowCreate(true)} style={{ background: "#3b82f6", border: "none", borderRadius: 10, padding: "10px 24px", color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>
-              Create First Startup
-            </button>
-          </div>
-        ) : (
-          (search ? filtered : otherStartups).map(s => (
-            <StartupCard key={s.id} startup={s} me={me} profiles={profiles} dk={dk} onClick={() => setActiveStartup(s)} />
-          ))
-        )
+      {extra > 0 && (
+        <span style={{ fontSize: 12, color: 'var(--text-secondary, #666)', fontWeight: 500 }}>+{extra}</span>
       )}
     </div>
   );
-}
+};
 
-// ─── STARTUP CARD (used in ColabView list) ────────────────────────
-function StartupCard({ startup, me, profiles, dk, onClick, isOwner }) {
-  const th = T(dk);
-  const founders = (startup.founders || [startup.created_by]).map(id => profiles[id]).filter(Boolean);
+export default StackedAvatars;
+*/
+
+// ════════════════════════════════════════════════════════════
+// src/components/colab/SocialLinks.jsx
+// ════════════════════════════════════════════════════════════
+/*
+import React from 'react';
+import { Linkedin, Twitter, Globe, Github } from 'lucide-react';
+
+const SocialLinks = ({ links = {} }) => {
+  const items = [
+    { key: 'linkedin', icon: <Linkedin size={16} />, href: links.linkedin },
+    { key: 'twitter',  icon: <Twitter  size={16} />, href: links.twitter  },
+    { key: 'website',  icon: <Globe    size={16} />, href: links.website  },
+    { key: 'github',   icon: <Github   size={16} />, href: links.github   },
+  ].filter(i => i.href);
+
+  if (!items.length) return null;
 
   return (
-    <Card dk={dk} style={{ cursor: "pointer", transition: "all .2s" }} anim={false}>
-      <div onClick={onClick} style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
-        <div style={{ width: 52, height: 52, borderRadius: 14, background: "linear-gradient(135deg,#3b82f6,#8b5cf6)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 26, flexShrink: 0 }}>
-          {startup.logo || "🚀"}
-        </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, flexWrap: "wrap" }}>
-            <div>
-              <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-                <span style={{ fontWeight: 800, fontSize: 15, color: th.txt }}>{startup.name}</span>
-                {isOwner && (
-                  <span style={{ background: "#3b82f618", color: "#3b82f6", fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 99 }}>FOUNDER</span>
-                )}
+    <div style={{ display: 'flex', gap: 8 }}>
+      {items.map(({ key, icon, href }) => (
+        <a
+          key={key} href={href} target="_blank" rel="noopener noreferrer"
+          style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            width: 32, height: 32, borderRadius: 8,
+            background: 'var(--bg-secondary, #f3f4f6)',
+            color: 'var(--text-secondary, #555)',
+            transition: 'background 0.15s, color 0.15s', textDecoration: 'none',
+          }}
+          onMouseEnter={e => { e.currentTarget.style.background = 'var(--accent, #0a66c2)'; e.currentTarget.style.color = '#fff'; }}
+          onMouseLeave={e => { e.currentTarget.style.background = 'var(--bg-secondary, #f3f4f6)'; e.currentTarget.style.color = 'var(--text-secondary, #555)'; }}
+        >
+          {icon}
+        </a>
+      ))}
+    </div>
+  );
+};
+
+export default SocialLinks;
+*/
+
+// ════════════════════════════════════════════════════════════
+// src/components/colab/JoinModal.jsx
+// ════════════════════════════════════════════════════════════
+/*
+import React, { useEffect, useState } from 'react';
+import { X, Lock, CheckCircle, Loader } from 'lucide-react';
+import { colabService } from '../../services/colabService';
+
+const JoinModal = ({ startupId, startupName, onClose }) => {
+  const [pages,      setPages]      = useState([]);
+  const [approvedIds,setApprovedIds]= useState([]);
+  const [selected,   setSelected]   = useState([]);
+  const [loading,    setLoading]    = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [success,    setSuccess]    = useState(false);
+  const [error,      setError]      = useState('');
+
+  useEffect(() => {
+    colabService.getStartup(startupId).then(({ data }) => {
+      setPages(data.pages);
+      setApprovedIds(data.pages.filter(p => p.access === 'approved').map(p => p._id));
+      setLoading(false);
+    });
+  }, [startupId]);
+
+  const togglePage = (id) => {
+    if (approvedIds.includes(id)) return;
+    setSelected(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  };
+
+  const handleSubmit = async () => {
+    if (!selected.length) return setError('Please select at least one page.');
+    setSubmitting(true); setError('');
+    try {
+      await colabService.submitRequest(startupId, selected);
+      setSuccess(true);
+    } catch (e) {
+      setError(e.response?.data?.error || 'Something went wrong');
+    } finally { setSubmitting(false); }
+  };
+
+  return (
+    <div
+      style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+      onClick={e => e.target === e.currentTarget && onClose()}
+    >
+      <div style={{ background: 'var(--bg-card,#fff)', borderRadius: 16, padding: 28, width: '100%', maxWidth: 480, position: 'relative', boxShadow: '0 20px 60px rgba(0,0,0,0.15)' }}>
+        <button onClick={onClose} style={{ position: 'absolute', top: 16, right: 16, background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}>
+          <X size={20} color="var(--text-secondary,#666)" />
+        </button>
+
+        {success ? (
+          <div style={{ textAlign: 'center', padding: '20px 0' }}>
+            <CheckCircle size={48} color="#22c55e" style={{ marginBottom: 12 }} />
+            <h3 style={{ margin: '0 0 8px', fontSize: 18 }}>Request Submitted!</h3>
+            <p style={{ color: 'var(--text-secondary,#666)', fontSize: 14 }}>
+              Your request has been sent to the founders of <strong>{startupName}</strong>. You'll be notified once approved.
+            </p>
+            <button onClick={onClose} style={{ marginTop: 20, padding: '10px 28px', background: 'var(--accent,#0a66c2)', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}>Done</button>
+          </div>
+        ) : (
+          <>
+            <h2 style={{ margin: '0 0 4px', fontSize: 20, fontWeight: 700 }}>Join {startupName}</h2>
+            <p style={{ margin: '0 0 20px', fontSize: 14, color: 'var(--text-secondary,#6b7280)' }}>Select the pages you'd like to request access to</p>
+
+            {loading ? (
+              <div style={{ display: 'flex', justifyContent: 'center', padding: 32 }}><Loader size={24} /></div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 320, overflowY: 'auto' }}>
+                {pages.map(page => {
+                  const isApproved = approvedIds.includes(page._id);
+                  const isSelected = selected.includes(page._id);
+                  return (
+                    <div
+                      key={page._id} onClick={() => togglePage(page._id)}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 12,
+                        padding: '12px 14px', borderRadius: 10,
+                        border: `2px solid ${isSelected ? 'var(--accent,#0a66c2)' : 'var(--border,#e5e7eb)'}`,
+                        background: isApproved ? 'var(--bg-secondary,#f9fafb)' : isSelected ? 'var(--accent-light,#eff6ff)' : 'transparent',
+                        cursor: isApproved ? 'not-allowed' : 'pointer',
+                        opacity: isApproved ? 0.6 : 1, transition: 'all 0.15s',
+                      }}
+                    >
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: 600, fontSize: 14 }}>{page.name}</div>
+                        <div style={{ fontSize: 12, color: 'var(--text-secondary,#6b7280)' }}>{page.description}</div>
+                      </div>
+                      {isApproved
+                        ? <span style={{ fontSize: 11, background: '#dcfce7', color: '#15803d', padding: '3px 8px', borderRadius: 20, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}><CheckCircle size={11} /> Joined</span>
+                        : isSelected
+                          ? <CheckCircle size={18} color="var(--accent,#0a66c2)" />
+                          : <Lock size={16} color="var(--text-secondary,#9ca3af)" />
+                      }
+                    </div>
+                  );
+                })}
               </div>
-              <p style={{ fontSize: 13, color: th.txt2, margin: "4px 0 8px", lineHeight: 1.5 }}>
-                {(startup.description || "").slice(0, 100)}{startup.description?.length > 100 ? "…" : ""}
+            )}
+
+            {error && <p style={{ color: '#ef4444', fontSize: 13, marginTop: 8 }}>{error}</p>}
+
+            <button
+              onClick={handleSubmit}
+              disabled={submitting || !selected.length}
+              style={{
+                marginTop: 20, width: '100%', padding: 12,
+                background: selected.length ? 'var(--accent,#0a66c2)' : 'var(--bg-secondary,#e5e7eb)',
+                color: selected.length ? '#fff' : 'var(--text-secondary,#9ca3af)',
+                border: 'none', borderRadius: 10, fontSize: 15, fontWeight: 600,
+                cursor: selected.length ? 'pointer' : 'not-allowed', transition: 'background 0.15s',
+              }}
+            >
+              {submitting ? 'Submitting…' : `Request Access to ${selected.length} Page${selected.length !== 1 ? 's' : ''}`}
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default JoinModal;
+*/
+
+// ════════════════════════════════════════════════════════════
+// src/components/colab/StartupCard.jsx
+// ════════════════════════════════════════════════════════════
+/*
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { MessageSquare, TrendingUp } from 'lucide-react';
+import StackedAvatars from './StackedAvatars';
+import SocialLinks from './SocialLinks';
+import JoinModal from './JoinModal';
+
+const StartupCard = ({ startup }) => {
+  const navigate   = useNavigate();
+  const [showJoin, setShowJoin] = useState(false);
+  const { _id, name, logo, description, social_links, founders, latest_updates, feedback_count } = startup;
+
+  return (
+    <>
+      <div
+        style={{ background: 'var(--bg-card,#fff)', border: '1px solid var(--border,#e5e7eb)', borderRadius: 12, padding: 20, display: 'flex', flexDirection: 'column', gap: 14, transition: 'box-shadow 0.2s', cursor: 'pointer' }}
+        onMouseEnter={e => (e.currentTarget.style.boxShadow = '0 4px 20px rgba(0,0,0,0.08)')}
+        onMouseLeave={e => (e.currentTarget.style.boxShadow = 'none')}
+      >
+        <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+          <img
+            src={logo || '/default-startup.png'} alt={name}
+            onClick={() => navigate(`/colab/${_id}`)}
+            style={{ width: 56, height: 56, borderRadius: 12, objectFit: 'cover', flexShrink: 0, cursor: 'pointer' }}
+          />
+          <div style={{ flex: 1 }}>
+            <h3 onClick={() => navigate(`/colab/${_id}`)} style={{ margin: 0, fontSize: 16, fontWeight: 700, color: 'var(--text-primary,#111)', cursor: 'pointer' }}>{name}</h3>
+            <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--text-secondary,#6b7280)', lineHeight: 1.4 }}>
+              {description.length > 100 ? description.slice(0, 100) + '…' : description}
+            </p>
+          </div>
+        </div>
+
+        <SocialLinks links={social_links} />
+
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <StackedAvatars users={founders} max={4} size={30} />
+          <span style={{ fontSize: 12, color: 'var(--text-secondary,#6b7280)' }}>
+            {founders?.length} founder{founders?.length !== 1 ? 's' : ''}
+          </span>
+        </div>
+
+        {latest_updates?.length > 0 && (
+          <div style={{ borderTop: '1px solid var(--border,#e5e7eb)', paddingTop: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+              <TrendingUp size={13} color="var(--accent,#0a66c2)" />
+              <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--accent,#0a66c2)' }}>Latest Updates</span>
+            </div>
+            {latest_updates.slice(0, 2).map(u => (
+              <p key={u._id} style={{ margin: '0 0 4px', fontSize: 12, color: 'var(--text-secondary,#6b7280)', lineHeight: 1.4 }}>
+                {u.content.length > 80 ? u.content.slice(0, 80) + '…' : u.content}
               </p>
-            </div>
+            ))}
           </div>
-          {/* Stacked founder avatars */}
-          {founders.length > 0 && (
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-              <StackedAvatars uids={founders.map(f => f.id)} profiles={profiles} size={24} max={4} />
-              <span style={{ fontSize: 12, color: th.txt3 }}>
-                {founders.slice(0, 2).map(f => f.name?.split(" ")[0]).join(", ")}
-                {founders.length > 2 ? ` +${founders.length - 2}` : ""}
-              </span>
-            </div>
-          )}
-          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-            {startup.website && (
-              <span style={{ fontSize: 11, color: "#10b981", fontWeight: 600, display: "flex", alignItems: "center", gap: 3 }}>
-                <Globe size={10} /> Website
-              </span>
-            )}
-            {startup.referral_code && isOwner && (
-              <span style={{ background: "#f59e0b18", color: "#f59e0b", fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 99, fontFamily: "monospace", letterSpacing: 0.5 }}>
-                {startup.referral_code}
-              </span>
-            )}
-            <span style={{ fontSize: 11, color: th.txt3 }}>→ View pages</span>
+        )}
+
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <MessageSquare size={13} color="var(--text-secondary,#9ca3af)" />
+            <span style={{ fontSize: 12, color: 'var(--text-secondary,#9ca3af)' }}>{feedback_count} feedback</span>
           </div>
+          <button
+            onClick={e => { e.stopPropagation(); setShowJoin(true); }}
+            style={{ padding: '7px 20px', background: 'var(--accent,#0a66c2)', color: '#fff', border: 'none', borderRadius: 20, fontSize: 13, fontWeight: 600, cursor: 'pointer', transition: 'opacity 0.15s' }}
+            onMouseEnter={e => (e.target.style.opacity = 0.85)}
+            onMouseLeave={e => (e.target.style.opacity = 1)}
+          >
+            Join
+          </button>
         </div>
       </div>
-    </Card>
+
+      {showJoin && <JoinModal startupId={_id} startupName={name} onClose={() => setShowJoin(false)} />}
+    </>
   );
-}
+};
 
+export default StartupCard;
+*/
 
+// ════════════════════════════════════════════════════════════
+// src/components/colab/CreateStartupModal.jsx
+// ════════════════════════════════════════════════════════════
+/*
+import React, { useState, useRef } from 'react';
+import { X, Upload, ArrowRight, Loader } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { colabService } from '../../services/colabService';
 
+const inputStyle = {
+  width: '100%', padding: '10px 12px', borderRadius: 8,
+  border: '1.5px solid var(--border,#e5e7eb)', fontSize: 14,
+  background: 'var(--bg-input,#f9fafb)', outline: 'none',
+  boxSizing: 'border-box', transition: 'border-color 0.15s',
+};
+
+const CreateStartupModal = ({ onClose }) => {
+  const navigate  = useNavigate();
+  const fileRef   = useRef();
+  const [step,    setStep]    = useState(1);
+  const [loading, setLoading] = useState(false);
+  const [error,   setError]   = useState('');
+  const [logoPreview, setLogoPreview] = useState(null);
+  const [form, setForm] = useState({ name: '', description: '', logo: null, linkedin: '', twitter: '', website: '', github: '' });
+
+  const handleChange = e => setForm({ ...form, [e.target.name]: e.target.value });
+  const handleLogo   = e => {
+    const file = e.target.files[0]; if (!file) return;
+    setForm({ ...form, logo: file });
+    setLogoPreview(URL.createObjectURL(file));
+  };
+
+  const handleSubmit = async () => {
+    if (!form.name || !form.description) return setError('Name and description are required.');
+    setLoading(true); setError('');
+    try {
+      const fd = new FormData();
+      fd.append('name', form.name);
+      fd.append('description', form.description);
+      if (form.logo) fd.append('logo', form.logo);
+      fd.append('social_links', JSON.stringify({ linkedin: form.linkedin, twitter: form.twitter, website: form.website, github: form.github }));
+      const { data } = await colabService.createStartup(fd);
+      navigate(`/colab/${data._id}/dashboard`);
+      onClose();
+    } catch (e) {
+      setError(e.response?.data?.error || 'Failed to create startup');
+    } finally { setLoading(false); }
+  };
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={e => e.target === e.currentTarget && onClose()}>
+      <div style={{ background: 'var(--bg-card,#fff)', borderRadius: 16, padding: 32, width: '100%', maxWidth: 500, position: 'relative', boxShadow: '0 20px 60px rgba(0,0,0,0.15)' }}>
+        <button onClick={onClose} style={{ position: 'absolute', top: 16, right: 16, background: 'none', border: 'none', cursor: 'pointer' }}><X size={20} /></button>
+
+        <div style={{ display: 'flex', gap: 8, marginBottom: 24 }}>
+          {[1, 2].map(s => (
+            <div key={s} style={{ height: 3, flex: 1, borderRadius: 2, background: step >= s ? 'var(--accent,#0a66c2)' : 'var(--border,#e5e7eb)', transition: 'background 0.3s' }} />
+          ))}
+        </div>
+
+        {step === 1 && (
+          <>
+            <h2 style={{ margin: '0 0 4px', fontSize: 20, fontWeight: 700 }}>Create Startup</h2>
+            <p style={{ margin: '0 0 20px', fontSize: 14, color: 'var(--text-secondary,#6b7280)' }}>Tell us about your startup</p>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 16 }}>
+              <div onClick={() => fileRef.current.click()} style={{ width: 72, height: 72, borderRadius: 12, background: 'var(--bg-secondary,#f3f4f6)', border: '2px dashed var(--border,#d1d5db)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', overflow: 'hidden', flexShrink: 0 }}>
+                {logoPreview ? <img src={logoPreview} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <Upload size={22} color="var(--text-secondary,#9ca3af)" />}
+              </div>
+              <div>
+                <div style={{ fontWeight: 600, fontSize: 14 }}>Upload Logo</div>
+                <div style={{ fontSize: 12, color: 'var(--text-secondary,#6b7280)' }}>PNG, JPG up to 2MB</div>
+              </div>
+              <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleLogo} />
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <input style={inputStyle} name="name" placeholder="Startup Name *" value={form.name} onChange={handleChange} />
+              <textarea style={{ ...inputStyle, resize: 'vertical', minHeight: 80 }} name="description" placeholder="Short Description *" value={form.description} onChange={handleChange} />
+            </div>
+            {error && <p style={{ color: '#ef4444', fontSize: 13, marginTop: 8 }}>{error}</p>}
+
+            <button
+              onClick={() => { if (!form.name || !form.description) return setError('Fill required fields.'); setError(''); setStep(2); }}
+              style={{ marginTop: 20, width: '100%', padding: 12, background: 'var(--accent,#0a66c2)', color: '#fff', border: 'none', borderRadius: 10, fontWeight: 600, fontSize: 15, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+            >
+              Next <ArrowRight size={16} />
+            </button>
+          </>
+        )}
+
+        {step === 2 && (
+          <>
+            <h2 style={{ margin: '0 0 4px', fontSize: 20, fontWeight: 700 }}>Social Links</h2>
+            <p style={{ margin: '0 0 20px', fontSize: 14, color: 'var(--text-secondary,#6b7280)' }}>Add your startup's social presence (optional)</p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {['linkedin', 'twitter', 'website', 'github'].map(key => (
+                <input key={key} style={inputStyle} name={key} placeholder={key.charAt(0).toUpperCase() + key.slice(1) + ' URL'} value={form[key]} onChange={handleChange} />
+              ))}
+            </div>
+            {error && <p style={{ color: '#ef4444', fontSize: 13, marginTop: 8 }}>{error}</p>}
+
+            <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
+              <button onClick={() => setStep(1)} style={{ flex: 1, padding: 12, background: 'var(--bg-secondary,#f3f4f6)', border: 'none', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }}>Back</button>
+              <button
+                onClick={handleSubmit} disabled={loading}
+                style={{ flex: 2, padding: 12, background: 'var(--accent,#0a66c2)', color: '#fff', border: 'none', borderRadius: 10, fontWeight: 600, fontSize: 15, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+              >
+                {loading ? <Loader size={16} /> : 'Create Startup'}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default CreateStartupModal;
+*/
+
+// ════════════════════════════════════════════════════════════
+// src/pages/ColabListPage.jsx
+// ════════════════════════════════════════════════════════════
+/*
+import React, { useEffect, useState } from 'react';
+import { Search, Plus, Hash } from 'lucide-react';
+import { colabService } from '../services/colabService';
+import StartupCard from '../components/colab/StartupCard';
+import CreateStartupModal from '../components/colab/CreateStartupModal';
+import JoinModal from '../components/colab/JoinModal';
+
+const ColabListPage = () => {
+  const [startups,     setStartups]     = useState([]);
+  const [loading,      setLoading]      = useState(true);
+  const [showCreate,   setShowCreate]   = useState(false);
+  const [referralCode, setReferralCode] = useState('');
+  const [refResult,    setRefResult]    = useState(null);
+  const [refError,     setRefError]     = useState('');
+  const [refLoading,   setRefLoading]   = useState(false);
+  const [showRefJoin,  setShowRefJoin]  = useState(false);
+  const [searchQuery,  setSearchQuery]  = useState('');
+
+  useEffect(() => {
+    colabService.getAllStartups().then(({ data }) => {
+      setStartups(data);
+      setLoading(false);
+    });
+  }, []);
+
+  const handleReferral = async () => {
+    if (!referralCode.trim()) return;
+    setRefLoading(true); setRefError('');
+    try {
+      const { data } = await colabService.findByReferral(referralCode.trim());
+      setRefResult(data);
+      setShowRefJoin(true);
+    } catch (e) {
+      setRefError(e.response?.data?.error || 'Invalid code');
+    } finally { setRefLoading(false); }
+  };
+
+  const filtered = startups.filter(s =>
+    s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    s.description.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  return (
+    <div style={{ maxWidth: 1100, margin: '0 auto', padding: '24px 16px' }}>
+
+      // ── Header
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
+        <div>
+          <h1 style={{ margin: 0, fontSize: 26, fontWeight: 800 }}>Colab</h1>
+          <p style={{ margin: '4px 0 0', color: 'var(--text-secondary,#6b7280)', fontSize: 14 }}>Discover and join startups</p>
+        </div>
+        <button
+          onClick={() => setShowCreate(true)}
+          style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 20px', background: 'var(--accent,#0a66c2)', color: '#fff', border: 'none', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }}
+        >
+          <Plus size={16} /> Create Startup
+        </button>
+      </div>
+
+      // ── Referral Input
+      <div style={{ display: 'flex', gap: 8, marginBottom: 24 }}>
+        <div style={{ position: 'relative', flex: 1 }}>
+          <Hash size={15} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary,#9ca3af)' }} />
+          <input
+            placeholder="Enter startup referral code…"
+            value={referralCode}
+            onChange={e => setReferralCode(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleReferral()}
+            style={{ width: '100%', paddingLeft: 36, padding: '10px 12px 10px 36px', borderRadius: 8, border: '1.5px solid var(--border,#e5e7eb)', fontSize: 14, background: 'var(--bg-card,#fff)', boxSizing: 'border-box' }}
+          />
+        </div>
+        <button
+          onClick={handleReferral} disabled={refLoading}
+          style={{ padding: '10px 20px', background: 'var(--bg-secondary,#f3f4f6)', border: '1.5px solid var(--border,#e5e7eb)', borderRadius: 8, fontWeight: 600, cursor: 'pointer', fontSize: 14 }}
+        >
+          {refLoading ? '…' : 'Join via Code'}
+        </button>
+      </div>
+      {refError && <p style={{ color: '#ef4444', fontSize: 13, marginBottom: 12 }}>{refError}</p>}
+
+      // ── Search
+      <div style={{ position: 'relative', marginBottom: 24 }}>
+        <Search size={15} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary,#9ca3af)' }} />
+        <input
+          placeholder="Search startups…"
+          value={searchQuery}
+          onChange={e => setSearchQuery(e.target.value)}
+          style={{ width: '100%', paddingLeft: 36, padding: '10px 12px 10px 36px', borderRadius: 8, border: '1.5px solid var(--border,#e5e7eb)', fontSize: 14, background: 'var(--bg-card,#fff)', boxSizing: 'border-box' }}
+        />
+      </div>
+
+      // ── Grid
+      {loading ? (
+        <div style={{ textAlign: 'center', padding: 60, color: 'var(--text-secondary,#9ca3af)' }}>Loading startups…</div>
+      ) : filtered.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: 60, color: 'var(--text-secondary,#9ca3af)' }}>No startups found</div>
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 16 }}>
+          {filtered.map(s => <StartupCard key={s._id} startup={s} />)}
+        </div>
+      )}
+
+      {showCreate && <CreateStartupModal onClose={() => setShowCreate(false)} />}
+      {showRefJoin && refResult && (
+        <JoinModal
+          startupId={refResult.startup._id}
+          startupName={refResult.startup.name}
+          onClose={() => { setShowRefJoin(false); setRefResult(null); setReferralCode(''); }}
+        />
+      )}
+    </div>
+  );
+};
+
+export default ColabListPage;
+*/
+
+// ════════════════════════════════════════════════════════════
+// src/pages/ColabDetailPage.jsx
+// ════════════════════════════════════════════════════════════
+/*
+import React, { useEffect, useState } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { Lock, CheckCircle, TrendingUp, MessageSquare, Settings, Send } from 'lucide-react';
+import { colabService } from '../services/colabService';
+import StackedAvatars from '../components/colab/StackedAvatars';
+import SocialLinks from '../components/colab/SocialLinks';
+import JoinModal from '../components/colab/JoinModal';
+import { useSelector } from 'react-redux'; // adjust to your auth hook
+
+const ColabDetailPage = () => {
+  const { id }        = useParams();
+  const navigate      = useNavigate();
+  const currentUser   = useSelector(s => s.auth.user); // adjust
+  const [data,        setData]       = useState(null);
+  const [loading,     setLoading]    = useState(true);
+  const [showJoin,    setShowJoin]   = useState(false);
+  const [activeTab,   setActiveTab]  = useState('updates');
+  const [feedbackMsg, setFeedbackMsg]= useState('');
+  const [updateText,  setUpdateText] = useState('');
+  const [submitting,  setSubmitting] = useState(false);
+
+  const load = () => {
+    setLoading(true);
+    colabService.getStartup(id).then(({ data }) => { setData(data); setLoading(false); });
+  };
+  useEffect(load, [id]);
+
+  if (loading) return <div style={{ textAlign: 'center', padding: 80 }}>Loading…</div>;
+  if (!data)   return <div style={{ textAlign: 'center', padding: 80 }}>Not found</div>;
+
+  const { startup, pages, updates, feedback, pending_request } = data;
+  const isFounder = startup.founders.some(f => f._id === currentUser?._id) || startup.created_by._id === currentUser?._id;
+
+  const handleFeedback = async () => {
+    if (!feedbackMsg.trim()) return;
+    setSubmitting(true);
+    await colabService.postFeedback(id, feedbackMsg);
+    setFeedbackMsg(''); load(); setSubmitting(false);
+  };
+
+  const handleUpdate = async () => {
+    if (!updateText.trim()) return;
+    setSubmitting(true);
+    await colabService.postUpdate(id, updateText);
+    setUpdateText(''); load(); setSubmitting(false);
+  };
+
+  const TABS = ['updates', 'pages', 'feedback'];
+
+  return (
+    <div style={{ maxWidth: 860, margin: '0 auto', padding: '24px 16px' }}>
+
+      // ── Hero Header
+      <div style={{ background: 'var(--bg-card,#fff)', border: '1px solid var(--border,#e5e7eb)', borderRadius: 16, padding: 28, marginBottom: 20 }}>
+        <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+          <img src={startup.logo || '/default-startup.png'} alt={startup.name} style={{ width: 80, height: 80, borderRadius: 16, objectFit: 'cover', flexShrink: 0 }} />
+          <div style={{ flex: 1, minWidth: 200 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+              <h1 style={{ margin: 0, fontSize: 24, fontWeight: 800 }}>{startup.name}</h1>
+              {isFounder && (
+                <button onClick={() => navigate(`/colab/${id}/dashboard`)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', background: 'var(--bg-secondary,#f3f4f6)', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
+                  <Settings size={14} /> Dashboard
+                </button>
+              )}
+            </div>
+            <p style={{ margin: '8px 0 12px', color: 'var(--text-secondary,#6b7280)', fontSize: 14, lineHeight: 1.5 }}>{startup.description}</p>
+            <SocialLinks links={startup.social_links} />
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 20, flexWrap: 'wrap', gap: 12 }}>
+          <StackedAvatars users={startup.founders} max={5} size={34} />
+          {!isFounder && (
+            pending_request
+              ? <span style={{ padding: '8px 18px', background: '#fef9c3', color: '#854d0e', borderRadius: 20, fontSize: 13, fontWeight: 600 }}>Request Pending</span>
+              : <button onClick={() => setShowJoin(true)} style={{ padding: '9px 24px', background: 'var(--accent,#0a66c2)', color: '#fff', border: 'none', borderRadius: 20, fontWeight: 600, cursor: 'pointer', fontSize: 14 }}>Join Startup</button>
+          )}
+        </div>
+      </div>
+
+      // ── Tabs
+      <div style={{ display: 'flex', gap: 4, marginBottom: 20, background: 'var(--bg-card,#fff)', border: '1px solid var(--border,#e5e7eb)', borderRadius: 10, padding: 4 }}>
+        {TABS.map(tab => (
+          <button
+            key={tab} onClick={() => setActiveTab(tab)}
+            style={{
+              flex: 1, padding: '9px', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: 13, textTransform: 'capitalize', transition: 'all 0.15s',
+              background: activeTab === tab ? 'var(--accent,#0a66c2)' : 'transparent',
+              color: activeTab === tab ? '#fff' : 'var(--text-secondary,#6b7280)',
+            }}
+          >
+            {tab}
+          </button>
+        ))}
+      </div>
+
+      // ── Updates Tab
+      {activeTab === 'updates' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {isFounder && (
+            <div style={{ background: 'var(--bg-card,#fff)', border: '1px solid var(--border,#e5e7eb)', borderRadius: 12, padding: 16 }}>
+              <textarea
+                placeholder="Post an update to your startup…"
+                value={updateText}
+                onChange={e => setUpdateText(e.target.value)}
+                style={{ width: '100%', minHeight: 80, padding: 12, borderRadius: 8, border: '1.5px solid var(--border,#e5e7eb)', fontSize: 14, resize: 'vertical', boxSizing: 'border-box' }}
+              />
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
+                <button
+                  onClick={handleUpdate} disabled={submitting || !updateText.trim()}
+                  style={{ padding: '8px 20px', background: 'var(--accent,#0a66c2)', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
+                >
+                  <Send size={14} /> Post Update
+                </button>
+              </div>
+            </div>
+          )}
+          {updates.length === 0
+            ? <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-secondary,#9ca3af)' }}>No updates yet</div>
+            : updates.map(u => (
+              <div key={u._id} style={{ background: 'var(--bg-card,#fff)', border: '1px solid var(--border,#e5e7eb)', borderRadius: 12, padding: 16 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                  <img src={u.created_by?.avatar || '/default-avatar.png'} style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover' }} />
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: 14 }}>{u.created_by?.name}</div>
+                    <div style={{ fontSize: 12, color: 'var(--text-secondary,#9ca3af)' }}>{new Date(u.created_at).toLocaleDateString()}</div>
+                  </div>
+                </div>
+                <p style={{ margin: 0, fontSize: 14, lineHeight: 1.6 }}>{u.content}</p>
+              </div>
+            ))
+          }
+        </div>
+      )}
+
+      // ── Pages Tab
+      {activeTab === 'pages' && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 12 }}>
+          {pages.map(page => {
+            const approved = page.access === 'approved';
+            return (
+              <div
+                key={page._id}
+                onClick={() => approved ? navigate(`/colab/page/${page._id}`) : setShowJoin(true)}
+                style={{
+                  background: 'var(--bg-card,#fff)', border: `1.5px solid ${approved ? 'var(--accent,#0a66c2)' : 'var(--border,#e5e7eb)'}`,
+                  borderRadius: 12, padding: 18, cursor: 'pointer', transition: 'box-shadow 0.2s',
+                  filter: !approved && !isFounder ? 'blur(0)' : 'none',
+                  position: 'relative', overflow: 'hidden',
+                }}
+                onMouseEnter={e => (e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.07)')}
+                onMouseLeave={e => (e.currentTarget.style.boxShadow = 'none')}
+              >
+                {!approved && !isFounder && (
+                  <div style={{ position: 'absolute', inset: 0, backdropFilter: 'blur(2px)', background: 'rgba(255,255,255,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 12 }}>
+                    <Lock size={28} color="var(--text-secondary,#9ca3af)" />
+                  </div>
+                )}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <span style={{ fontWeight: 700, fontSize: 15 }}>{page.name}</span>
+                  {approved || isFounder
+                    ? <CheckCircle size={16} color="#22c55e" />
+                    : <Lock size={14} color="var(--text-secondary,#9ca3af)" />
+                  }
+                </div>
+                <p style={{ margin: 0, fontSize: 13, color: 'var(--text-secondary,#6b7280)', lineHeight: 1.4 }}>{page.description}</p>
+                <div style={{ marginTop: 12, fontSize: 12, fontWeight: 600, color: approved || isFounder ? '#22c55e' : 'var(--text-secondary,#9ca3af)' }}>
+                  {approved || isFounder ? 'Open →' : 'Request Access'}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      // ── Feedback Tab
+      {activeTab === 'feedback' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div style={{ background: 'var(--bg-card,#fff)', border: '1px solid var(--border,#e5e7eb)', borderRadius: 12, padding: 16 }}>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <textarea
+                placeholder="Leave public feedback for this startup…"
+                value={feedbackMsg}
+                onChange={e => setFeedbackMsg(e.target.value)}
+                style={{ flex: 1, minHeight: 70, padding: 12, borderRadius: 8, border: '1.5px solid var(--border,#e5e7eb)', fontSize: 14, resize: 'vertical' }}
+              />
+              <button
+                onClick={handleFeedback} disabled={submitting || !feedbackMsg.trim()}
+                style={{ padding: '0 16px', background: 'var(--accent,#0a66c2)', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', alignSelf: 'flex-end', height: 42 }}
+              >
+                <Send size={16} />
+              </button>
+            </div>
+          </div>
+
+          {feedback.length === 0
+            ? <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-secondary,#9ca3af)' }}>No feedback yet — be the first!</div>
+            : feedback.map(f => (
+              <div key={f._id} style={{ background: 'var(--bg-card,#fff)', border: '1px solid var(--border,#e5e7eb)', borderRadius: 12, padding: 16, display: 'flex', gap: 12 }}>
+                <img src={f.user_id?.avatar || '/default-avatar.png'} style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: 14 }}>{f.user_id?.name}</div>
+                  <p style={{ margin: '4px 0 0', fontSize: 14, color: 'var(--text-secondary,#374151)', lineHeight: 1.5 }}>{f.message}</p>
+                  <div style={{ fontSize: 12, color: 'var(--text-secondary,#9ca3af)', marginTop: 4 }}>{new Date(f.created_at).toLocaleDateString()}</div>
+                </div>
+              </div>
+            ))
+          }
+        </div>
+      )}
+
+      {showJoin && <JoinModal startupId={id} startupName={startup.name} onClose={() => { setShowJoin(false); load(); }} />}
+    </div>
+  );
+};
+
+export default ColabDetailPage;
+*/
+
+// ════════════════════════════════════════════════════════════
+// src/pages/ColabDashboardPage.jsx
+// ════════════════════════════════════════════════════════════
+/*
+import React, { useEffect, useState } from 'react';
+import { useParams } from 'react-router-dom';
+import { Copy, Check, Users, FileText, Edit2, X, Loader } from 'lucide-react';
+import { colabService } from '../services/colabService';
+
+const ColabDashboardPage = () => {
+  const { id }          = useParams();
+  const [data,          setData]          = useState(null);
+  const [loading,       setLoading]       = useState(true);
+  const [copied,        setCopied]        = useState(false);
+  const [activeTab,     setActiveTab]     = useState('requests');
+  const [editMode,      setEditMode]      = useState(false);
+  const [editForm,      setEditForm]      = useState({});
+  const [editLogo,      setEditLogo]      = useState(null);
+  const [editLogoPreview, setEditLogoPreview] = useState(null);
+  const [saving,        setSaving]        = useState(false);
+
+  const load = () => {
+    colabService.getDashboard(id).then(({ data }) => {
+      setData(data);
+      setEditForm({ name: data.startup.name, description: data.startup.description, ...data.startup.social_links });
+      setLoading(false);
+    });
+  };
+  useEffect(load, [id]);
+
+  if (loading) return <div style={{ textAlign: 'center', padding: 80 }}>Loading dashboard…</div>;
+  if (!data)   return <div style={{ textAlign: 'center', padding: 80 }}>Access denied</div>;
+
+  const { startup, pages, requests } = data;
+
+  const copyCode = () => {
+    navigator.clipboard.writeText(startup.referral_code);
+    setCopied(true); setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleApprove = async (requestId, pageIds) => {
+    await colabService.approveRequest(id, requestId, pageIds);
+    load();
+  };
+
+  const handleReject = async (requestId) => {
+    await colabService.rejectRequest(id, requestId);
+    load();
+  };
+
+  const handleSaveEdit = async () => {
+    setSaving(true);
+    const fd = new FormData();
+    fd.append('name', editForm.name);
+    fd.append('description', editForm.description);
+    if (editLogo) fd.append('logo', editLogo);
+    fd.append('social_links', JSON.stringify({ linkedin: editForm.linkedin, twitter: editForm.twitter, website: editForm.website, github: editForm.github }));
+    await colabService.updateStartup(id, fd);
+    setSaving(false); setEditMode(false); load();
+  };
+
+  const inputStyle = { width: '100%', padding: '9px 12px', borderRadius: 8, border: '1.5px solid var(--border,#e5e7eb)', fontSize: 14, boxSizing: 'border-box', background: 'var(--bg-input,#f9fafb)' };
+  const TABS = ['requests', 'pages', 'edit'];
+
+  return (
+    <div style={{ maxWidth: 860, margin: '0 auto', padding: '24px 16px' }}>
+
+      // ── Header
+      <div style={{ background: 'var(--bg-card,#fff)', border: '1px solid var(--border,#e5e7eb)', borderRadius: 16, padding: 24, marginBottom: 20 }}>
+        <div style={{ display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
+          <img src={startup.logo || '/default-startup.png'} style={{ width: 64, height: 64, borderRadius: 12, objectFit: 'cover' }} />
+          <div style={{ flex: 1 }}>
+            <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800 }}>{startup.name}</h1>
+            <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--text-secondary,#6b7280)' }}>{startup.description}</p>
+          </div>
+        </div>
+
+        // Referral Code
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 16, background: 'var(--bg-secondary,#f9fafb)', borderRadius: 10, padding: '10px 14px', border: '1px solid var(--border,#e5e7eb)' }}>
+          <span style={{ fontSize: 12, color: 'var(--text-secondary,#6b7280)', fontWeight: 600 }}>REFERRAL CODE</span>
+          <span style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: 16, letterSpacing: 2, flex: 1 }}>{startup.referral_code}</span>
+          <button onClick={copyCode} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', background: copied ? '#dcfce7' : 'var(--accent,#0a66c2)', color: copied ? '#15803d' : '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: 13, transition: 'all 0.2s' }}>
+            {copied ? <><Check size={14} /> Copied!</> : <><Copy size={14} /> Copy</>}
+          </button>
+        </div>
+      </div>
+
+      // ── Tabs
+      <div style={{ display: 'flex', gap: 4, marginBottom: 20, background: 'var(--bg-card,#fff)', border: '1px solid var(--border,#e5e7eb)', borderRadius: 10, padding: 4 }}>
+        {TABS.map(tab => (
+          <button key={tab} onClick={() => setActiveTab(tab)} style={{ flex: 1, padding: 9, border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: 13, textTransform: 'capitalize', background: activeTab === tab ? 'var(--accent,#0a66c2)' : 'transparent', color: activeTab === tab ? '#fff' : 'var(--text-secondary,#6b7280)', transition: 'all 0.15s' }}>
+            {tab === 'requests' ? `Requests (${requests.length})` : tab === 'pages' ? 'Pages' : 'Edit Startup'}
+          </button>
+        ))}
+      </div>
+
+      // ── Requests Tab
+      {activeTab === 'requests' && (
+        requests.length === 0
+          ? <div style={{ textAlign: 'center', padding: 60, color: 'var(--text-secondary,#9ca3af)' }}>No pending requests</div>
+          : requests.map(req => (
+            <div key={req._id} style={{ background: 'var(--bg-card,#fff)', border: '1px solid var(--border,#e5e7eb)', borderRadius: 12, padding: 18, marginBottom: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
+                <img src={req.user_id?.avatar || '/default-avatar.png'} style={{ width: 44, height: 44, borderRadius: '50%', objectFit: 'cover' }} />
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: 15 }}>{req.user_id?.name}</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-secondary,#9ca3af)' }}>{req.user_id?.email}</div>
+                </div>
+                <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--text-secondary,#9ca3af)' }}>{new Date(req.created_at).toLocaleDateString()}</span>
+              </div>
+
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 14 }}>
+                {req.requested_pages.map(p => (
+                  <span key={p._id} style={{ padding: '4px 10px', background: 'var(--accent-light,#eff6ff)', color: 'var(--accent,#0a66c2)', borderRadius: 20, fontSize: 12, fontWeight: 600 }}>{p.name}</span>
+                ))}
+              </div>
+
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  onClick={() => handleApprove(req._id, req.requested_pages.map(p => p._id))}
+                  style={{ flex: 1, padding: '9px', background: 'var(--accent,#0a66c2)', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 600, cursor: 'pointer' }}
+                >
+                  Approve All
+                </button>
+                <button
+                  onClick={() => handleReject(req._id)}
+                  style={{ flex: 1, padding: '9px', background: '#fee2e2', color: '#dc2626', border: 'none', borderRadius: 8, fontWeight: 600, cursor: 'pointer' }}
+                >
+                  Reject
+                </button>
+              </div>
+            </div>
+          ))
+      )}
+
+      // ── Pages Tab
+      {activeTab === 'pages' && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12 }}>
+          {pages.map(p => (
+            <div key={p._id} style={{ background: 'var(--bg-card,#fff)', border: '1px solid var(--border,#e5e7eb)', borderRadius: 12, padding: 16 }}>
+              <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 6 }}>{p.name}</div>
+              <p style={{ margin: 0, fontSize: 12, color: 'var(--text-secondary,#6b7280)' }}>{p.description}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      // ── Edit Tab
+      {activeTab === 'edit' && (
+        <div style={{ background: 'var(--bg-card,#fff)', border: '1px solid var(--border,#e5e7eb)', borderRadius: 16, padding: 24 }}>
+          <h3 style={{ margin: '0 0 18px', fontSize: 18, fontWeight: 700 }}>Edit Startup</h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <input style={inputStyle} placeholder="Startup Name" value={editForm.name || ''} onChange={e => setEditForm({...editForm, name: e.target.value})} />
+            <textarea style={{ ...inputStyle, minHeight: 80, resize: 'vertical' }} placeholder="Description" value={editForm.description || ''} onChange={e => setEditForm({...editForm, description: e.target.value})} />
+            {['linkedin','twitter','website','github'].map(key => (
+              <input key={key} style={inputStyle} placeholder={key.charAt(0).toUpperCase()+key.slice(1)+' URL'} value={editForm[key] || ''} onChange={e => setEditForm({...editForm, [key]: e.target.value})} />
+            ))}
+            <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+              <span style={{ fontSize: 14, fontWeight: 600 }}>Update Logo</span>
+              <input type="file" accept="image/*" style={{ display: 'none' }} onChange={e => { setEditLogo(e.target.files[0]); setEditLogoPreview(URL.createObjectURL(e.target.files[0])); }} />
+              <span style={{ padding: '6px 14px', background: 'var(--bg-secondary,#f3f4f6)', borderRadius: 8, fontSize: 13 }}>Choose File</span>
+              {editLogoPreview && <img src={editLogoPreview} style={{ width: 36, height: 36, borderRadius: 8, objectFit: 'cover' }} />}
+            </label>
+          </div>
+          <button
+            onClick={handleSaveEdit} disabled={saving}
+            style={{ marginTop: 20, padding: '11px 28px', background: 'var(--accent,#0a66c2)', color: '#fff', border: 'none', borderRadius: 10, fontWeight: 600, fontSize: 15, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}
+          >
+            {saving ? <Loader size={16} /> : 'Save Changes'}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default ColabDashboardPage;
+*/
+
+// ════════════════════════════════════════════════════════════
+// src/pages/ColabPageWorkspace.jsx
+// ════════════════════════════════════════════════════════════
+/*
+import React, { useEffect, useState } from 'react';
+import { useParams } from 'react-router-dom';
+import { Video, Calendar, Plus, X } from 'lucide-react';
+import { colabService } from '../services/colabService';
+
+const ColabPageWorkspace = () => {
+  const { pageId }     = useParams();
+  const [data,         setData]        = useState(null);
+  const [loading,      setLoading]     = useState(true);
+  const [showMeeting,  setShowMeeting] = useState(false);
+  const [meetForm,     setMeetForm]    = useState({ title: '', meeting_type: 'google_meet', meeting_link: '', scheduled_at: '' });
+  const [saving,       setSaving]      = useState(false);
+
+  const load = () => {
+    colabService.getPage(pageId).then(({ data }) => { setData(data); setLoading(false); });
+  };
+  useEffect(load, [pageId]);
+
+  const bookMeeting = async () => {
+    setSaving(true);
+    await colabService.bookMeeting(pageId, meetForm);
+    setShowMeeting(false); setMeetForm({ title: '', meeting_type: 'google_meet', meeting_link: '', scheduled_at: '' });
+    setSaving(false); load();
+  };
+
+  if (loading) return <div style={{ textAlign: 'center', padding: 80 }}>Loading workspace…</div>;
+  if (!data)   return <div style={{ textAlign: 'center', padding: 80 }}>Access denied</div>;
+
+  const { page, meetings } = data;
+  const inputStyle = { width: '100%', padding: '9px 12px', borderRadius: 8, border: '1.5px solid var(--border,#e5e7eb)', fontSize: 14, boxSizing: 'border-box' };
+
+  return (
+    <div style={{ maxWidth: 800, margin: '0 auto', padding: '24px 16px' }}>
+
+      <div style={{ background: 'var(--bg-card,#fff)', border: '1px solid var(--border,#e5e7eb)', borderRadius: 16, padding: 24, marginBottom: 20 }}>
+        <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800 }}>{page.name}</h1>
+        <p style={{ margin: '6px 0 0', color: 'var(--text-secondary,#6b7280)', fontSize: 14 }}>{page.description}</p>
+      </div>
+
+      // ── Meetings Section
+      <div style={{ background: 'var(--bg-card,#fff)', border: '1px solid var(--border,#e5e7eb)', borderRadius: 16, padding: 24 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Calendar size={18} color="var(--accent,#0a66c2)" />
+            <h2 style={{ margin: 0, fontSize: 17, fontWeight: 700 }}>Meetings</h2>
+          </div>
+          <button onClick={() => setShowMeeting(true)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', background: 'var(--accent,#0a66c2)', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: 13 }}>
+            <Plus size={14} /> Book Meeting
+          </button>
+        </div>
+
+        {meetings.length === 0
+          ? <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-secondary,#9ca3af)' }}>No meetings scheduled yet</div>
+          : meetings.map(m => (
+            <div key={m._id} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 0', borderBottom: '1px solid var(--border,#e5e7eb)' }}>
+              <div style={{ width: 40, height: 40, borderRadius: 10, background: m.meeting_type === 'zoom' ? '#e8f4fd' : '#e8f5e9', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <Video size={18} color={m.meeting_type === 'zoom' ? '#2563eb' : '#16a34a'} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 600, fontSize: 14 }}>{m.title}</div>
+                <div style={{ fontSize: 12, color: 'var(--text-secondary,#9ca3af)', marginTop: 2 }}>
+                  {new Date(m.scheduled_at).toLocaleString()} · {m.meeting_type === 'zoom' ? 'Zoom' : 'Google Meet'}
+                </div>
+              </div>
+              <a href={m.meeting_link} target="_blank" rel="noopener noreferrer" style={{ padding: '7px 16px', background: 'var(--accent-light,#eff6ff)', color: 'var(--accent,#0a66c2)', borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>Join</a>
+            </div>
+          ))
+        }
+      </div>
+
+      // ── Book Meeting Modal
+      {showMeeting && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={e => e.target === e.currentTarget && setShowMeeting(false)}>
+          <div style={{ background: 'var(--bg-card,#fff)', borderRadius: 16, padding: 28, width: '100%', maxWidth: 440, position: 'relative', boxShadow: '0 20px 60px rgba(0,0,0,0.15)' }}>
+            <button onClick={() => setShowMeeting(false)} style={{ position: 'absolute', top: 16, right: 16, background: 'none', border: 'none', cursor: 'pointer' }}><X size={20} /></button>
+            <h2 style={{ margin: '0 0 20px', fontSize: 20, fontWeight: 700 }}>Book a Meeting</h2>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <input style={inputStyle} placeholder="Meeting Title" value={meetForm.title} onChange={e => setMeetForm({...meetForm, title: e.target.value})} />
+              <select style={inputStyle} value={meetForm.meeting_type} onChange={e => setMeetForm({...meetForm, meeting_type: e.target.value})}>
+                <option value="google_meet">Google Meet</option>
+                <option value="zoom">Zoom</option>
+              </select>
+              <input style={inputStyle} placeholder="Meeting Link (URL)" value={meetForm.meeting_link} onChange={e => setMeetForm({...meetForm, meeting_link: e.target.value})} />
+              <input style={inputStyle} type="datetime-local" value={meetForm.scheduled_at} onChange={e => setMeetForm({...meetForm, scheduled_at: e.target.value})} />
+            </div>
+            <button
+              onClick={bookMeeting} disabled={saving || !meetForm.title || !meetForm.meeting_link || !meetForm.scheduled_at}
+              style={{ marginTop: 20, width: '100%', padding: 12, background: 'var(--accent,#0a66c2)', color: '#fff', border: 'none', borderRadius: 10, fontWeight: 600, fontSize: 15, cursor: 'pointer' }}
+            >
+              {saving ? 'Saving…' : 'Confirm Meeting'}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default ColabPageWorkspace;
+*/
+
+// ─────────────────────────────────────────────────────────────
+// SECTION 6: ROUTER REGISTRATION
+// Add these routes to your existing router (e.g. App.jsx / routes.jsx)
+// ─────────────────────────────────────────────────────────────
+
+/*
+import ColabListPage       from './pages/ColabListPage';
+import ColabDetailPage     from './pages/ColabDetailPage';
+import ColabDashboardPage  from './pages/ColabDashboardPage';
+import ColabPageWorkspace  from './pages/ColabPageWorkspace';
+
+// Inside <Routes>:
+<Route path="/colab"                       element={<ColabListPage />} />
+<Route path="/colab/:id"                   element={<ColabDetailPage />} />
+<Route path="/colab/:id/dashboard"         element={<ColabDashboardPage />} />
+<Route path="/colab/page/:pageId"          element={<ColabPageWorkspace />} />
+*/
+
+// ─────────────────────────────────────────────────────────────
+// SECTION 7: EXPRESS ROUTER REGISTRATION (server/app.js or index.js)
+// ─────────────────────────────────────────────────────────────
+
+/*
+const colabRoutes = require('./routes/colab');
+app.use('/api/colab', colabRoutes);
+*/
+
+// ─────────────────────────────────────────────────────────────
+// FILE STRUCTURE SUMMARY
+// ─────────────────────────────────────────────────────────────
+
+/*
+NEW BACKEND FILES:
+  models/
+    Startup.js
+    StartupPage.js
+    PageAccess.js
+    PageAccessRequest.js
+    StartupUpdate.js
+    StartupFeedback.js
+    PageMeeting.js
+  middleware/
+    colabAuth.js
+  routes/
+    colab.js
+
+NEW FRONTEND FILES:
+  src/services/
+    colabService.js
+  src/components/colab/
+    StackedAvatars.jsx
+    SocialLinks.jsx
+    StartupCard.jsx
+    JoinModal.jsx
+    CreateStartupModal.jsx
+  src/pages/
+    ColabListPage.jsx
+    ColabDetailPage.jsx
+    ColabDashboardPage.jsx
+    ColabPageWorkspace.jsx
+
+MODIFIED FILES:
+  server/app.js (or index.js) — add: app.use('/api/colab', colabRoutes)
+  src/App.jsx (or routes file) — add 4 new <Route> entries
+*/
 // ─── ONBOARDING SCREEN ────────────────────────────────────────────
 function OnboardingScreen({ me, onDone, dk }) {
   const th = T(dk);
