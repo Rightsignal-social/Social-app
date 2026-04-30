@@ -1984,106 +1984,415 @@ function Onboarding({ user, onComplete }) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// COLAB FEATURE — Add this entire block to App.jsx
-// Place it BEFORE the closing AdminApp function (before line ~2290)
+// COLAB — STARTUP PAGES SYSTEM (Full Rewrite)
 // ═══════════════════════════════════════════════════════════════
 
-// ─── COLAB UTILS ─────────────────────────────────────────────────
 const genStartupCode = name =>
   name.toUpperCase().replace(/\s+/g, "").slice(0, 5) +
   "-" + Math.random().toString(36).slice(2, 6).toUpperCase();
 
-const ROOM_TYPES = [
-  { id: "investor", label: "Investor Room", e: "💰", c: "#10b981", desc: "For investors & advisors" },
-  { id: "tech", label: "Tech Room", e: "👾", c: "#3b82f6", desc: "Engineers & developers" },
-  { id: "marketing", label: "Marketing Room", e: "📣", c: "#f97316", desc: "Growth & marketing team" },
-  { id: "operations", label: "Operations", e: "⚙️", c: "#8b5cf6", desc: "Ops & business dev" },
-  { id: "design", label: "Design Room", e: "🎨", c: "#ec4899", desc: "UI/UX & branding" },
-  { id: "general", label: "General Room", e: "🌐", c: "#6b7280", desc: "Open to all members" },
+const PAGE_TYPES = [
+  { id: "investor",    label: "Investor Page",    e: "💰", c: "#10b981", desc: "For investors & advisors" },
+  { id: "tech",        label: "Tech Page",         e: "👾", c: "#3b82f6", desc: "Engineers & developers" },
+  { id: "marketing",   label: "Marketing Page",    e: "📣", c: "#f97316", desc: "Growth & marketing team" },
+  { id: "operations",  label: "Operations Page",   e: "⚙️", c: "#8b5cf6", desc: "Ops & business dev" },
+  { id: "partnership", label: "Partnership Page",  e: "🤝", c: "#06b6d4", desc: "Strategic partnerships" },
+  { id: "client",      label: "Client Page",       e: "🌟", c: "#f59e0b", desc: "Client relations" },
+  { id: "general",     label: "General Audience",  e: "🌐", c: "#6b7280", desc: "Open to all members" },
 ];
 
-const ROLE_TYPES = [
-  { id: "investor", label: "Investor", e: "💰" },
-  { id: "tech", label: "Tech / Developer", e: "👾" },
-  { id: "marketing", label: "Marketing", e: "📣" },
-  { id: "operations", label: "Operations", e: "⚙️" },
-  { id: "design", label: "Designer", e: "🎨" },
-  { id: "intern", label: "Intern", e: "🎓" },
-  { id: "advisor", label: "Advisor", e: "🧠" },
-  { id: "other", label: "Other", e: "✨" },
-];
+const DEFAULT_PAGES = PAGE_TYPES.map(p => ({
+  name: p.label, description: p.desc, type_id: p.id,
+}));
 
-// ─── JOIN REQUEST MODAL ───────────────────────────────────────────
-function JoinRequestModal({ startup, rooms, me, myProfile, onClose, onSubmit, dk }) {
+// ─── STACKED AVATARS ─────────────────────────────────────────────
+function StackedAvatars({ userIds, profiles, onProfile, max = 5 }) {
+  const shown = userIds.slice(0, max);
+  const extra = userIds.length - max;
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+      <div style={{ display: "flex" }}>
+        {shown.map((id, i) => {
+          const p = profiles[id] || { name: "?" };
+          return (
+            <div
+              key={id}
+              onClick={e => { e.stopPropagation(); onProfile?.(id); }}
+              title={p.name}
+              style={{ marginLeft: i > 0 ? -8 : 0, zIndex: shown.length - i, border: "2px solid transparent", borderRadius: "50%", cursor: "pointer" }}
+            >
+              <Av profile={p} size={26} />
+            </div>
+          );
+        })}
+        {extra > 0 && (
+          <div style={{ marginLeft: -8, width: 26, height: 26, borderRadius: "50%", background: "#3b82f6", border: "2px solid transparent", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: "#fff", zIndex: 0 }}>
+            +{extra}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── FEEDBACK SECTION ────────────────────────────────────────────
+function FeedbackSection({ startupId, me, profiles, dk }) {
   const th = T(dk);
-  const [selectedRoom, setSelectedRoom] = useState(rooms[0]?.id || "");
-  const [selectedRole, setSelectedRole] = useState("tech");
+  const [feedbacks, setFeedbacks] = useState([]);
+  const [msg, setMsg] = useState("");
+  const [posting, setPosting] = useState(false);
+
+  useEffect(() => {
+    db.get("rs_startup_feedback", `startup_id=eq.${startupId}&order=created_at.desc&limit=20`)
+      .then(d => setFeedbacks(d || []));
+  }, [startupId]);
+
+  const post = async () => {
+    if (!msg.trim()) return;
+    setPosting(true);
+    const saved = await db.post("rs_startup_feedback", { startup_id: startupId, user_id: me, message: msg.trim() });
+    if (saved) setFeedbacks(f => [{ ...saved, profiles_me: profiles[me] }, ...f]);
+    setMsg("");
+    setPosting(false);
+  };
+
+  return (
+    <div>
+      <div style={{ fontWeight: 700, fontSize: 14, color: th.txt, marginBottom: 10 }}>💬 Feedback</div>
+      <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+        <Av profile={profiles[me] || {}} size={30} />
+        <div style={{ flex: 1, display: "flex", gap: 8 }}>
+          <input
+            value={msg} onChange={e => setMsg(e.target.value)}
+            onKeyDown={e => e.key === "Enter" && post()}
+            placeholder="Share your feedback or thoughts…"
+            style={{ flex: 1, background: th.inp, border: `1px solid ${th.inpB}`, borderRadius: 10, padding: "8px 12px", fontSize: 13, outline: "none", color: th.txt }}
+          />
+          <button onClick={post} disabled={!msg.trim() || posting} style={{ background: msg.trim() ? "#3b82f6" : th.surf2, border: "none", borderRadius: 10, padding: "0 14px", color: msg.trim() ? "#fff" : th.txt3, cursor: msg.trim() ? "pointer" : "default", fontWeight: 700, fontSize: 13 }}>
+            {posting ? "…" : "Send"}
+          </button>
+        </div>
+      </div>
+      {feedbacks.length === 0
+        ? <p style={{ fontSize: 13, color: th.txt3, textAlign: "center", padding: "12px 0" }}>No feedback yet. Be the first!</p>
+        : feedbacks.map(fb => {
+          const author = profiles[fb.user_id] || { name: "User" };
+          return (
+            <div key={fb.id} style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+              <Av profile={author} size={28} />
+              <div style={{ flex: 1, background: th.surf2, border: `1px solid ${th.bdr}`, borderRadius: 10, padding: "8px 12px" }}>
+                <div style={{ fontWeight: 700, fontSize: 12, color: th.txt, marginBottom: 2 }}>{author.name} <span style={{ fontWeight: 400, color: th.txt3 }}>{ago(new Date(fb.created_at).getTime())}</span></div>
+                <div style={{ fontSize: 13, color: th.txt2, lineHeight: 1.5 }}>{fb.message}</div>
+              </div>
+            </div>
+          );
+        })
+      }
+    </div>
+  );
+}
+
+// ─── BOOK MEETING MODAL ───────────────────────────────────────────
+function BookMeetingModal({ pageId, startupId, me, profiles, members, dk, onClose }) {
+  const th = T(dk);
+  const [form, setForm] = useState({ title: "", date: "", time: "", platform: "google_meet", link: "", note: "" });
+  const [saving, setSaving] = useState(false);
+  const [done, setDone] = useState(false);
+  const setF = (k, v) => setForm(p => ({ ...p, [k]: v }));
+  const canSave = form.title && form.date && form.time;
+
+  const save = async () => {
+    setSaving(true);
+    await db.post("rs_page_meetings", {
+      page_id: pageId, startup_id: startupId, created_by: me,
+      title: form.title, scheduled_at: `${form.date}T${form.time}:00`,
+      platform: form.platform, link: form.link, note: form.note,
+    });
+    setSaving(false);
+    setDone(true);
+  };
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.65)", zIndex: 1100, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: th.surf, borderRadius: 20, padding: 24, width: "100%", maxWidth: 400, animation: "fadeUp .25s ease" }}>
+        {done ? (
+          <div style={{ textAlign: "center", padding: "20px 0" }}>
+            <div style={{ fontSize: 48, marginBottom: 10 }}>✅</div>
+            <div style={{ fontWeight: 700, fontSize: 16, color: th.txt, marginBottom: 6 }}>Meeting Scheduled!</div>
+            <div style={{ fontSize: 13, color: th.txt3, marginBottom: 18 }}>All page members will be notified.</div>
+            <button onClick={onClose} style={{ background: "#3b82f6", border: "none", borderRadius: 10, padding: "9px 24px", color: "#fff", fontWeight: 700, cursor: "pointer" }}>Done</button>
+          </div>
+        ) : (
+          <>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
+              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: th.txt }}>📅 Book a Meeting</h3>
+              <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: th.txt3 }}><X size={16} /></button>
+            </div>
+            <div style={{ marginBottom: 12 }}>
+              <label style={{ fontSize: 12, fontWeight: 600, color: th.txt2, display: "block", marginBottom: 4 }}>Meeting Title *</label>
+              <input value={form.title} onChange={e => setF("title", e.target.value)} placeholder="e.g. Weekly Investor Update" style={{ width: "100%", background: th.inp, border: `1px solid ${th.inpB}`, borderRadius: 10, padding: "8px 12px", fontSize: 13, outline: "none", color: th.txt, boxSizing: "border-box" }} />
+            </div>
+            <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
+              <div style={{ flex: 1 }}>
+                <label style={{ fontSize: 12, fontWeight: 600, color: th.txt2, display: "block", marginBottom: 4 }}>Date *</label>
+                <input type="date" value={form.date} onChange={e => setF("date", e.target.value)} style={{ width: "100%", background: th.inp, border: `1px solid ${th.inpB}`, borderRadius: 10, padding: "8px 12px", fontSize: 13, outline: "none", color: th.txt, boxSizing: "border-box" }} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <label style={{ fontSize: 12, fontWeight: 600, color: th.txt2, display: "block", marginBottom: 4 }}>Time *</label>
+                <input type="time" value={form.time} onChange={e => setF("time", e.target.value)} style={{ width: "100%", background: th.inp, border: `1px solid ${th.inpB}`, borderRadius: 10, padding: "8px 12px", fontSize: 13, outline: "none", color: th.txt, boxSizing: "border-box" }} />
+              </div>
+            </div>
+            <div style={{ marginBottom: 12 }}>
+              <label style={{ fontSize: 12, fontWeight: 600, color: th.txt2, display: "block", marginBottom: 6 }}>Platform</label>
+              <div style={{ display: "flex", gap: 8 }}>
+                {[{ id: "google_meet", label: "Google Meet", e: "🎥" }, { id: "zoom", label: "Zoom", e: "💻" }].map(p => (
+                  <button key={p.id} onClick={() => setF("platform", p.id)} style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "8px", borderRadius: 10, border: `1.5px solid ${form.platform === p.id ? "#3b82f6" : th.bdr}`, background: form.platform === p.id ? "#3b82f615" : "transparent", cursor: "pointer", color: form.platform === p.id ? "#3b82f6" : th.txt2, fontWeight: 600, fontSize: 13 }}>
+                    {p.e} {p.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div style={{ marginBottom: 12 }}>
+              <label style={{ fontSize: 12, fontWeight: 600, color: th.txt2, display: "block", marginBottom: 4 }}>Meeting Link (optional)</label>
+              <input value={form.link} onChange={e => setF("link", e.target.value)} placeholder="https://meet.google.com/…" style={{ width: "100%", background: th.inp, border: `1px solid ${th.inpB}`, borderRadius: 10, padding: "8px 12px", fontSize: 13, outline: "none", color: th.txt, boxSizing: "border-box" }} />
+            </div>
+            <div style={{ marginBottom: 18 }}>
+              <label style={{ fontSize: 12, fontWeight: 600, color: th.txt2, display: "block", marginBottom: 4 }}>Note (optional)</label>
+              <textarea value={form.note} onChange={e => setF("note", e.target.value)} rows={2} placeholder="Agenda or instructions…" style={{ width: "100%", background: th.inp, border: `1px solid ${th.inpB}`, borderRadius: 10, padding: "8px 12px", fontSize: 13, outline: "none", resize: "none", fontFamily: "inherit", color: th.txt, boxSizing: "border-box" }} />
+            </div>
+            <div style={{ display: "flex", gap: 10 }}>
+              <button onClick={onClose} style={{ flex: 1, padding: "10px", background: "transparent", border: `1px solid ${th.bdr}`, borderRadius: 12, cursor: "pointer", color: th.txt2, fontWeight: 600 }}>Cancel</button>
+              <button onClick={save} disabled={!canSave || saving} style={{ flex: 2, padding: "10px", background: canSave ? "#3b82f6" : th.surf2, border: "none", borderRadius: 12, cursor: canSave ? "pointer" : "default", color: canSave ? "#fff" : th.txt3, fontWeight: 700 }}>
+                {saving ? "Scheduling…" : "Schedule Meeting"}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── PAGE DETAIL (members-only workspace) ────────────────────────
+function PageDetail({ page, startup, me, profiles, dk, onBack, isFounder }) {
+  const th = T(dk);
+  const [members, setMembers] = useState([]);
+  const [updates, setUpdates] = useState([]);
+  const [meetings, setMeetings] = useState([]);
+  const [newUpdate, setNewUpdate] = useState("");
+  const [posting, setPosting] = useState(false);
+  const [tab, setTab] = useState("updates");
+  const [showMeeting, setShowMeeting] = useState(false);
+
+  const pt = PAGE_TYPES.find(p => page.name?.toLowerCase().includes(p.id)) || PAGE_TYPES[6];
+
+  useEffect(() => {
+    (async () => {
+      const [ms, us, mt] = await Promise.all([
+        db.get("rs_page_access", `page_id=eq.${page.id}&status=eq.approved`),
+        db.get("rs_startup_updates", `room_id=eq.${page.id}&order=created_at.desc&limit=30`),
+        db.get("rs_page_meetings", `page_id=eq.${page.id}&order=scheduled_at.asc`),
+      ]);
+      setMembers(ms || []);
+      setUpdates(us || []);
+      setMeetings(mt || []);
+    })();
+  }, [page.id]);
+
+  const postUpdate = async () => {
+    if (!newUpdate.trim()) return;
+    setPosting(true);
+    const saved = await db.post("rs_startup_updates", {
+      startup_id: startup.id, room_id: page.id,
+      content: newUpdate.trim(), created_by: me,
+    });
+    if (saved) setUpdates(us => [saved, ...us]);
+    setNewUpdate(""); setPosting(false);
+  };
+
+  return (
+    <div style={{ animation: "fadeUp .3s ease" }}>
+      {showMeeting && (
+        <BookMeetingModal pageId={page.id} startupId={startup.id} me={me} profiles={profiles} members={members} dk={dk} onClose={() => setShowMeeting(false)} />
+      )}
+
+      <button onClick={onBack} style={{ display: "flex", alignItems: "center", gap: 6, background: "transparent", border: "none", cursor: "pointer", color: th.txt2, fontSize: 13, fontWeight: 600, padding: "0 0 14px" }}>
+        <ArrowLeft size={15} /> Back to {startup.name}
+      </button>
+
+      <div style={{ background: `linear-gradient(135deg,${pt.c}22,${pt.c}08)`, border: `1px solid ${pt.c}30`, borderRadius: 16, padding: 18, marginBottom: 16 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{ width: 46, height: 46, borderRadius: 13, background: pt.c + "25", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22 }}>{pt.e}</div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 800, fontSize: 17, color: th.txt }}>{page.name}</div>
+            <div style={{ fontSize: 13, color: th.txt2 }}>{page.description || pt.desc}</div>
+          </div>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <div style={{ textAlign: "right" }}>
+              <div style={{ fontWeight: 700, fontSize: 18, color: pt.c }}>{members.length}</div>
+              <div style={{ fontSize: 11, color: th.txt3 }}>Members</div>
+            </div>
+            <button onClick={() => setShowMeeting(true)} style={{ display: "flex", alignItems: "center", gap: 5, background: pt.c, border: "none", borderRadius: 10, padding: "7px 12px", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+              📅 Book Meeting
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Meetings strip */}
+      {meetings.length > 0 && (
+        <div style={{ marginBottom: 14, display: "flex", gap: 8, overflowX: "auto", paddingBottom: 4 }}>
+          {meetings.map(m => (
+            <div key={m.id} style={{ background: th.surf, border: `1px solid ${th.bdr}`, borderRadius: 12, padding: "10px 14px", flexShrink: 0, minWidth: 180 }}>
+              <div style={{ fontSize: 11, color: pt.c, fontWeight: 700, marginBottom: 3 }}>📅 {m.platform === "zoom" ? "Zoom" : "Google Meet"}</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: th.txt, marginBottom: 2 }}>{m.title}</div>
+              <div style={{ fontSize: 11, color: th.txt3 }}>{new Date(m.scheduled_at).toLocaleString()}</div>
+              {m.link && <a href={m.link} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: "#3b82f6", fontWeight: 600, display: "block", marginTop: 4 }}>Join Meeting →</a>}
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div style={{ display: "flex", gap: 4, marginBottom: 16, background: th.surf2, borderRadius: 12, padding: 4, border: `1px solid ${th.bdr}` }}>
+        {["updates", "members"].map(t => (
+          <button key={t} onClick={() => setTab(t)} style={{ flex: 1, padding: "7px", borderRadius: 9, border: "none", background: tab === t ? pt.c : "transparent", color: tab === t ? "#fff" : th.txt2, fontSize: 13, fontWeight: 600, cursor: "pointer", textTransform: "capitalize", transition: "all .2s" }}>{t}</button>
+        ))}
+      </div>
+
+      {tab === "updates" && (
+        <>
+          <Card dk={dk} anim={false} style={{ marginBottom: 14 }}>
+            <div style={{ display: "flex", gap: 10 }}>
+              <Av profile={profiles[me] || {}} size={34} />
+              <div style={{ flex: 1 }}>
+                <textarea value={newUpdate} onChange={e => setNewUpdate(e.target.value)} placeholder={`Post in ${page.name}…`} rows={2} style={{ width: "100%", background: "transparent", border: "none", outline: "none", fontSize: 14, lineHeight: 1.6, resize: "none", fontFamily: "inherit", color: th.txt, boxSizing: "border-box" }} />
+                <div style={{ display: "flex", justifyContent: "flex-end", borderTop: `1px solid ${th.bdr}`, paddingTop: 8 }}>
+                  <button onClick={postUpdate} disabled={!newUpdate.trim() || posting} style={{ background: newUpdate.trim() ? pt.c : "transparent", border: `1px solid ${newUpdate.trim() ? "transparent" : th.bdr}`, borderRadius: 10, padding: "6px 18px", color: newUpdate.trim() ? "#fff" : th.txt3, fontSize: 13, fontWeight: 700, cursor: newUpdate.trim() ? "pointer" : "default" }}>
+                    {posting ? "Posting…" : "Post"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </Card>
+          {updates.length === 0
+            ? <div style={{ textAlign: "center", padding: 40, color: th.txt3 }}><div style={{ fontSize: 36, marginBottom: 10 }}>📭</div><p>No posts yet.</p></div>
+            : updates.map(u => {
+              const author = profiles[u.created_by] || { name: "Member" };
+              return (
+                <Card dk={dk} key={u.id}>
+                  <div style={{ display: "flex", gap: 10 }}>
+                    <Av profile={author} size={34} />
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 5 }}>
+                        <span style={{ fontWeight: 700, fontSize: 13, color: th.txt }}>{author.name}</span>
+                        <span style={{ fontSize: 11, color: th.txt3 }}>{ago(new Date(u.created_at).getTime())}</span>
+                      </div>
+                      <p style={{ margin: 0, fontSize: 14, color: th.txt, lineHeight: 1.65, whiteSpace: "pre-wrap" }}>{u.content}</p>
+                    </div>
+                  </div>
+                </Card>
+              );
+            })
+          }
+        </>
+      )}
+
+      {tab === "members" && (
+        <div>
+          {members.length === 0
+            ? <div style={{ textAlign: "center", padding: 40, color: th.txt3 }}><Users size={36} style={{ marginBottom: 10 }} /><p>No approved members yet.</p></div>
+            : members.map(m => {
+              const p = profiles[m.user_id] || { name: "Member" };
+              return (
+                <Card dk={dk} key={m.id}>
+                  <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                    <Av profile={p} size={40} />
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 700, fontSize: 14, color: th.txt }}>{p.name}</div>
+                      <div style={{ fontSize: 12, color: th.txt3 }}>{p.handle ? `@${p.handle}` : p.email}</div>
+                    </div>
+                    <span style={{ background: pt.c + "18", color: pt.c, fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 99 }}>✓ Member</span>
+                  </div>
+                </Card>
+              );
+            })
+          }
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── JOIN PAGES MODAL (multi-select) ─────────────────────────────
+function JoinPagesModal({ startup, pages, me, existingPageIds, onClose, onSubmit, dk }) {
+  const th = T(dk);
+  const [selected, setSelected] = useState([]);
   const [message, setMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
+  const toggle = id => {
+    if (existingPageIds.includes(id)) return; // already member
+    setSelected(s => s.includes(id) ? s.filter(x => x !== id) : [...s, id]);
+  };
+
   const submit = async () => {
-    if (!selectedRoom || !selectedRole) return;
+    if (!selected.length) return;
     setSubmitting(true);
-    await onSubmit({ startup_id: startup.id, room_id: selectedRoom, selected_role: selectedRole, message });
+    await onSubmit({ startup_id: startup.id, user_id: me, requested_pages: selected, message, status: "pending" });
     setSubmitting(false);
     onClose();
   };
 
+  const available = pages.filter(p => !existingPageIds.includes(p.id));
+
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.65)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
-      <div onClick={e => e.stopPropagation()} style={{ background: th.surf, borderRadius: 20, padding: 24, width: "100%", maxWidth: 420, boxShadow: "0 24px 60px rgba(0,0,0,.35)", animation: "fadeUp .25s ease" }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: th.surf, borderRadius: 20, padding: 24, width: "100%", maxWidth: 440, maxHeight: "90vh", overflowY: "auto", boxShadow: "0 24px 60px rgba(0,0,0,.35)", animation: "fadeUp .25s ease" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
           <div>
             <h3 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: th.txt }}>Join {startup.name}</h3>
-            <p style={{ margin: "3px 0 0", fontSize: 13, color: th.txt3 }}>Select a room and your role</p>
+            <p style={{ margin: "3px 0 0", fontSize: 13, color: th.txt3 }}>Select one or more pages to request access</p>
           </div>
-          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: th.txt3, display: "flex" }}><X size={18} /></button>
+          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: th.txt3 }}><X size={18} /></button>
         </div>
 
         <div style={{ marginBottom: 16 }}>
-          <label style={{ fontSize: 12, fontWeight: 700, color: th.txt2, display: "block", marginBottom: 8, letterSpacing: .4 }}>SELECT ROOM</label>
+          <label style={{ fontSize: 12, fontWeight: 700, color: th.txt2, display: "block", marginBottom: 8, letterSpacing: .4 }}>SELECT PAGES {selected.length > 0 && <span style={{ color: "#3b82f6" }}>({selected.length} selected)</span>}</label>
           <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
-            {rooms.map(r => {
-              const rt = ROOM_TYPES.find(x => x.id === r.name?.toLowerCase()) || ROOM_TYPES[5];
-              const sel = selectedRoom === r.id;
+            {pages.map(p => {
+              const pt = PAGE_TYPES.find(x => p.name?.toLowerCase().includes(x.id)) || PAGE_TYPES[6];
+              const isMember = existingPageIds.includes(p.id);
+              const isSel = selected.includes(p.id);
               return (
-                <button key={r.id} onClick={() => setSelectedRoom(r.id)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", borderRadius: 12, border: `1.5px solid ${sel ? rt.c : th.bdr}`, background: sel ? rt.c + "15" : "transparent", cursor: "pointer", textAlign: "left" }}>
-                  <span style={{ fontSize: 18 }}>{rt.e}</span>
+                <button key={p.id} onClick={() => toggle(p.id)} disabled={isMember} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", borderRadius: 12, border: `1.5px solid ${isMember ? th.bdr : isSel ? pt.c : th.bdr}`, background: isMember ? th.surf2 : isSel ? pt.c + "15" : "transparent", cursor: isMember ? "default" : "pointer", textAlign: "left", opacity: isMember ? 0.6 : 1 }}>
+                  <span style={{ fontSize: 18 }}>{pt.e}</span>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: sel ? rt.c : th.txt }}>{r.name}</div>
-                    <div style={{ fontSize: 11, color: th.txt3 }}>{r.description || rt.desc}</div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: isSel ? pt.c : th.txt }}>{p.name}</div>
+                    <div style={{ fontSize: 11, color: th.txt3 }}>{p.description}</div>
                   </div>
-                  {sel && <Check size={14} color={rt.c} />}
+                  {isMember
+                    ? <span style={{ fontSize: 10, fontWeight: 700, color: "#10b981", background: "#10b98118", padding: "2px 8px", borderRadius: 99 }}>JOINED</span>
+                    : isSel ? <Check size={14} color={pt.c} /> : null
+                  }
                 </button>
               );
             })}
           </div>
         </div>
 
-        <div style={{ marginBottom: 16 }}>
-          <label style={{ fontSize: 12, fontWeight: 700, color: th.txt2, display: "block", marginBottom: 8, letterSpacing: .4 }}>YOUR ROLE</label>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 7 }}>
-            {ROLE_TYPES.map(r => {
-              const sel = selectedRole === r.id;
-              return (
-                <button key={r.id} onClick={() => setSelectedRole(r.id)} style={{ display: "flex", alignItems: "center", gap: 7, padding: "8px 12px", borderRadius: 10, border: `1.5px solid ${sel ? "#3b82f6" : th.bdr}`, background: sel ? "#3b82f615" : "transparent", cursor: "pointer" }}>
-                  <span style={{ fontSize: 15 }}>{r.e}</span>
-                  <span style={{ fontSize: 12, fontWeight: sel ? 700 : 500, color: sel ? "#3b82f6" : th.txt2 }}>{r.label}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
+        {available.length === 0 && (
+          <div style={{ textAlign: "center", padding: "12px 0", color: th.txt3, fontSize: 13 }}>You have already joined all available pages.</div>
+        )}
 
-        <div style={{ marginBottom: 20 }}>
+        <div style={{ marginBottom: 18 }}>
           <label style={{ fontSize: 12, fontWeight: 700, color: th.txt2, display: "block", marginBottom: 6, letterSpacing: .4 }}>MESSAGE (OPTIONAL)</label>
-          <textarea value={message} onChange={e => setMessage(e.target.value)} placeholder="Why do you want to join? What can you contribute?" rows={3} style={{ width: "100%", background: th.inp, border: `1px solid ${th.inpB}`, borderRadius: 10, padding: "8px 12px", fontSize: 13, outline: "none", resize: "none", fontFamily: "inherit", color: th.txt, boxSizing: "border-box" }} />
+          <textarea value={message} onChange={e => setMessage(e.target.value)} placeholder="Introduce yourself or explain why you'd like to join…" rows={3} style={{ width: "100%", background: th.inp, border: `1px solid ${th.inpB}`, borderRadius: 10, padding: "8px 12px", fontSize: 13, outline: "none", resize: "none", fontFamily: "inherit", color: th.txt, boxSizing: "border-box" }} />
         </div>
 
         <div style={{ display: "flex", gap: 10 }}>
           <button onClick={onClose} style={{ flex: 1, padding: "10px", background: "transparent", border: `1px solid ${th.bdr}`, borderRadius: 12, cursor: "pointer", color: th.txt2, fontWeight: 600, fontSize: 13 }}>Cancel</button>
-          <button onClick={submit} disabled={submitting || !selectedRoom} style={{ flex: 2, padding: "10px", background: selectedRoom ? "linear-gradient(135deg,#3b82f6,#8b5cf6)" : th.surf2, border: "none", borderRadius: 12, cursor: selectedRoom ? "pointer" : "default", color: selectedRoom ? "#fff" : th.txt3, fontWeight: 700, fontSize: 13 }}>
-            {submitting ? "Sending Request…" : "Send Join Request"}
+          <button onClick={submit} disabled={submitting || !selected.length} style={{ flex: 2, padding: "10px", background: selected.length ? "linear-gradient(135deg,#3b82f6,#8b5cf6)" : th.surf2, border: "none", borderRadius: 12, cursor: selected.length ? "pointer" : "default", color: selected.length ? "#fff" : th.txt3, fontWeight: 700, fontSize: 13 }}>
+            {submitting ? "Sending…" : `Request ${selected.length > 0 ? selected.length + " Page" + (selected.length > 1 ? "s" : "") : "Access"}`}
           </button>
         </div>
       </div>
@@ -2096,10 +2405,11 @@ function ReferralJoinModal({ me, onClose, onSuccess, dk }) {
   const th = T(dk);
   const [code, setCode] = useState("");
   const [startup, setStartup] = useState(null);
-  const [rooms, setRooms] = useState([]);
+  const [pages, setPages] = useState([]);
   const [checking, setChecking] = useState(false);
   const [err, setErr] = useState("");
   const [showJoin, setShowJoin] = useState(false);
+  const [myPageIds, setMyPageIds] = useState([]);
 
   const checkCode = async () => {
     if (!code.trim()) return;
@@ -2107,26 +2417,31 @@ function ReferralJoinModal({ me, onClose, onSuccess, dk }) {
     const rows = await db.get("rs_startups", `referral_code=eq.${code.trim().toUpperCase()}`);
     if (!rows?.length) { setErr("Invalid code. Please check and try again."); setChecking(false); return; }
     const s = rows[0];
-    const rm = await db.get("rs_startup_rooms", `startup_id=eq.${s.id}&order=created_at.asc`);
-    setStartup(s); setRooms(rm || []);
+    const [pg, acc] = await Promise.all([
+      db.get("rs_startup_pages", `startup_id=eq.${s.id}&order=created_at.asc`),
+      db.get("rs_page_access", `startup_id=eq.${s.id}&user_id=eq.${me}&status=eq.approved`),
+    ]);
+    setStartup(s);
+    setPages(pg || []);
+    setMyPageIds((acc || []).map(a => a.page_id));
     setChecking(false);
   };
 
-  const handleJoin = async (data) => {
-    await db.post("rs_room_requests", { ...data, status: "pending" });
+  const handleSubmit = async data => {
+    await db.post("rs_page_access_requests", data);
     onSuccess(startup);
     onClose();
   };
 
   if (showJoin && startup) return (
-    <JoinRequestModal startup={startup} rooms={rooms} me={me} onClose={onClose} onSubmit={handleJoin} dk={dk} />
+    <JoinPagesModal startup={startup} pages={pages} me={me} existingPageIds={myPageIds} onClose={onClose} onSubmit={handleSubmit} dk={dk} />
   );
 
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.65)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
       <div onClick={e => e.stopPropagation()} style={{ background: th.surf, borderRadius: 20, padding: 24, width: "100%", maxWidth: 380, animation: "fadeUp .25s ease" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-          <h3 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: th.txt }}>Join via Referral Code</h3>
+          <h3 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: th.txt }}>Join via Code</h3>
           <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: th.txt3 }}><X size={18} /></button>
         </div>
         <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
@@ -2135,23 +2450,20 @@ function ReferralJoinModal({ me, onClose, onSuccess, dk }) {
         </div>
         {err && <p style={{ fontSize: 13, color: "#ef4444", margin: "0 0 12px", display: "flex", alignItems: "center", gap: 5 }}><AlertCircle size={13} />{err}</p>}
         {startup && (
-          <div style={{ background: th.surf2, borderRadius: 14, padding: 14, marginBottom: 16, border: `1px solid #10b98130` }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
-              <div style={{ width: 40, height: 40, borderRadius: 10, background: "linear-gradient(135deg,#3b82f6,#8b5cf6)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>
-                {startup.logo || "🚀"}
-              </div>
+          <div style={{ background: th.surf2, borderRadius: 14, padding: 14, marginBottom: 16, border: "1px solid #10b98130" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
+              <div style={{ width: 40, height: 40, borderRadius: 10, background: "linear-gradient(135deg,#3b82f6,#8b5cf6)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>{startup.logo || "🚀"}</div>
               <div>
                 <div style={{ fontWeight: 800, fontSize: 15, color: th.txt }}>{startup.name}</div>
-                <div style={{ fontSize: 12, color: "#10b981", fontWeight: 600 }}>✓ Valid startup found</div>
+                <div style={{ fontSize: 12, color: "#10b981", fontWeight: 600 }}>✓ Valid startup · {pages.length} pages</div>
               </div>
             </div>
-            <p style={{ fontSize: 13, color: th.txt2, margin: "0 0 10px", lineHeight: 1.5 }}>{startup.description?.slice(0, 100)}…</p>
-            <div style={{ fontSize: 12, color: th.txt3 }}>{rooms.length} room{rooms.length !== 1 ? "s" : ""} available</div>
+            <p style={{ fontSize: 13, color: th.txt2, margin: 0, lineHeight: 1.5 }}>{startup.description?.slice(0, 100)}{startup.description?.length > 100 ? "…" : ""}</p>
           </div>
         )}
         {startup && (
           <button onClick={() => setShowJoin(true)} style={{ width: "100%", padding: "11px", background: "linear-gradient(135deg,#3b82f6,#8b5cf6)", border: "none", borderRadius: 12, color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>
-            View Rooms & Join →
+            View Pages & Join →
           </button>
         )}
       </div>
@@ -2159,33 +2471,36 @@ function ReferralJoinModal({ me, onClose, onSuccess, dk }) {
   );
 }
 
-// ─── CREATE / EDIT STARTUP MODAL ──────────────────────────────────
-function CreateStartupModal({ me, myProfile, existing, onClose, onSave, dk }) {
+// ─── CREATE / EDIT STARTUP MODAL ─────────────────────────────────
+function CreateStartupModal({ me, existing, onClose, onSave, dk }) {
   const th = T(dk);
+  const [step, setStep] = useState(1);
   const [form, setForm] = useState({
     name: existing?.name || "",
     logo: existing?.logo || "",
     description: existing?.description || "",
     website: existing?.website || "",
     github_link: existing?.github_link || "",
-    twitter: existing?.twitter || "",
-    linkedin: existing?.linkedin || "",
+    twitter: existing?.social_links?.twitter || "",
+    linkedin: existing?.social_links?.linkedin || "",
   });
   const [submitting, setSubmitting] = useState(false);
   const setF = (k, v) => setForm(p => ({ ...p, [k]: v }));
-  const canSave = form.name.trim() && form.description.trim();
+  const canNext = form.name.trim() && form.description.trim();
 
   const handleSave = async () => {
-    if (!canSave) return;
+    if (!canNext) return;
     setSubmitting(true);
     const payload = {
-      ...form,
       name: form.name.trim(),
+      logo: form.logo || "🚀",
       description: form.description.trim(),
+      website: form.website.trim(),
+      github_link: form.github_link.trim(),
+      social_links: { twitter: form.twitter, linkedin: form.linkedin },
       created_by: me,
       founders: existing?.founders || [me],
       referral_code: existing?.referral_code || genStartupCode(form.name),
-      social_links: { twitter: form.twitter, linkedin: form.linkedin },
     };
     let saved;
     if (existing?.id) {
@@ -2193,6 +2508,10 @@ function CreateStartupModal({ me, myProfile, existing, onClose, onSave, dk }) {
       saved = { ...existing, ...payload };
     } else {
       saved = await db.post("rs_startups", payload);
+      if (saved?.id) {
+        // Auto-create all default pages
+        await db.postMany("rs_startup_pages", DEFAULT_PAGES.map(p => ({ ...p, startup_id: saved.id })));
+      }
     }
     setSubmitting(false);
     onSave(saved);
@@ -2204,219 +2523,68 @@ function CreateStartupModal({ me, myProfile, existing, onClose, onSave, dk }) {
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.65)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 16, overflowY: "auto" }}>
       <div onClick={e => e.stopPropagation()} style={{ background: th.surf, borderRadius: 20, padding: 24, width: "100%", maxWidth: 460, animation: "fadeUp .25s ease", margin: "auto" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-          <h3 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: th.txt }}>{existing ? "Edit Startup" : "Create Startup"}</h3>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+          <h3 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: th.txt }}>{existing ? "Edit Startup" : `Create Startup — Step ${step}/2`}</h3>
           <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: th.txt3 }}><X size={18} /></button>
         </div>
-
-        {[
-          { k: "name", l: "Startup Name *", p: "e.g. SkillSwap" },
-          { k: "logo", l: "Logo Emoji", p: "e.g. 🚀" },
-          { k: "website", l: "Website", p: "https://…" },
-          { k: "github_link", l: "GitHub", p: "https://github.com/…" },
-          { k: "twitter", l: "Twitter / X", p: "https://twitter.com/…" },
-          { k: "linkedin", l: "LinkedIn", p: "https://linkedin.com/company/…" },
-        ].map(f => (
-          <div key={f.k} style={{ marginBottom: 12 }}>
-            <label style={{ fontSize: 12, fontWeight: 600, color: th.txt2, display: "block", marginBottom: 4 }}>{f.l}</label>
-            <input value={form[f.k]} onChange={e => setF(f.k, e.target.value)} placeholder={f.p} style={inp} />
+        {!existing && (
+          <div style={{ display: "flex", gap: 4, marginBottom: 20 }}>
+            {[1, 2].map(s => <div key={s} style={{ flex: 1, height: 3, borderRadius: 99, background: s <= step ? "#3b82f6" : th.bdr, transition: "all .3s" }} />)}
           </div>
-        ))}
+        )}
 
-        <div style={{ marginBottom: 20 }}>
-          <label style={{ fontSize: 12, fontWeight: 600, color: th.txt2, display: "block", marginBottom: 4 }}>Description / Problem & Solution *</label>
-          <textarea value={form.description} onChange={e => setF("description", e.target.value)} placeholder="What problem are you solving and how?" rows={4} style={{ ...inp, resize: "vertical", fontFamily: "inherit" }} />
-        </div>
-
-        <div style={{ display: "flex", gap: 10 }}>
-          <button onClick={onClose} style={{ flex: 1, padding: "10px", background: "transparent", border: `1px solid ${th.bdr}`, borderRadius: 12, cursor: "pointer", color: th.txt2, fontWeight: 600 }}>Cancel</button>
-          <button onClick={handleSave} disabled={!canSave || submitting} style={{ flex: 2, padding: "10px", background: canSave ? "linear-gradient(135deg,#3b82f6,#8b5cf6)" : th.surf2, border: "none", borderRadius: 12, cursor: canSave ? "pointer" : "default", color: canSave ? "#fff" : th.txt3, fontWeight: 700, fontSize: 14 }}>
-            {submitting ? "Saving…" : existing ? "Save Changes" : "Create Startup 🚀"}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── CREATE ROOM MODAL ────────────────────────────────────────────
-function CreateRoomModal({ startupId, onClose, onSave, dk }) {
-  const th = T(dk);
-  const [selected, setSelected] = useState("");
-  const [desc, setDesc] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-
-  const handleSave = async () => {
-    if (!selected) return;
-    setSubmitting(true);
-    const rt = ROOM_TYPES.find(r => r.id === selected);
-    const saved = await db.post("rs_startup_rooms", {
-      startup_id: startupId,
-      name: rt.label,
-      description: desc.trim() || rt.desc,
-      visibility: "members",
-    });
-    setSubmitting(false);
-    onSave(saved);
-    onClose();
-  };
-
-  return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.65)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
-      <div onClick={e => e.stopPropagation()} style={{ background: th.surf, borderRadius: 20, padding: 24, width: "100%", maxWidth: 400, animation: "fadeUp .25s ease" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-          <h3 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: th.txt }}>Add Room</h3>
-          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: th.txt3 }}><X size={18} /></button>
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
-          {ROOM_TYPES.map(r => {
-            const sel = selected === r.id;
-            return (
-              <button key={r.id} onClick={() => setSelected(r.id)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", borderRadius: 12, border: `1.5px solid ${sel ? r.c : th.bdr}`, background: sel ? r.c + "15" : "transparent", cursor: "pointer", textAlign: "left" }}>
-                <span style={{ fontSize: 20 }}>{r.e}</span>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: sel ? r.c : th.txt }}>{r.label}</div>
-                  <div style={{ fontSize: 11, color: th.txt3 }}>{r.desc}</div>
-                </div>
-                {sel && <Check size={14} color={r.c} />}
-              </button>
-            );
-          })}
-        </div>
-        <div style={{ marginBottom: 16 }}>
-          <label style={{ fontSize: 12, fontWeight: 600, color: th.txt2, display: "block", marginBottom: 6 }}>Custom Description (optional)</label>
-          <input value={desc} onChange={e => setDesc(e.target.value)} placeholder="Brief description of this room's purpose" style={{ width: "100%", background: th.inp, border: `1px solid ${th.inpB}`, borderRadius: 10, padding: "9px 12px", fontSize: 13, outline: "none", boxSizing: "border-box", color: th.txt }} />
-        </div>
-        <div style={{ display: "flex", gap: 10 }}>
-          <button onClick={onClose} style={{ flex: 1, padding: "10px", background: "transparent", border: `1px solid ${th.bdr}`, borderRadius: 12, cursor: "pointer", color: th.txt2, fontWeight: 600 }}>Cancel</button>
-          <button onClick={handleSave} disabled={!selected || submitting} style={{ flex: 2, padding: "10px", background: selected ? "linear-gradient(135deg,#3b82f6,#8b5cf6)" : th.surf2, border: "none", borderRadius: 12, cursor: selected ? "pointer" : "default", color: selected ? "#fff" : th.txt3, fontWeight: 700 }}>
-            {submitting ? "Creating…" : "Create Room"}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── ROOM DETAIL (inside a startup, members only) ─────────────────
-function RoomDetail({ room, startup, me, profiles, dk, onBack }) {
-  const th = T(dk);
-  const [members, setMembers] = useState([]);
-  const [updates, setUpdates] = useState([]);
-  const [newUpdate, setNewUpdate] = useState("");
-  const [posting, setPosting] = useState(false);
-  const [tab, setTab] = useState("updates");
-
-  useEffect(() => {
-    (async () => {
-      const [ms, us] = await Promise.all([
-        db.get("rs_room_members", `room_id=eq.${room.id}&status=eq.approved`),
-        db.get("rs_startup_updates", `room_id=eq.${room.id}&order=created_at.desc&limit=30`),
-      ]);
-      setMembers(ms || []);
-      setUpdates(us || []);
-    })();
-  }, [room.id]);
-
-  const postUpdate = async () => {
-    if (!newUpdate.trim()) return;
-    setPosting(true);
-    const saved = await db.post("rs_startup_updates", {
-      startup_id: startup.id,
-      room_id: room.id,
-      content: newUpdate.trim(),
-      created_by: me,
-    });
-    if (saved) setUpdates(us => [saved, ...us]);
-    setNewUpdate("");
-    setPosting(false);
-  };
-
-  const rt = ROOM_TYPES.find(r => room.name?.toLowerCase().includes(r.id)) || ROOM_TYPES[5];
-
-  return (
-    <div style={{ animation: "fadeUp .3s ease" }}>
-      <button onClick={onBack} style={{ display: "flex", alignItems: "center", gap: 6, background: "transparent", border: "none", cursor: "pointer", color: th.txt2, fontSize: 13, fontWeight: 600, padding: "0 0 14px", marginBottom: 4 }}><ArrowLeft size={15} /> Back to {startup.name}</button>
-
-      <div style={{ background: `linear-gradient(135deg,${rt.c}22,${rt.c}08)`, border: `1px solid ${rt.c}30`, borderRadius: 16, padding: 18, marginBottom: 16 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <div style={{ width: 44, height: 44, borderRadius: 12, background: rt.c + "25", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22 }}>{rt.e}</div>
-          <div>
-            <div style={{ fontWeight: 800, fontSize: 17, color: th.txt }}>{room.name}</div>
-            <div style={{ fontSize: 13, color: th.txt2 }}>{room.description || rt.desc}</div>
-          </div>
-          <div style={{ marginLeft: "auto", textAlign: "right" }}>
-            <div style={{ fontWeight: 700, fontSize: 18, color: rt.c }}>{members.length}</div>
-            <div style={{ fontSize: 11, color: th.txt3 }}>Members</div>
-          </div>
-        </div>
-      </div>
-
-      <div style={{ display: "flex", gap: 4, marginBottom: 16, background: th.surf2, borderRadius: 12, padding: 4, border: `1px solid ${th.bdr}` }}>
-        {["updates", "members"].map(t => (
-          <button key={t} onClick={() => setTab(t)} style={{ flex: 1, padding: "7px", borderRadius: 9, border: "none", background: tab === t ? rt.c : "transparent", color: tab === t ? "#fff" : th.txt2, fontSize: 13, fontWeight: 600, cursor: "pointer", textTransform: "capitalize", transition: "all .2s" }}>{t}</button>
-        ))}
-      </div>
-
-      {tab === "updates" && (
-        <>
-          <Card dk={dk} anim={false} style={{ marginBottom: 14 }}>
+        {step === 1 && (
+          <>
+            {[
+              { k: "logo", l: "Logo Emoji", p: "🚀" },
+              { k: "name", l: "Startup Name *", p: "e.g. SkillSwap" },
+            ].map(f => (
+              <div key={f.k} style={{ marginBottom: 12 }}>
+                <label style={{ fontSize: 12, fontWeight: 600, color: th.txt2, display: "block", marginBottom: 4 }}>{f.l}</label>
+                <input value={form[f.k]} onChange={e => setF(f.k, e.target.value)} placeholder={f.p} style={inp} />
+              </div>
+            ))}
+            <div style={{ marginBottom: 20 }}>
+              <label style={{ fontSize: 12, fontWeight: 600, color: th.txt2, display: "block", marginBottom: 4 }}>Description / Problem & Solution *</label>
+              <textarea value={form.description} onChange={e => setF("description", e.target.value)} placeholder="What problem are you solving and how?" rows={4} style={{ ...inp, resize: "vertical", fontFamily: "inherit" }} />
+            </div>
             <div style={{ display: "flex", gap: 10 }}>
-              <Av profile={profiles[me] || {}} size={34} />
-              <div style={{ flex: 1 }}>
-                <textarea value={newUpdate} onChange={e => setNewUpdate(e.target.value)} placeholder={`Post an update in ${room.name}…`} rows={2} style={{ width: "100%", background: "transparent", border: "none", outline: "none", fontSize: 14, lineHeight: 1.6, resize: "none", fontFamily: "inherit", color: th.txt, boxSizing: "border-box" }} />
-                <div style={{ display: "flex", justifyContent: "flex-end", borderTop: `1px solid ${th.bdr}`, paddingTop: 8, marginTop: 4 }}>
-                  <button onClick={postUpdate} disabled={!newUpdate.trim() || posting} style={{ background: newUpdate.trim() ? rt.c : "transparent", border: `1px solid ${newUpdate.trim() ? "transparent" : th.bdr}`, borderRadius: 10, padding: "6px 18px", color: newUpdate.trim() ? "#fff" : th.txt3, fontSize: 13, fontWeight: 700, cursor: newUpdate.trim() ? "pointer" : "default" }}>
-                    {posting ? "Posting…" : "Post Update"}
-                  </button>
-                </div>
+              <button onClick={onClose} style={{ flex: 1, padding: "10px", background: "transparent", border: `1px solid ${th.bdr}`, borderRadius: 12, cursor: "pointer", color: th.txt2, fontWeight: 600 }}>Cancel</button>
+              <button onClick={() => existing ? handleSave() : setStep(2)} disabled={!canNext} style={{ flex: 2, padding: "10px", background: canNext ? "#3b82f6" : th.surf2, border: "none", borderRadius: 12, cursor: canNext ? "pointer" : "default", color: canNext ? "#fff" : th.txt3, fontWeight: 700, fontSize: 14 }}>
+                {existing ? (submitting ? "Saving…" : "Save Changes") : "Next: Links →"}
+              </button>
+            </div>
+          </>
+        )}
+
+        {step === 2 && (
+          <>
+            {[
+              { k: "website", l: "Website", p: "https://…" },
+              { k: "github_link", l: "GitHub", p: "https://github.com/…" },
+              { k: "twitter", l: "Twitter / X", p: "https://twitter.com/…" },
+              { k: "linkedin", l: "LinkedIn", p: "https://linkedin.com/company/…" },
+            ].map(f => (
+              <div key={f.k} style={{ marginBottom: 12 }}>
+                <label style={{ fontSize: 12, fontWeight: 600, color: th.txt2, display: "block", marginBottom: 4 }}>{f.l}</label>
+                <input value={form[f.k]} onChange={e => setF(f.k, e.target.value)} placeholder={f.p} style={inp} />
+              </div>
+            ))}
+            <div style={{ background: th.surf2, border: `1px solid ${th.bdr}`, borderRadius: 12, padding: 12, marginBottom: 18 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: th.txt, marginBottom: 6 }}>📄 Pages auto-created:</div>
+              <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
+                {PAGE_TYPES.map(p => <span key={p.id} style={{ background: p.c + "18", color: p.c, fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 99 }}>{p.e} {p.label}</span>)}
               </div>
             </div>
-          </Card>
-          {updates.length === 0 ? (
-            <div style={{ textAlign: "center", padding: 40, color: th.txt3 }}><div style={{ fontSize: 36, marginBottom: 10 }}>📭</div><p>No updates yet. Post the first one!</p></div>
-          ) : updates.map(u => {
-            const author = profiles[u.created_by] || { name: "Member" };
-            return (
-              <Card dk={dk} key={u.id}>
-                <div style={{ display: "flex", gap: 10 }}>
-                  <Av profile={author} size={34} />
-                  <div style={{ flex: 1 }}>
-                    <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 5 }}>
-                      <span style={{ fontWeight: 700, fontSize: 13, color: th.txt }}>{author.name}</span>
-                      <span style={{ fontSize: 11, color: th.txt3 }}>{ago(new Date(u.created_at).getTime())}</span>
-                    </div>
-                    <p style={{ margin: 0, fontSize: 14, color: th.txt, lineHeight: 1.65, whiteSpace: "pre-wrap" }}>{u.content}</p>
-                  </div>
-                </div>
-              </Card>
-            );
-          })}
-        </>
-      )}
-
-      {tab === "members" && (
-        <div>
-          {members.length === 0 ? (
-            <div style={{ textAlign: "center", padding: 40, color: th.txt3 }}><Users size={36} style={{ marginBottom: 10 }} /><p>No approved members yet.</p></div>
-          ) : members.map(m => {
-            const p = profiles[m.user_id] || { name: "Member" };
-            const roleOpt = ROLE_TYPES.find(r => r.id === m.role_type) || ROLE_TYPES[7];
-            return (
-              <Card dk={dk} key={m.id}>
-                <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-                  <Av profile={p} size={40} />
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 700, fontSize: 14, color: th.txt }}>{p.name}</div>
-                    <div style={{ fontSize: 12, color: th.txt3 }}>{p.handle ? `@${p.handle}` : p.email}</div>
-                  </div>
-                  <span style={{ background: rt.c + "18", color: rt.c, fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 99 }}>{roleOpt.e} {roleOpt.label}</span>
-                </div>
-              </Card>
-            );
-          })}
-        </div>
-      )}
+            <div style={{ display: "flex", gap: 10 }}>
+              <button onClick={() => setStep(1)} style={{ flex: 1, padding: "10px", background: "transparent", border: `1px solid ${th.bdr}`, borderRadius: 12, cursor: "pointer", color: th.txt2, fontWeight: 600 }}>← Back</button>
+              <button onClick={handleSave} disabled={submitting} style={{ flex: 2, padding: "10px", background: "linear-gradient(135deg,#3b82f6,#8b5cf6)", border: "none", borderRadius: 12, cursor: "pointer", color: "#fff", fontWeight: 700, fontSize: 14 }}>
+                {submitting ? "Creating…" : "Launch Startup 🚀"}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 }
@@ -2426,34 +2594,38 @@ function FounderDashboard({ startup, me, profiles, dk, onBack, onStartupUpdated 
   const th = T(dk);
   const [tab, setTab] = useState("requests");
   const [requests, setRequests] = useState([]);
-  const [rooms, setRooms] = useState([]);
+  const [pages, setPages] = useState([]);
   const [updates, setUpdates] = useState([]);
   const [newUpdate, setNewUpdate] = useState("");
   const [showEditStartup, setShowEditStartup] = useState(false);
-  const [showAddRoom, setShowAddRoom] = useState(false);
   const [posting, setPosting] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
-    const [rq, rm, us] = await Promise.all([
-      db.get("rs_room_requests", `startup_id=eq.${startup.id}&order=created_at.desc`),
-      db.get("rs_startup_rooms", `startup_id=eq.${startup.id}&order=created_at.asc`),
-      db.get("rs_startup_updates", `startup_id=eq.${startup.id}&order=created_at.desc&limit=20`),
+    const [rq, pg, us] = await Promise.all([
+      db.get("rs_page_access_requests", `startup_id=eq.${startup.id}&order=created_at.desc`),
+      db.get("rs_startup_pages", `startup_id=eq.${startup.id}&order=created_at.asc`),
+      db.get("rs_startup_updates", `startup_id=eq.${startup.id}&room_id=is.null&order=created_at.desc&limit=20`),
     ]);
     setRequests(rq || []);
-    setRooms(rm || []);
+    setPages(pg || []);
     setUpdates(us || []);
     setLoading(false);
   }, [startup.id]);
 
   useEffect(() => { load(); }, [load]);
 
-  const handleRequest = async (req, status) => {
-    await db.patch("rs_room_requests", `id=eq.${req.id}`, { status });
+  const handleRequest = async (req, pageId, status) => {
+    // Approve/reject per page
     if (status === "approved") {
-      await db.upsert("rs_room_members", { room_id: req.room_id, user_id: req.user_id, role_type: req.selected_role, status: "approved" });
+      await db.upsert("rs_page_access", { startup_id: req.startup_id, page_id: pageId, user_id: req.user_id, status: "approved" });
     }
-    setRequests(rs => rs.map(r => r.id === req.id ? { ...r, status } : r));
+    // Update overall request status only if all pages decided
+    const updatedPages = (req.requested_pages || []).filter(pid => pid !== pageId);
+    if (updatedPages.length === 0) {
+      await db.patch("rs_page_access_requests", `id=eq.${req.id}`, { status });
+      setRequests(rs => rs.map(r => r.id === req.id ? { ...r, status } : r));
+    }
   };
 
   const postUpdate = async () => {
@@ -2461,26 +2633,26 @@ function FounderDashboard({ startup, me, profiles, dk, onBack, onStartupUpdated 
     setPosting(true);
     const saved = await db.post("rs_startup_updates", { startup_id: startup.id, content: newUpdate.trim(), created_by: me });
     if (saved) setUpdates(us => [saved, ...us]);
-    setNewUpdate("");
-    setPosting(false);
+    setNewUpdate(""); setPosting(false);
   };
 
   const pending = requests.filter(r => r.status === "pending");
 
   return (
     <div style={{ animation: "fadeUp .3s ease" }}>
-      {showEditStartup && <CreateStartupModal me={me} myProfile={profiles[me]} existing={startup} onClose={() => setShowEditStartup(false)} onSave={onStartupUpdated} dk={dk} />}
-      {showAddRoom && <CreateRoomModal startupId={startup.id} onClose={() => setShowAddRoom(false)} onSave={r => { setRooms(rm => [...rm, r]); }} dk={dk} />}
+      {showEditStartup && <CreateStartupModal me={me} existing={startup} onClose={() => setShowEditStartup(false)} onSave={onStartupUpdated} dk={dk} />}
 
-      <button onClick={onBack} style={{ display: "flex", alignItems: "center", gap: 6, background: "transparent", border: "none", cursor: "pointer", color: th.txt2, fontSize: 13, fontWeight: 600, padding: "0 0 14px" }}><ArrowLeft size={15} /> Back to Colab</button>
+      <button onClick={onBack} style={{ display: "flex", alignItems: "center", gap: 6, background: "transparent", border: "none", cursor: "pointer", color: th.txt2, fontSize: 13, fontWeight: 600, padding: "0 0 14px" }}>
+        <ArrowLeft size={15} /> Back to Colab
+      </button>
 
-      <div style={{ background: "linear-gradient(135deg,#1e3a8a22,#5b21b622)", border: `1px solid #3b82f630`, borderRadius: 16, padding: 18, marginBottom: 16 }}>
+      <div style={{ background: "linear-gradient(135deg,#1e3a8a22,#5b21b622)", border: "1px solid #3b82f630", borderRadius: 16, padding: 18, marginBottom: 16 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
           <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
             <div style={{ width: 50, height: 50, borderRadius: 14, background: "linear-gradient(135deg,#3b82f6,#8b5cf6)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 26 }}>{startup.logo || "🚀"}</div>
             <div>
               <div style={{ fontWeight: 800, fontSize: 18, color: th.txt }}>{startup.name}</div>
-              <div style={{ fontSize: 12, color: th.txt3 }}>Founder Dashboard</div>
+              <div style={{ fontSize: 12, color: th.txt3 }}>Founder Dashboard · {pages.length} Pages</div>
             </div>
           </div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -2489,7 +2661,9 @@ function FounderDashboard({ startup, me, profiles, dk, onBack, onStartupUpdated 
               <div style={{ fontFamily: "monospace", fontSize: 14, fontWeight: 800, color: "#f59e0b", letterSpacing: 1 }}>{startup.referral_code}</div>
             </div>
             <CopyBtn text={startup.referral_code} label="Copy Code" />
-            <button onClick={() => setShowEditStartup(true)} style={{ display: "flex", alignItems: "center", gap: 5, background: "transparent", border: `1px solid ${th.bdr}`, borderRadius: 10, padding: "6px 12px", cursor: "pointer", color: th.txt2, fontSize: 12, fontWeight: 600 }}><Edit3 size={12} />Edit</button>
+            <button onClick={() => setShowEditStartup(true)} style={{ display: "flex", alignItems: "center", gap: 5, background: "transparent", border: `1px solid ${th.bdr}`, borderRadius: 10, padding: "6px 12px", cursor: "pointer", color: th.txt2, fontSize: 12, fontWeight: 600 }}>
+              <Edit3 size={12} />Edit
+            </button>
           </div>
         </div>
       </div>
@@ -2497,7 +2671,7 @@ function FounderDashboard({ startup, me, profiles, dk, onBack, onStartupUpdated 
       <div style={{ display: "flex", gap: 4, marginBottom: 16, background: th.surf2, borderRadius: 12, padding: 4, border: `1px solid ${th.bdr}` }}>
         {[
           ["requests", `Requests${pending.length ? ` (${pending.length})` : ""}`],
-          ["rooms", "Rooms"],
+          ["pages", "Pages"],
           ["updates", "Updates"],
         ].map(([id, label]) => (
           <button key={id} onClick={() => setTab(id)} style={{ flex: 1, padding: "7px", borderRadius: 9, border: "none", background: tab === id ? "#3b82f6" : "transparent", color: tab === id ? "#fff" : th.txt2, fontSize: 13, fontWeight: 600, cursor: "pointer", transition: "all .2s" }}>{label}</button>
@@ -2506,63 +2680,70 @@ function FounderDashboard({ startup, me, profiles, dk, onBack, onStartupUpdated 
 
       {loading ? <Spin dk={dk} msg="Loading dashboard…" /> : (
         <>
+          {/* REQUESTS TAB */}
           {tab === "requests" && (
             <div>
-              {requests.length === 0 ? (
-                <div style={{ textAlign: "center", padding: 40, color: th.txt3 }}><Users size={36} style={{ marginBottom: 10 }} /><p>No join requests yet.</p></div>
-              ) : requests.map(req => {
-                const p = profiles[req.user_id] || { name: "Applicant" };
-                const roomName = rooms.find(r => r.id === req.room_id)?.name || "Room";
-                const roleOpt = ROLE_TYPES.find(r => r.id === req.selected_role) || ROLE_TYPES[7];
-                return (
-                  <Card dk={dk} key={req.id} anim={false}>
-                    <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
-                      <Av profile={p} size={42} />
-                      <div style={{ flex: 1 }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 8 }}>
-                          <div>
-                            <div style={{ fontWeight: 700, fontSize: 14, color: th.txt }}>{p.name}</div>
-                            <div style={{ fontSize: 12, color: th.txt3 }}>{p.handle ? `@${p.handle}` : ""}</div>
-                            <div style={{ display: "flex", gap: 6, marginTop: 5, flexWrap: "wrap" }}>
-                              <span style={{ background: "#3b82f618", color: "#3b82f6", fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 99 }}>→ {roomName}</span>
-                              <span style={{ background: "#8b5cf618", color: "#8b5cf6", fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 99 }}>{roleOpt.e} {roleOpt.label}</span>
+              {requests.length === 0
+                ? <div style={{ textAlign: "center", padding: 40, color: th.txt3 }}><Users size={36} style={{ marginBottom: 10 }} /><p>No join requests yet.</p></div>
+                : requests.map(req => {
+                  const p = profiles[req.user_id] || { name: "Applicant" };
+                  return (
+                    <Card dk={dk} key={req.id} anim={false}>
+                      <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+                        <Av profile={p} size={42} />
+                        <div style={{ flex: 1 }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 8, marginBottom: 6 }}>
+                            <div>
+                              <div style={{ fontWeight: 700, fontSize: 14, color: th.txt }}>{p.name}</div>
+                              <div style={{ fontSize: 12, color: th.txt3 }}>{p.handle ? `@${p.handle}` : p.email}</div>
                             </div>
-                            {req.message && <p style={{ fontSize: 12, color: th.txt2, margin: "6px 0 0", fontStyle: "italic" }}>"{req.message}"</p>}
+                            <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 99, background: req.status === "approved" ? "#10b98118" : req.status === "rejected" ? "#ef444418" : "#f59e0b18", color: req.status === "approved" ? "#10b981" : req.status === "rejected" ? "#ef4444" : "#f59e0b" }}>{req.status?.toUpperCase()}</span>
                           </div>
-                          <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 99, background: req.status === "approved" ? "#10b98118" : req.status === "rejected" ? "#ef444418" : "#f59e0b18", color: req.status === "approved" ? "#10b981" : req.status === "rejected" ? "#ef4444" : "#f59e0b" }}>{req.status?.toUpperCase()}</span>
+                          {req.message && <p style={{ fontSize: 12, color: th.txt2, margin: "0 0 8px", fontStyle: "italic" }}>"{req.message}"</p>}
+                          <div style={{ marginBottom: 8 }}>
+                            <div style={{ fontSize: 11, fontWeight: 700, color: th.txt3, marginBottom: 5 }}>REQUESTED PAGES:</div>
+                            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                              {(req.requested_pages || []).map(pid => {
+                                const pg = pages.find(x => x.id === pid);
+                                const pt = PAGE_TYPES.find(x => pg?.name?.toLowerCase().includes(x.id)) || PAGE_TYPES[6];
+                                return (
+                                  <div key={pid} style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                                    <span style={{ background: pt.c + "18", color: pt.c, fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 99 }}>{pt.e} {pg?.name || pid}</span>
+                                    {req.status === "pending" && (
+                                      <div style={{ display: "flex", gap: 3 }}>
+                                        <button onClick={() => handleRequest(req, pid, "approved")} style={{ background: "#10b98118", border: "1px solid #10b98140", borderRadius: 6, padding: "2px 7px", cursor: "pointer", color: "#10b981", fontSize: 11, fontWeight: 700 }}>✓</button>
+                                        <button onClick={() => handleRequest(req, pid, "rejected")} style={{ background: "#ef444418", border: "1px solid #ef444440", borderRadius: 6, padding: "2px 7px", cursor: "pointer", color: "#ef4444", fontSize: 11, fontWeight: 700 }}>✗</button>
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
                         </div>
-                        {req.status === "pending" && (
-                          <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-                            <button onClick={() => handleRequest(req, "approved")} style={{ display: "flex", alignItems: "center", gap: 5, background: "#10b98118", border: "1px solid #10b98140", borderRadius: 8, padding: "6px 14px", cursor: "pointer", color: "#10b981", fontSize: 12, fontWeight: 700 }}><Check size={12} />Approve</button>
-                            <button onClick={() => handleRequest(req, "rejected")} style={{ display: "flex", alignItems: "center", gap: 5, background: "#ef444418", border: "1px solid #ef444440", borderRadius: 8, padding: "6px 14px", cursor: "pointer", color: "#ef4444", fontSize: 12, fontWeight: 700 }}><X size={12} />Reject</button>
-                          </div>
-                        )}
                       </div>
-                    </div>
-                  </Card>
-                );
-              })}
+                    </Card>
+                  );
+                })
+              }
             </div>
           )}
 
-          {tab === "rooms" && (
+          {/* PAGES TAB */}
+          {tab === "pages" && (
             <div>
-              <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
-                <button onClick={() => setShowAddRoom(true)} style={{ display: "flex", alignItems: "center", gap: 6, background: "#3b82f6", border: "none", borderRadius: 10, padding: "8px 16px", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer" }}><Plus size={14} />Add Room</button>
-              </div>
-              {rooms.length === 0 ? (
-                <div style={{ textAlign: "center", padding: 40, color: th.txt3 }}><div style={{ fontSize: 36, marginBottom: 10 }}>🚪</div><p>No rooms yet. Add your first room.</p></div>
-              ) : rooms.map(r => {
-                const rt = ROOM_TYPES.find(x => r.name?.toLowerCase().includes(x.id)) || ROOM_TYPES[5];
+              <p style={{ fontSize: 13, color: th.txt3, marginBottom: 12 }}>All pages are auto-created when you create your startup. Manage access via Requests.</p>
+              {pages.map(pg => {
+                const pt = PAGE_TYPES.find(x => pg.name?.toLowerCase().includes(x.id)) || PAGE_TYPES[6];
                 return (
-                  <Card dk={dk} key={r.id} anim={false}>
+                  <Card dk={dk} key={pg.id} anim={false}>
                     <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                      <div style={{ width: 38, height: 38, borderRadius: 10, background: rt.c + "20", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>{rt.e}</div>
+                      <div style={{ width: 38, height: 38, borderRadius: 10, background: pt.c + "20", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>{pt.e}</div>
                       <div style={{ flex: 1 }}>
-                        <div style={{ fontWeight: 700, fontSize: 14, color: th.txt }}>{r.name}</div>
-                        <div style={{ fontSize: 12, color: th.txt3 }}>{r.description}</div>
+                        <div style={{ fontWeight: 700, fontSize: 14, color: th.txt }}>{pg.name}</div>
+                        <div style={{ fontSize: 12, color: th.txt3 }}>{pg.description}</div>
                       </div>
-                      <button onClick={() => db.del("rs_startup_rooms", `id=eq.${r.id}`).then(() => setRooms(rm => rm.filter(x => x.id !== r.id)))} style={{ background: "#ef444415", border: "1px solid #ef444430", borderRadius: 8, padding: "5px 8px", cursor: "pointer", color: "#ef4444", display: "flex" }}><Trash2 size={13} /></button>
+                      <span style={{ background: pt.c + "15", color: pt.c, fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 99 }}>ACTIVE</span>
                     </div>
                   </Card>
                 );
@@ -2570,13 +2751,14 @@ function FounderDashboard({ startup, me, profiles, dk, onBack, onStartupUpdated 
             </div>
           )}
 
+          {/* UPDATES TAB */}
           {tab === "updates" && (
             <div>
               <Card dk={dk} anim={false} style={{ marginBottom: 14 }}>
                 <div style={{ display: "flex", gap: 10 }}>
                   <Av profile={profiles[me] || {}} size={34} />
                   <div style={{ flex: 1 }}>
-                    <textarea value={newUpdate} onChange={e => setNewUpdate(e.target.value)} placeholder="Post a startup update visible to all rooms…" rows={3} style={{ width: "100%", background: "transparent", border: "none", outline: "none", fontSize: 14, lineHeight: 1.6, resize: "none", fontFamily: "inherit", color: th.txt, boxSizing: "border-box" }} />
+                    <textarea value={newUpdate} onChange={e => setNewUpdate(e.target.value)} placeholder="Post a startup update…" rows={3} style={{ width: "100%", background: "transparent", border: "none", outline: "none", fontSize: 14, lineHeight: 1.6, resize: "none", fontFamily: "inherit", color: th.txt, boxSizing: "border-box" }} />
                     <div style={{ display: "flex", justifyContent: "flex-end", borderTop: `1px solid ${th.bdr}`, paddingTop: 8 }}>
                       <button onClick={postUpdate} disabled={!newUpdate.trim() || posting} style={{ background: newUpdate.trim() ? "#3b82f6" : "transparent", border: `1px solid ${newUpdate.trim() ? "transparent" : th.bdr}`, borderRadius: 10, padding: "7px 20px", color: newUpdate.trim() ? "#fff" : th.txt3, fontSize: 13, fontWeight: 700, cursor: newUpdate.trim() ? "pointer" : "default" }}>
                         {posting ? "Posting…" : "Post Update"}
@@ -2614,116 +2796,124 @@ function FounderDashboard({ startup, me, profiles, dk, onBack, onStartupUpdated 
 function StartupDetail({ startup: initialStartup, me, profiles, dk, onBack, onProfile }) {
   const th = T(dk);
   const [startup, setStartup] = useState(initialStartup);
-  const [rooms, setRooms] = useState([]);
+  const [pages, setPages] = useState([]);
   const [updates, setUpdates] = useState([]);
-  const [memberRooms, setMemberRooms] = useState([]);
-  const [showJoin, setShowJoin] = useState(false);
-  const [activeRoom, setActiveRoom] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [myPageIds, setMyPageIds] = useState([]);
   const [myRequest, setMyRequest] = useState(null);
+  const [showJoin, setShowJoin] = useState(false);
+  const [activePage, setActivePage] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   const isFounder = startup.created_by === me || (startup.founders || []).includes(me);
 
   useEffect(() => {
     (async () => {
-      const [rm, us, rq, mm] = await Promise.all([
-        db.get("rs_startup_rooms", `startup_id=eq.${startup.id}&order=created_at.asc`),
+      const [pg, us, rq, acc] = await Promise.all([
+        db.get("rs_startup_pages", `startup_id=eq.${startup.id}&order=created_at.asc`),
         db.get("rs_startup_updates", `startup_id=eq.${startup.id}&room_id=is.null&order=created_at.desc&limit=10`),
-        db.get("rs_room_requests", `startup_id=eq.${startup.id}&user_id=eq.${me}&order=created_at.desc&limit=1`),
-        db.get("rs_room_members", `user_id=eq.${me}&status=eq.approved`),
+        db.get("rs_page_access_requests", `startup_id=eq.${startup.id}&user_id=eq.${me}&order=created_at.desc&limit=1`),
+        db.get("rs_page_access", `startup_id=eq.${startup.id}&user_id=eq.${me}&status=eq.approved`),
       ]);
-      setRooms(rm || []);
+      setPages(pg || []);
       setUpdates(us || []);
       setMyRequest(rq?.[0] || null);
-      setMemberRooms((mm || []).map(m => m.room_id));
+      setMyPageIds((acc || []).map(a => a.page_id));
       setLoading(false);
     })();
   }, [startup.id, me]);
 
-  const handleJoinSubmit = async (data) => {
-    const saved = await db.post("rs_room_requests", { ...data, user_id: me, status: "pending" });
+  const handleJoinSubmit = async data => {
+    const saved = await db.post("rs_page_access_requests", data);
     if (saved) setMyRequest(saved);
   };
 
   if (isFounder) return <FounderDashboard startup={startup} me={me} profiles={profiles} dk={dk} onBack={onBack} onStartupUpdated={s => setStartup(s)} />;
+  if (activePage) return <PageDetail page={activePage} startup={startup} me={me} profiles={profiles} dk={dk} isFounder={false} onBack={() => setActivePage(null)} />;
 
-  if (activeRoom) return <RoomDetail room={activeRoom} startup={startup} me={me} profiles={profiles} dk={dk} onBack={() => setActiveRoom(null)} />;
-
-  const founders = (startup.founders || [startup.created_by]).map(id => profiles[id]).filter(Boolean);
+  const founders = (startup.founders || [startup.created_by]).filter(Boolean);
+  const unapprovedPages = pages.filter(p => !myPageIds.includes(p.id));
 
   return (
     <div style={{ animation: "fadeUp .3s ease" }}>
-      {showJoin && <JoinRequestModal startup={startup} rooms={rooms} me={me} myProfile={profiles[me]} onClose={() => setShowJoin(false)} onSubmit={handleJoinSubmit} dk={dk} />}
+      {showJoin && (
+        <JoinPagesModal startup={startup} pages={pages} me={me} existingPageIds={myPageIds} onClose={() => setShowJoin(false)} onSubmit={handleJoinSubmit} dk={dk} />
+      )}
 
-      <button onClick={onBack} style={{ display: "flex", alignItems: "center", gap: 6, background: "transparent", border: "none", cursor: "pointer", color: th.txt2, fontSize: 13, fontWeight: 600, padding: "0 0 14px" }}><ArrowLeft size={15} /> Back to Colab</button>
+      <button onClick={onBack} style={{ display: "flex", alignItems: "center", gap: 6, background: "transparent", border: "none", cursor: "pointer", color: th.txt2, fontSize: 13, fontWeight: 600, padding: "0 0 14px" }}>
+        <ArrowLeft size={15} /> Back to Colab
+      </button>
 
       {/* Header */}
-      <div style={{ background: `linear-gradient(135deg,#1e3a8a18,#5b21b618)`, border: `1px solid #3b82f628`, borderRadius: 20, padding: 20, marginBottom: 16 }}>
+      <div style={{ background: "linear-gradient(135deg,#1e3a8a18,#5b21b618)", border: "1px solid #3b82f628", borderRadius: 20, padding: 20, marginBottom: 16 }}>
         <div style={{ display: "flex", gap: 14, alignItems: "flex-start", flexWrap: "wrap" }}>
-          <div style={{ width: 60, height: 60, borderRadius: 16, background: "linear-gradient(135deg,#3b82f6,#8b5cf6)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 30, flexShrink: 0 }}>{startup.logo || "🚀"}</div>
+          <div style={{ width: 64, height: 64, borderRadius: 18, background: "linear-gradient(135deg,#3b82f6,#8b5cf6)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 32, flexShrink: 0 }}>{startup.logo || "🚀"}</div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <h2 style={{ margin: "0 0 4px", fontSize: 22, fontWeight: 800, color: th.txt }}>{startup.name}</h2>
             <p style={{ margin: "0 0 12px", fontSize: 14, color: th.txt2, lineHeight: 1.6 }}>{startup.description}</p>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
               {startup.website && <a href={startup.website} target="_blank" rel="noopener noreferrer" style={{ display: "flex", alignItems: "center", gap: 4, background: th.surf2, border: `1px solid ${th.bdr}`, borderRadius: 8, padding: "4px 10px", fontSize: 12, color: th.txt2, fontWeight: 600 }}><Globe size={12} />Website</a>}
               {startup.github_link && <a href={startup.github_link} target="_blank" rel="noopener noreferrer" style={{ display: "flex", alignItems: "center", gap: 4, background: th.surf2, border: `1px solid ${th.bdr}`, borderRadius: 8, padding: "4px 10px", fontSize: 12, color: th.txt2, fontWeight: 600 }}>⚡ GitHub</a>}
               {startup.social_links?.twitter && <a href={startup.social_links.twitter} target="_blank" rel="noopener noreferrer" style={{ display: "flex", alignItems: "center", gap: 4, background: "#1da1f215", border: "1px solid #1da1f230", borderRadius: 8, padding: "4px 10px", fontSize: 12, color: "#1da1f2", fontWeight: 600 }}><Twitter size={12} />Twitter</a>}
               {startup.social_links?.linkedin && <a href={startup.social_links.linkedin} target="_blank" rel="noopener noreferrer" style={{ display: "flex", alignItems: "center", gap: 4, background: "#0a66c215", border: "1px solid #0a66c230", borderRadius: 8, padding: "4px 10px", fontSize: 12, color: "#0a66c2", fontWeight: 600 }}><Linkedin size={12} />LinkedIn</a>}
             </div>
+            {founders.length > 0 && (
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <StackedAvatars userIds={founders} profiles={profiles} onProfile={onProfile} max={5} />
+                <span style={{ fontSize: 12, color: th.txt3 }}>
+                  {founders.slice(0, 2).map(id => profiles[id]?.name?.split(" ")[0]).filter(Boolean).join(", ")}
+                  {founders.length > 2 ? ` +${founders.length - 2} more` : ""}
+                </span>
+              </div>
+            )}
           </div>
           <div style={{ flexShrink: 0 }}>
-            {myRequest ? (
-              <span style={{ background: myRequest.status === "approved" ? "#10b98118" : myRequest.status === "rejected" ? "#ef444418" : "#f59e0b18", color: myRequest.status === "approved" ? "#10b981" : myRequest.status === "rejected" ? "#ef4444" : "#f59e0b", fontSize: 12, fontWeight: 700, padding: "6px 14px", borderRadius: 99, border: `1px solid currentColor` }}>
-                {myRequest.status === "approved" ? "✓ Approved" : myRequest.status === "rejected" ? "✗ Rejected" : "⏳ Pending"}
+            {myRequest && myRequest.status !== "rejected" ? (
+              <span style={{ background: myRequest.status === "approved" ? "#10b98118" : "#f59e0b18", color: myRequest.status === "approved" ? "#10b981" : "#f59e0b", fontSize: 12, fontWeight: 700, padding: "8px 16px", borderRadius: 99, border: "1px solid currentColor", display: "block" }}>
+                {myRequest.status === "approved" ? "✓ Approved" : "⏳ Pending"}
               </span>
             ) : (
-              <button onClick={() => setShowJoin(true)} style={{ background: "linear-gradient(135deg,#3b82f6,#8b5cf6)", border: "none", borderRadius: 12, padding: "10px 20px", color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer", boxShadow: "0 0 20px rgba(59,130,246,.3)" }}>Join Startup</button>
+              <button onClick={() => setShowJoin(true)} style={{ background: "linear-gradient(135deg,#3b82f6,#8b5cf6)", border: "none", borderRadius: 12, padding: "10px 22px", color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer", boxShadow: "0 0 20px rgba(59,130,246,.3)" }}>
+                Join Startup
+              </button>
             )}
           </div>
         </div>
       </div>
 
-      {/* Founders */}
-      {founders.length > 0 && (
-        <Card dk={dk} anim={false} style={{ marginBottom: 14 }}>
-          <div style={{ fontWeight: 700, fontSize: 14, color: th.txt, marginBottom: 10 }}>👥 Founders</div>
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-            {founders.map(f => (
-              <div key={f.id} onClick={() => onProfile(f.id)} style={{ display: "flex", alignItems: "center", gap: 8, background: th.surf2, border: `1px solid ${th.bdr}`, borderRadius: 12, padding: "8px 12px", cursor: "pointer" }}>
-                <Av profile={f} size={28} />
-                <div><div style={{ fontSize: 13, fontWeight: 700, color: th.txt }}>{f.name}</div><div style={{ fontSize: 11, color: th.txt3 }}>{f.role || "Founder"}</div></div>
-              </div>
-            ))}
-          </div>
-        </Card>
-      )}
-
-      {/* Rooms */}
       {loading ? <Spin dk={dk} /> : (
         <>
-          <div style={{ fontWeight: 700, fontSize: 15, color: th.txt, marginBottom: 10 }}>🚪 Rooms ({rooms.length})</div>
-          {rooms.length === 0 ? (
-            <p style={{ color: th.txt3, fontSize: 14, textAlign: "center", padding: 20 }}>No rooms created yet.</p>
-          ) : rooms.map(r => {
-            const rt = ROOM_TYPES.find(x => r.name?.toLowerCase().includes(x.id)) || ROOM_TYPES[5];
-            const isMember = memberRooms.includes(r.id);
+          {/* Pages */}
+          <div style={{ fontWeight: 700, fontSize: 15, color: th.txt, marginBottom: 10 }}>📄 Pages ({pages.length})</div>
+          {pages.map(pg => {
+            const pt = PAGE_TYPES.find(x => pg.name?.toLowerCase().includes(x.id)) || PAGE_TYPES[6];
+            const isApproved = myPageIds.includes(pg.id);
             return (
-              <Card dk={dk} key={r.id} anim={false}>
-                <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-                  <div style={{ width: 42, height: 42, borderRadius: 12, background: rt.c + "20", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, flexShrink: 0 }}>{rt.e}</div>
+              <Card dk={dk} key={pg.id} anim={false} style={{ position: "relative", overflow: "hidden" }}>
+                {!isApproved && (
+                  <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,.04)", backdropFilter: "blur(1px)", zIndex: 1, borderRadius: 16 }} />
+                )}
+                <div style={{ display: "flex", gap: 12, alignItems: "center", position: "relative", zIndex: 2 }}>
+                  <div style={{ width: 44, height: 44, borderRadius: 12, background: pt.c + "20", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, flexShrink: 0 }}>{pt.e}</div>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 700, fontSize: 14, color: th.txt }}>{r.name}</div>
-                    <div style={{ fontSize: 12, color: th.txt3 }}>{r.description || rt.desc}</div>
+                    <div style={{ fontWeight: 700, fontSize: 14, color: th.txt }}>{pg.name}</div>
+                    <div style={{ fontSize: 12, color: th.txt3 }}>{pg.description}</div>
                   </div>
-                  {isMember ? (
-                    <button onClick={() => setActiveRoom(r)} style={{ background: rt.c, border: "none", borderRadius: 10, padding: "7px 16px", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>Enter →</button>
-                  ) : (
-                    <span style={{ fontSize: 11, color: th.txt3, background: th.surf2, border: `1px solid ${th.bdr}`, borderRadius: 8, padding: "5px 10px" }}>🔒 Members only</span>
-                  )}
+                  {isApproved
+                    ? <button onClick={() => setActivePage(pg)} style={{ background: pt.c, border: "none", borderRadius: 10, padding: "7px 16px", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>Enter →</button>
+                    : <span style={{ fontSize: 11, color: th.txt3, background: th.surf2, border: `1px solid ${th.bdr}`, borderRadius: 8, padding: "5px 10px" }}>🔒 Request Access</span>
+                  }
                 </div>
               </Card>
             );
           })}
+
+          {unapprovedPages.length > 0 && myRequest?.status !== "pending" && (
+            <div style={{ textAlign: "center", padding: "16px 0" }}>
+              <button onClick={() => setShowJoin(true)} style={{ background: "transparent", border: "1.5px dashed #3b82f660", borderRadius: 12, padding: "10px 24px", color: "#3b82f6", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+                + Request access to more pages
+              </button>
+            </div>
+          )}
 
           {/* Updates */}
           {updates.length > 0 && (
@@ -2748,13 +2938,18 @@ function StartupDetail({ startup: initialStartup, me, profiles, dk, onBack, onPr
               })}
             </>
           )}
+
+          {/* Public Feedback */}
+          <div style={{ marginTop: 20 }}>
+            <FeedbackSection startupId={startup.id} me={me} profiles={profiles} dk={dk} />
+          </div>
         </>
       )}
     </div>
   );
 }
 
-// ─── COLAB MAIN VIEW ─────────────────────────────────────────────
+// ─── COLAB LISTING PAGE ───────────────────────────────────────────
 function ColabView({ me, dk, profiles, onProfile, addNotif }) {
   const th = T(dk);
   const [startups, setStartups] = useState([]);
@@ -2763,17 +2958,33 @@ function ColabView({ me, dk, profiles, onProfile, addNotif }) {
   const [showCreate, setShowCreate] = useState(false);
   const [showReferral, setShowReferral] = useState(false);
   const [search, setSearch] = useState("");
+  const [feedbackMap, setFeedbackMap] = useState({});
+  const [updateMap, setUpdateMap] = useState({});
 
   const load = useCallback(async () => {
     setLoading(true);
     const data = await db.get("rs_startups", "order=created_at.desc&limit=50");
     setStartups(data || []);
+    // Load latest update + feedback count per startup
+    if (data?.length) {
+      const ids = data.map(s => s.id);
+      const [allUpdates, allFeedback] = await Promise.all([
+        db.get("rs_startup_updates", `startup_id=in.(${ids.join(",")})&room_id=is.null&order=created_at.desc`),
+        db.get("rs_startup_feedback", `startup_id=in.(${ids.join(",")})&order=created_at.desc`),
+      ]);
+      const um = {};
+      (allUpdates || []).forEach(u => { if (!um[u.startup_id]) um[u.startup_id] = u; });
+      const fm = {};
+      (allFeedback || []).forEach(f => { if (!fm[f.startup_id]) fm[f.startup_id] = []; fm[f.startup_id].push(f); });
+      setUpdateMap(um);
+      setFeedbackMap(fm);
+    }
     setLoading(false);
   }, []);
 
   useEffect(() => { load(); }, [load]);
 
-  const handleStartupCreated = s => {
+  const handleCreated = s => {
     if (s) { setStartups(ss => [s, ...ss.filter(x => x.id !== s.id)]); setActiveStartup(s); }
   };
 
@@ -2782,16 +2993,13 @@ function ColabView({ me, dk, profiles, onProfile, addNotif }) {
   );
 
   if (activeStartup) return (
-    <StartupDetail
-      startup={activeStartup} me={me} profiles={profiles} dk={dk}
-      onBack={() => { setActiveStartup(null); load(); }}
-      onProfile={onProfile}
-    />
+    <StartupDetail startup={activeStartup} me={me} profiles={profiles} dk={dk}
+      onBack={() => { setActiveStartup(null); load(); }} onProfile={onProfile} />
   );
 
   return (
     <div>
-      {showCreate && <CreateStartupModal me={me} myProfile={profiles[me]} onClose={() => setShowCreate(false)} onSave={handleStartupCreated} dk={dk} />}
+      {showCreate && <CreateStartupModal me={me} onClose={() => setShowCreate(false)} onSave={handleCreated} dk={dk} />}
       {showReferral && <ReferralJoinModal me={me} onClose={() => setShowReferral(false)} onSuccess={s => { addNotif({ type: "sandbox", msg: `🚀 Request sent to join ${s.name}` }); }} dk={dk} />}
 
       {/* Header */}
@@ -2799,11 +3007,15 @@ function ColabView({ me, dk, profiles, onProfile, addNotif }) {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 14 }}>
           <div>
             <h2 style={{ margin: "0 0 4px", fontSize: 22, fontWeight: 800, color: "#fff" }}>🚀 Colab</h2>
-            <p style={{ margin: 0, fontSize: 14, color: "rgba(255,255,255,.6)" }}>Discover startups · Join rooms · Build together</p>
+            <p style={{ margin: 0, fontSize: 14, color: "rgba(255,255,255,.6)" }}>Discover startups · Join pages · Build together</p>
           </div>
           <div style={{ display: "flex", gap: 8 }}>
-            <button onClick={() => setShowReferral(true)} style={{ display: "flex", alignItems: "center", gap: 6, background: "rgba(255,255,255,.1)", border: "1px solid rgba(255,255,255,.2)", borderRadius: 10, padding: "8px 14px", color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer" }}><Hash size={13} />Join via Code</button>
-            <button onClick={() => setShowCreate(true)} style={{ display: "flex", alignItems: "center", gap: 6, background: "#fff", border: "none", borderRadius: 10, padding: "8px 16px", color: "#1e3a8a", fontSize: 13, fontWeight: 800, cursor: "pointer" }}><Plus size={13} />Create Startup</button>
+            <button onClick={() => setShowReferral(true)} style={{ display: "flex", alignItems: "center", gap: 6, background: "rgba(255,255,255,.1)", border: "1px solid rgba(255,255,255,.2)", borderRadius: 10, padding: "8px 14px", color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+              <Hash size={13} />Join via Code
+            </button>
+            <button onClick={() => setShowCreate(true)} style={{ display: "flex", alignItems: "center", gap: 6, background: "#fff", border: "none", borderRadius: 10, padding: "8px 16px", color: "#1e3a8a", fontSize: 13, fontWeight: 800, cursor: "pointer" }}>
+              <Plus size={13} />Create Startup
+            </button>
           </div>
         </div>
         <div style={{ position: "relative", marginTop: 16 }}>
@@ -2812,11 +3024,11 @@ function ColabView({ me, dk, profiles, onProfile, addNotif }) {
         </div>
       </div>
 
-      {/* Stats bar */}
+      {/* Stats */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 18 }}>
         {[
           { l: "Startups", v: startups.length, e: "🚀", c: "#3b82f6" },
-          { l: "Open Rooms", v: "∞", e: "🚪", c: "#8b5cf6" },
+          { l: "Pages", v: startups.length * PAGE_TYPES.length, e: "📄", c: "#8b5cf6" },
           { l: "Builders", v: Object.keys(profiles).length, e: "👥", c: "#10b981" },
         ].map(s => (
           <div key={s.l} style={{ background: th.surf, border: `1px solid ${th.bdr}`, borderRadius: 14, padding: "12px 14px" }}>
@@ -2827,7 +3039,7 @@ function ColabView({ me, dk, profiles, onProfile, addNotif }) {
         ))}
       </div>
 
-      {/* Startup listing */}
+      {/* Listing */}
       {loading ? <Spin dk={dk} msg="Loading startups…" /> : filtered.length === 0 ? (
         <div style={{ textAlign: "center", padding: 56, color: th.txt3 }}>
           <div style={{ fontSize: 52, marginBottom: 12 }}>🚀</div>
@@ -2837,41 +3049,64 @@ function ColabView({ me, dk, profiles, onProfile, addNotif }) {
         </div>
       ) : filtered.map(s => {
         const isFounder = s.created_by === me || (s.founders || []).includes(me);
-        const founders = (s.founders || [s.created_by]).map(id => profiles[id]).filter(Boolean);
+        const founders = (s.founders || [s.created_by]).filter(Boolean);
+        const latestUpdate = updateMap[s.id];
+        const fbList = feedbackMap[s.id] || [];
+
         return (
-          <Card dk={dk} key={s.id} style={{ cursor: "pointer" }}>
-            <div onClick={() => setActiveStartup(s)}>
-              <div style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
-                <div style={{ width: 52, height: 52, borderRadius: 14, background: "linear-gradient(135deg,#3b82f6,#8b5cf6)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 26, flexShrink: 0 }}>{s.logo || "🚀"}</div>
+          <Card dk={dk} key={s.id}>
+            <div onClick={() => setActiveStartup(s)} style={{ cursor: "pointer" }}>
+              {/* Top row */}
+              <div style={{ display: "flex", gap: 14, alignItems: "flex-start", marginBottom: 12 }}>
+                <div style={{ width: 54, height: 54, borderRadius: 15, background: "linear-gradient(135deg,#3b82f6,#8b5cf6)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28, flexShrink: 0 }}>{s.logo || "🚀"}</div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 8, marginBottom: 5 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, marginBottom: 4 }}>
                     <div style={{ fontWeight: 800, fontSize: 16, color: th.txt }}>{s.name}</div>
-                    {isFounder && <span style={{ background: "#f59e0b18", color: "#f59e0b", fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 99, border: "1px solid #f59e0b40" }}>YOUR STARTUP</span>}
+                    {isFounder && <span style={{ background: "#f59e0b18", color: "#f59e0b", fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 99, border: "1px solid #f59e0b40", flexShrink: 0 }}>YOUR STARTUP</span>}
                   </div>
-                  <p style={{ margin: "0 0 10px", fontSize: 13, color: th.txt2, lineHeight: 1.55 }}>{s.description?.slice(0, 120)}{s.description?.length > 120 ? "…" : ""}</p>
+                  <p style={{ margin: "0 0 8px", fontSize: 13, color: th.txt2, lineHeight: 1.55 }}>{s.description?.slice(0, 110)}{s.description?.length > 110 ? "…" : ""}</p>
+
+                  {/* Social links */}
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
+                    {s.website && <a href={s.website} onClick={e => e.stopPropagation()} target="_blank" rel="noopener noreferrer" style={{ display: "flex", alignItems: "center", gap: 3, background: th.surf2, border: `1px solid ${th.bdr}`, borderRadius: 6, padding: "2px 8px", fontSize: 11, color: th.txt2, fontWeight: 600 }}><Globe size={10} />Web</a>}
+                    {s.github_link && <a href={s.github_link} onClick={e => e.stopPropagation()} target="_blank" rel="noopener noreferrer" style={{ display: "flex", alignItems: "center", gap: 3, background: th.surf2, border: `1px solid ${th.bdr}`, borderRadius: 6, padding: "2px 8px", fontSize: 11, color: th.txt2, fontWeight: 600 }}>⚡ GitHub</a>}
+                    {s.social_links?.twitter && <a href={s.social_links.twitter} onClick={e => e.stopPropagation()} target="_blank" rel="noopener noreferrer" style={{ display: "flex", alignItems: "center", gap: 3, background: "#1da1f215", border: "1px solid #1da1f230", borderRadius: 6, padding: "2px 8px", fontSize: 11, color: "#1da1f2", fontWeight: 600 }}><Twitter size={10} /></a>}
+                    {s.social_links?.linkedin && <a href={s.social_links.linkedin} onClick={e => e.stopPropagation()} target="_blank" rel="noopener noreferrer" style={{ display: "flex", alignItems: "center", gap: 3, background: "#0a66c215", border: "1px solid #0a66c230", borderRadius: 6, padding: "2px 8px", fontSize: 11, color: "#0a66c2", fontWeight: 600 }}><Linkedin size={10} /></a>}
+                  </div>
+
+                  {/* Stacked founders */}
                   {founders.length > 0 && (
-                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
-                      <div style={{ display: "flex" }}>
-                        {founders.slice(0, 3).map((f, i) => (
-                          <div key={f.id} onClick={e => { e.stopPropagation(); onProfile(f.id); }} style={{ marginLeft: i > 0 ? -8 : 0, zIndex: 3 - i, border: `2px solid ${th.surf}`, borderRadius: "50%" }}>
-                            <Av profile={f} size={22} />
-                          </div>
-                        ))}
-                      </div>
-                      <span style={{ fontSize: 12, color: th.txt3 }}>by {founders.map(f => f.name?.split(" ")[0]).join(", ")}</span>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <StackedAvatars userIds={founders} profiles={profiles} onProfile={onProfile} max={4} />
+                      <span style={{ fontSize: 11, color: th.txt3 }}>
+                        {founders.length} founder{founders.length !== 1 ? "s" : ""}
+                      </span>
                     </div>
                   )}
-                  <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
-                    {s.website && <span style={{ fontSize: 11, color: "#3b82f6", fontWeight: 600 }}>🌐 Website</span>}
-                    {s.github_link && <span style={{ fontSize: 11, color: "#6b7280", fontWeight: 600 }}>⚡ GitHub</span>}
-                  </div>
                 </div>
               </div>
+
+              {/* Latest update */}
+              {latestUpdate && (
+                <div style={{ background: th.surf2, border: `1px solid ${th.bdr}`, borderRadius: 10, padding: "8px 12px", marginBottom: 10 }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: th.txt3, marginBottom: 3 }}>📢 LATEST UPDATE</div>
+                  <div style={{ fontSize: 12, color: th.txt2, lineHeight: 1.5 }}>{latestUpdate.content?.slice(0, 100)}{latestUpdate.content?.length > 100 ? "…" : ""}</div>
+                </div>
+              )}
+
+              {/* Feedback count */}
+              {fbList.length > 0 && (
+                <div style={{ fontSize: 12, color: th.txt3, display: "flex", alignItems: "center", gap: 4 }}>
+                  <MessageCircle size={12} /> {fbList.length} feedback comment{fbList.length !== 1 ? "s" : ""}
+                </div>
+              )}
             </div>
+
+            {/* Footer */}
             <div style={{ borderTop: `1px solid ${th.bdr}`, marginTop: 12, paddingTop: 12, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <span style={{ fontSize: 12, color: th.txt3 }}>{ago(new Date(s.created_at).getTime())} ago</span>
+              <span style={{ fontSize: 12, color: th.txt3 }}>{s.created_at ? ago(new Date(s.created_at).getTime()) + " ago" : ""}</span>
               <button onClick={() => setActiveStartup(s)} style={{ background: "linear-gradient(135deg,#3b82f6,#8b5cf6)", border: "none", borderRadius: 10, padding: "7px 18px", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
-                {isFounder ? "Manage →" : "Explore →"}
+                {isFounder ? "Manage →" : "Join →"}
               </button>
             </div>
           </Card>
@@ -2880,7 +3115,6 @@ function ColabView({ me, dk, profiles, onProfile, addNotif }) {
     </div>
   );
 }
-
 
 // ═══════════════════════════════════════════════════════════════
 // ─── ADMIN PORTAL ────────────────────────────────────────────────
