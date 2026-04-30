@@ -3174,8 +3174,8 @@ return () => { cancelled = true; };
           )}
         </div>
       </div>
-    </div>
-  );
-  }   // ✅ closes function App
+          </div>
+    );
+}   // only ONE closing brace
 
-export default App;   // ✅ required for React
+export default App;
