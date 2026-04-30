@@ -3090,8 +3090,6 @@ function AdminApp({ me, myProfile, bals, profiles, dk, setDk, onSignOut }) {
           window.history.replaceState({}, "", window.location.pathname);
           await trySession(sess);
         }
-      }
-    )();
 
     return () => { cancelled = true; };
   }, []);
