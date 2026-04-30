@@ -3094,10 +3094,10 @@ function AdminApp({ me, myProfile, bals, profiles, dk, setDk, onSignOut }) {
     await trySession(sess);
   }
 
-})();   // ✅ ✅ ADD THIS LINE
+
 
 return () => { cancelled = true; };
-}, []);
+
 
   if (screen === "loading") return (
     <div style={{ minHeight: "100vh", background: "linear-gradient(135deg,#040a14,#0c1929)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16 }}>
