@@ -3172,6 +3172,4 @@ useEffect(() => {
       </div>
           </div>
       );
-}  // closes App
-
 export default App;
