@@ -2186,136 +2186,7 @@ function StartupCard({ startup, me, profiles, dk, onClick, isOwner }) {
   );
 }
 
-// ═══════════════════════════════════════════════════════════════════
-// ─── AUTH SCREENS ─────────────────────────────────────────────────
-// ═══════════════════════════════════════════════════════════════════
 
-function AuthScreen({ onAuth, dk }) {
-  const th = T(dk);
-  const [mode, setMode] = useState("login"); // login | signup | forgot
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [name, setName] = useState("");
-  const [err, setErr] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [showPw, setShowPw] = useState(false);
-  const [done, setDone] = useState(false);
-
-  const submit = async () => {
-    setErr(""); setLoading(true);
-    try {
-      if (mode === "signup") {
-        const r = await sbAuth.signUp(email, password, name);
-        if (r.error) { setErr(r.error.message); setLoading(false); return; }
-        setDone(true);
-      } else {
-        const r = await sbAuth.signIn(email, password);
-        if (r.error || !r.access_token) { setErr(r.error?.message || "Invalid credentials"); setLoading(false); return; }
-        localStorage.setItem("rs_session", JSON.stringify(r));
-        onAuth(r);
-      }
-    } catch { setErr("Network error. Please try again."); }
-    setLoading(false);
-  };
-
-  const inp = { width: "100%", background: th.inp, border: `1px solid ${th.inpB}`, borderRadius: 12, padding: "11px 14px", fontSize: 14, outline: "none", color: th.txt, boxSizing: "border-box", fontFamily: "inherit" };
-
-  if (done) return (
-    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: th.bg }}>
-      <div style={{ textAlign: "center", padding: 40 }}>
-        <div style={{ fontSize: 56, marginBottom: 16 }}>📬</div>
-        <h2 style={{ fontSize: 22, fontWeight: 800, color: th.txt, margin: "0 0 8px" }}>Check your email!</h2>
-        <p style={{ color: th.txt2, fontSize: 14 }}>We sent a confirmation link to <strong>{email}</strong>.</p>
-        <button onClick={() => { setDone(false); setMode("login"); }} style={{ marginTop: 20, background: "#3b82f6", color: "#fff", border: "none", borderRadius: 10, padding: "10px 24px", cursor: "pointer", fontWeight: 700 }}>
-          Back to Login
-        </button>
-      </div>
-    </div>
-  );
-
-  return (
-    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: th.bg, padding: 16 }}>
-      <div style={{ width: "100%", maxWidth: 400 }}>
-        <div style={{ textAlign: "center", marginBottom: 32 }}>
-          <RightSignalLogo size={48} dk={dk} />
-          <p style={{ color: th.txt2, fontSize: 14, margin: "12px 0 0" }}>Signal Over Noise</p>
-        </div>
-        <div style={{ background: th.surf, border: `1px solid ${th.bdr}`, borderRadius: 20, padding: 28 }}>
-          <h2 style={{ fontSize: 20, fontWeight: 800, color: th.txt, margin: "0 0 20px", textAlign: "center" }}>
-            {mode === "login" ? "Welcome back" : mode === "signup" ? "Join RightSignal" : "Reset password"}
-          </h2>
-
-          <button
-            onClick={sbAuth.googleOAuth}
-            style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, width: "100%", padding: "11px", background: th.surf2, border: `1px solid ${th.bdr}`, borderRadius: 12, cursor: "pointer", fontSize: 14, fontWeight: 600, color: th.txt, marginBottom: 16 }}
-          >
-            <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.35-8.16 2.35-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
-            Continue with Google
-          </button>
-
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
-            <div style={{ flex: 1, height: 1, background: th.bdr }} />
-            <span style={{ fontSize: 12, color: th.txt3 }}>or</span>
-            <div style={{ flex: 1, height: 1, background: th.bdr }} />
-          </div>
-
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {mode === "signup" && (
-              <input value={name} onChange={e => setName(e.target.value)} placeholder="Full name" style={inp} />
-            )}
-            <input value={email} onChange={e => setEmail(e.target.value)} placeholder="Email address" type="email" style={inp} />
-            {mode !== "forgot" && (
-              <div style={{ position: "relative" }}>
-                <input
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  onKeyDown={e => e.key === "Enter" && submit()}
-                  placeholder="Password"
-                  type={showPw ? "text" : "password"}
-                  style={{ ...inp, paddingRight: 40 }}
-                />
-                <button onClick={() => setShowPw(x => !x)} style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: th.txt3, display: "flex" }}>
-                  {showPw ? <EyeOff size={15} /> : <Eye size={15} />}
-                </button>
-              </div>
-            )}
-          </div>
-
-          {err && (
-            <div style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 10, padding: "8px 12px", background: "#ef444418", border: "1px solid #ef444440", borderRadius: 8 }}>
-              <AlertCircle size={13} color="#ef4444" />
-              <span style={{ fontSize: 12, color: "#ef4444" }}>{err}</span>
-            </div>
-          )}
-
-          <button
-            onClick={submit}
-            disabled={loading}
-            style={{ width: "100%", marginTop: 16, padding: "12px", background: "linear-gradient(135deg,#3b82f6,#8b5cf6)", border: "none", borderRadius: 12, color: "#fff", fontSize: 14, fontWeight: 700, cursor: loading ? "default" : "pointer", opacity: loading ? 0.7 : 1 }}
-          >
-            {loading ? "Please wait…" : mode === "login" ? "Sign In" : mode === "signup" ? "Create Account" : "Send Reset Link"}
-          </button>
-
-          <div style={{ textAlign: "center", marginTop: 16, fontSize: 13, color: th.txt3 }}>
-            {mode === "login" ? (
-              <>
-                Don't have an account?{" "}
-                <button onClick={() => { setMode("signup"); setErr(""); }} style={{ background: "none", border: "none", cursor: "pointer", color: "#3b82f6", fontWeight: 700, fontSize: 13 }}>Sign up</button>
-                {" · "}
-                <button onClick={() => { setMode("forgot"); setErr(""); }} style={{ background: "none", border: "none", cursor: "pointer", color: th.txt3, fontSize: 13 }}>Forgot password?</button>
-              </>
-            ) : (
-              <>
-                Already have an account?{" "}
-                <button onClick={() => { setMode("login"); setErr(""); }} style={{ background: "none", border: "none", cursor: "pointer", color: "#3b82f6", fontWeight: 700, fontSize: 13 }}>Sign in</button>
-              </>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 // ─── ONBOARDING SCREEN ────────────────────────────────────────────
 function OnboardingScreen({ me, onDone, dk }) {
@@ -3007,7 +2878,6 @@ function AdminApp({ me, myProfile, bals, profiles, dk, setDk, onSignOut }) {
 }
 
 // ─── APP ROOT ─────────────────────────────────────────────────────
-export default function App() {
   // Start in "loading" state if we detect an OAuth return or stored session
   // so the login form never flashes during auto-login
   const hasStoredSession = (() => {
