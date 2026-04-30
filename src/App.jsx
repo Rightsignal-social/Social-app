@@ -3173,4 +3173,3 @@ function AdminApp({ me, myProfile, bals, profiles, dk, setDk, onSignOut }) {
       </div>
     </div>
   );
-}
