@@ -4527,7 +4527,9 @@ useEffect(() => {
             </div>
           )}
         </div>
+      </div>
     </div>
+  </div>
 );   // closes return
 
 export default App;
