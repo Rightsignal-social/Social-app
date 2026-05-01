@@ -1982,2821 +1982,1937 @@ function Onboarding({ user, onComplete }) {
     </div>
   );
 }
+// ============================================================
+// Colab.jsx — Full Startup Operating System
+// Drop-in replacement for ColabView in App.jsx
+// Import: import ColabView from './Colab';
+// ============================================================
 
-// ╔══════════════════════════════════════════════════════════════════════════════╗
-// ║              COLAB V2 — STARTUP OPERATING SYSTEM                           ║
-// ║              Complete Extension — Single Reference File                    ║
-// ║              Copy each section into the appropriate file                   ║
-// ╚══════════════════════════════════════════════════════════════════════════════╝
+import { useState, useEffect, useCallback, useRef } from "react";
+import {
+  ArrowLeft, Plus, X, Check, Search, Send, Edit3, Trash2, Globe,
+  Mic, MicOff, Image, Video, File, Download, Calendar, Users,
+  MessageCircle, Settings, Bell, Bookmark, BookmarkCheck, ChevronRight,
+  ChevronDown, MoreHorizontal, Clock, AlertCircle, CheckCircle2,
+  Circle, Link, Twitter, Linkedin, Github, Hash, AtSign, Paperclip,
+  Play, Upload, Star, TrendingUp, Zap, RefreshCw, Filter, Eye,
+  Phone, Copy,
+} from "lucide-react";
 
-// ┌──────────────────────────────────────────────────────────────────────────────┐
-// │  FILE STRUCTURE                                                              │
-// ├──────────────────────────────────────────────────────────────────────────────┤
-// │  SECTION A — BACKEND MODELS          (7 models)                             │
-// │  SECTION B — MIDDLEWARE              (colabAuth.js)                         │
-// │  SECTION C — BACKEND ROUTES          (routes/colab.js — complete)           │
-// │  SECTION D — SOCKET.IO EXTENSION     (extend existing socket server)        │
-// │  SECTION E — FRONTEND SERVICE        (colabService.js)                      │
-// │  SECTION F — SHARED COMPONENTS       (5 reusable components)                │
-// │  SECTION G — MODALS                  (Join, Create, Meeting, Task)          │
-// │  SECTION H — PAGES                   (List, Detail, Dashboard, Workspace)   │
-// │  SECTION I — ROUTER REGISTRATION     (add to existing App.jsx / routes)     │
-// │  SECTION J — NOTIFICATION SYSTEM     (model + routes + frontend hook)       │
-// └──────────────────────────────────────────────────────────────────────────────┘
+// ─── CONFIG (reuse from App.jsx) ─────────────────────────────
+const SB_URL = "https://kzdjzasopqwzctwebiap.supabase.co";
+const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt6ZGp6YXNvcHF3emN0d2ViaWFwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY1MjM1NTgsImV4cCI6MjA5MjA5OTU1OH0.VqGDt7JVvkP413tl40EIh3IFqtyhX1OMrv3iCGaMvls";
+const H = { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`, "Content-Type": "application/json" };
 
-
-// ════════════════════════════════════════════════════════════════════════════════
-// SECTION A — BACKEND MODELS
-// ════════════════════════════════════════════════════════════════════════════════
-
-// ─── models/Startup.js ──────────────────────────────────────────────────────────
-/*
-const mongoose = require('mongoose');
-const { v4: uuidv4 } = require('uuid');
-
-const StartupSchema = new mongoose.Schema({
-  name:           { type: String, required: true, trim: true },
-  logo:           { type: String, required: true },
-  description:    { type: String, required: true, trim: true },
-  problem:        { type: String, default: '' },
-  solution:       { type: String, default: '' },
-  website:        { type: String, default: '' },
-  stage:          { type: String, enum: ['idea','mvp','growth','scaling'], default: 'idea' },
-  social_links: {
-    linkedin:     { type: String, default: '' },
-    twitter:      { type: String, default: '' },
-    github:       { type: String, default: '' },
+// ─── DB HELPERS ───────────────────────────────────────────────
+const db = {
+  get: async (t, q = "") => {
+    try { const r = await fetch(`${SB_URL}/rest/v1/${t}${q ? "?" + q : ""}`, { headers: H }); return r.ok ? r.json() : []; } catch { return []; }
   },
-  created_by:     { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-  founders:       [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
-  referral_code:  { type: String, unique: true, default: () => uuidv4().split('-')[0].toUpperCase() },
-  bookmarks:      [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
-  is_active:      { type: Boolean, default: true },
-  created_at:     { type: Date, default: Date.now },
-  updated_at:     { type: Date, default: Date.now },
+  post: async (t, body) => {
+    try {
+      const r = await fetch(`${SB_URL}/rest/v1/${t}`, { method: "POST", headers: { ...H, Prefer: "return=representation" }, body: JSON.stringify(body) });
+      if (!r.ok) return null; const d = await r.json(); return Array.isArray(d) ? d[0] : d;
+    } catch { return null; }
+  },
+  postMany: async (t, rows) => {
+    if (!rows?.length) return [];
+    try { const r = await fetch(`${SB_URL}/rest/v1/${t}`, { method: "POST", headers: { ...H, Prefer: "return=representation" }, body: JSON.stringify(rows) }); return r.ok ? r.json() : []; } catch { return []; }
+  },
+  patch: async (t, q, body) => {
+    try { await fetch(`${SB_URL}/rest/v1/${t}?${q}`, { method: "PATCH", headers: H, body: JSON.stringify(body) }); } catch {}
+  },
+  del: async (t, q) => {
+    try { await fetch(`${SB_URL}/rest/v1/${t}?${q}`, { method: "DELETE", headers: H }); } catch {}
+  },
+  upsert: async (t, body) => {
+    try {
+      const r = await fetch(`${SB_URL}/rest/v1/${t}`, { method: "POST", headers: { ...H, Prefer: "resolution=merge-duplicates,return=representation" }, body: JSON.stringify(body) });
+      if (!r.ok) return null; const d = await r.json(); return Array.isArray(d) ? d[0] : d;
+    } catch { return null; }
+  },
+};
+
+// ─── UTILS ───────────────────────────────────────────────────
+const ago = d => { const s = (Date.now() - d) / 1000; if (s < 60) return "just now"; if (s < 3600) return `${~~(s / 60)}m ago`; if (s < 86400) return `${~~(s / 3600)}h ago`; return `${~~(s / 86400)}d ago`; };
+const fmtDate = t => new Date(t).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+const fmtTime = t => new Date(t).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
+const fmtDateTime = t => `${fmtDate(t)} at ${fmtTime(t)}`;
+const genId = () => Math.random().toString(36).slice(2, 10);
+const genCode = name => name.toUpperCase().replace(/\s+/g, "").slice(0, 5) + "-" + Math.random().toString(36).slice(2, 6).toUpperCase();
+const strColor = s => { const c = ["#3b82f6","#10b981","#8b5cf6","#f97316","#f43f5e","#06b6d4","#ec4899","#f59e0b"]; let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) & 0xffffff; return c[Math.abs(h) % c.length]; };
+const fileToB64 = (file, maxMB = 5) => new Promise((res, rej) => {
+  if (file.size > maxMB * 1024 * 1024) { rej(new Error(`Max ${maxMB}MB`)); return; }
+  const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(file);
 });
 
-StartupSchema.pre('save', function(next) { this.updated_at = Date.now(); next(); });
-StartupSchema.index({ name: 'text', description: 'text' });
-
-module.exports = mongoose.model('Startup', StartupSchema);
-*/
-
-// ─── models/StartupPage.js ───────────────────────────────────────────────────────
-/*
-const mongoose = require('mongoose');
-
-const DEFAULT_PAGES = [
-  { name: 'Investor',   description: 'Pitch decks, traction metrics, funding updates', type: 'investor'   },
-  { name: 'Tech',       description: 'Engineering updates, dev logs, file sharing',    type: 'tech'       },
-  { name: 'Marketing',  description: 'Campaigns, content calendar, strategy',          type: 'marketing'  },
-  { name: 'Community',  description: 'Public updates and community engagement',        type: 'community'  },
+// ─── CONSTANTS ────────────────────────────────────────────────
+const PAGE_TYPES = [
+  { id: "investor",  label: "Investor",  e: "💰", c: "#10b981", desc: "Pitch deck, funding, traction" },
+  { id: "tech",      label: "Tech",      e: "👾", c: "#3b82f6", desc: "Code, dev logs, tech updates" },
+  { id: "marketing", label: "Marketing", e: "📣", c: "#f97316", desc: "Campaigns, content, growth" },
+  { id: "community", label: "Community", e: "🌐", c: "#8b5cf6", desc: "Public updates, engagement" },
+  { id: "operations",label: "Operations",e: "⚙️", c: "#06b6d4", desc: "Ops, BD, partnerships" },
+  { id: "design",    label: "Design",    e: "🎨", c: "#ec4899", desc: "UI/UX, brand assets" },
+  { id: "general",   label: "General",   e: "📋", c: "#6b7280", desc: "General workspace" },
 ];
 
-const StartupPageSchema = new mongoose.Schema({
-  startup_id:   { type: mongoose.Schema.Types.ObjectId, ref: 'Startup', required: true },
-  name:         { type: String, required: true, trim: true },
-  description:  { type: String, default: '' },
-  type:         { type: String, enum: ['investor','tech','marketing','community','custom'], default: 'custom' },
-  admins:       [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
-  is_active:    { type: Boolean, default: true },
-  created_at:   { type: Date, default: Date.now },
-});
+const JOIN_ROLES = [
+  { id: "investor",  label: "Investor",       e: "💰", pages: ["investor"] },
+  { id: "tech",      label: "Tech / Dev",     e: "👾", pages: ["tech"] },
+  { id: "marketing", label: "Marketing",      e: "📣", pages: ["marketing"] },
+  { id: "intern",    label: "Student/Intern", e: "🎓", pages: ["general","community"] },
+  { id: "general",   label: "General Audience",e: "🌐", pages: ["community","general"] },
+];
 
-StartupPageSchema.statics.DEFAULT_PAGES = DEFAULT_PAGES;
-
-// Map join role → page type
-StartupPageSchema.statics.ROLE_PAGE_MAP = {
-  investor:         'investor',
-  tech:             'tech',
-  marketing:        'marketing',
-  student_intern:   'community',
-  general_audience: 'community',
+const TASK_STATUS = {
+  pending:    { label: "Pending",     c: "#f59e0b", icon: Circle },
+  inprogress: { label: "In Progress", c: "#3b82f6", icon: Clock },
+  completed:  { label: "Completed",   c: "#10b981", icon: CheckCircle2 },
 };
 
-module.exports = mongoose.model('StartupPage', StartupPageSchema);
-*/
+const EMOJIS = ["😀","😂","🥰","😎","🤔","🚀","💡","🔥","👍","❤️","💪","🙏","✨","💰","🤝","👏","🎯","⚡","🛠️","📊"];
 
-// ─── models/PageAccess.js ────────────────────────────────────────────────────────
-/*
-const mongoose = require('mongoose');
-
-const PageAccessSchema = new mongoose.Schema({
-  startup_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Startup',     required: true },
-  page_id:    { type: mongoose.Schema.Types.ObjectId, ref: 'StartupPage', required: true },
-  user_id:    { type: mongoose.Schema.Types.ObjectId, ref: 'User',        required: true },
-  role:       { type: String, default: 'member' }, // member | admin
-  granted_at: { type: Date, default: Date.now },
+// ─── THEME helper (pass dk from parent) ──────────────────────
+const T = dk => ({
+  bg: dk ? "#080d18" : "#f0f2f8", surf: dk ? "#0e1525" : "#fff", surf2: dk ? "#131d30" : "#f4f6fb",
+  bdr: dk ? "#1c2d47" : "#e2e8f0", txt: dk ? "#e8eeff" : "#0f172a", txt2: dk ? "#7a93c0" : "#475569",
+  txt3: dk ? "#3d5278" : "#94a3b8", inp: dk ? "#131d30" : "#f8fafc", inpB: dk ? "#1c2d47" : "#cbd5e1",
 });
 
-PageAccessSchema.index({ page_id: 1, user_id: 1 }, { unique: true });
-module.exports = mongoose.model('PageAccess', PageAccessSchema);
-*/
-
-// ─── models/PageAccessRequest.js ─────────────────────────────────────────────────
-/*
-const mongoose = require('mongoose');
-
-const PageAccessRequestSchema = new mongoose.Schema({
-  startup_id:      { type: mongoose.Schema.Types.ObjectId, ref: 'Startup', required: true },
-  user_id:         { type: mongoose.Schema.Types.ObjectId, ref: 'User',    required: true },
-  selected_roles:  [{ type: String }],                // e.g. ['investor','tech']
-  requested_pages: [{ type: mongoose.Schema.Types.ObjectId, ref: 'StartupPage' }],
-  status:          { type: String, enum: ['pending','approved','rejected','partial'], default: 'pending' },
-  note:            { type: String, default: '' },     // user's intro message
-  created_at:      { type: Date, default: Date.now },
-  updated_at:      { type: Date, default: Date.now },
-});
-
-module.exports = mongoose.model('PageAccessRequest', PageAccessRequestSchema);
-*/
-
-// ─── models/PageTask.js ──────────────────────────────────────────────────────────
-/*
-const mongoose = require('mongoose');
-
-const PageTaskSchema = new mongoose.Schema({
-  page_id:     { type: mongoose.Schema.Types.ObjectId, ref: 'StartupPage', required: true },
-  startup_id:  { type: mongoose.Schema.Types.ObjectId, ref: 'Startup',     required: true },
-  title:       { type: String, required: true, trim: true },
-  description: { type: String, default: '' },
-  status:      { type: String, enum: ['pending','in_progress','completed'], default: 'pending' },
-  priority:    { type: String, enum: ['low','medium','high'], default: 'medium' },
-  assigned_to: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
-  created_by:  { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-  due_date:    { type: Date },
-  created_at:  { type: Date, default: Date.now },
-  updated_at:  { type: Date, default: Date.now },
-});
-
-module.exports = mongoose.model('PageTask', PageTaskSchema);
-*/
-
-// ─── models/PageMeeting.js ───────────────────────────────────────────────────────
-/*
-const mongoose = require('mongoose');
-
-const PageMeetingSchema = new mongoose.Schema({
-  page_id:      { type: mongoose.Schema.Types.ObjectId, ref: 'StartupPage', required: true },
-  startup_id:   { type: mongoose.Schema.Types.ObjectId, ref: 'Startup',     required: true },
-  title:        { type: String, required: true },
-  description:  { type: String, default: '' },
-  meeting_type: { type: String, enum: ['google_meet','zoom','custom'], required: true },
-  meeting_link: { type: String, required: true },
-  scheduled_at: { type: Date, required: true },
-  duration_min: { type: Number, default: 60 },
-  created_by:   { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-  participants: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
-  created_at:   { type: Date, default: Date.now },
-});
-
-module.exports = mongoose.model('PageMeeting', PageMeetingSchema);
-*/
-
-// ─── models/PageFile.js ──────────────────────────────────────────────────────────
-/*
-const mongoose = require('mongoose');
-
-const PageFileSchema = new mongoose.Schema({
-  page_id:    { type: mongoose.Schema.Types.ObjectId, ref: 'StartupPage', required: true },
-  startup_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Startup',     required: true },
-  name:       { type: String, required: true },
-  url:        { type: String, required: true },
-  mime_type:  { type: String, default: '' },
-  size_bytes: { type: Number, default: 0 },
-  uploaded_by:{ type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-  created_at: { type: Date, default: Date.now },
-});
-
-module.exports = mongoose.model('PageFile', PageFileSchema);
-*/
-
-// ─── models/PageMessage.js (extend existing messaging or create new) ─────────────
-/*
-const mongoose = require('mongoose');
-
-const PageMessageSchema = new mongoose.Schema({
-  page_id:    { type: mongoose.Schema.Types.ObjectId, ref: 'StartupPage', required: true },
-  startup_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Startup',     required: true },
-  sender_id:  { type: mongoose.Schema.Types.ObjectId, ref: 'User',        required: true },
-  content:    { type: String, default: '' },
-  type:       { type: String, enum: ['text','image','voice','video','file'], default: 'text' },
-  media_url:  { type: String, default: '' },
-  reply_to:   { type: mongoose.Schema.Types.ObjectId, ref: 'PageMessage', default: null },
-  mentions:   [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
-  reactions:  [{
-    emoji:   { type: String },
-    user_id: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-  }],
-  is_deleted: { type: Boolean, default: false },
-  created_at: { type: Date, default: Date.now },
-});
-
-PageMessageSchema.index({ page_id: 1, created_at: -1 });
-module.exports = mongoose.model('PageMessage', PageMessageSchema);
-*/
-
-// ─── models/StartupUpdate.js ─────────────────────────────────────────────────────
-/*
-const mongoose = require('mongoose');
-
-const StartupUpdateSchema = new mongoose.Schema({
-  startup_id:  { type: mongoose.Schema.Types.ObjectId, ref: 'Startup', required: true },
-  content:     { type: String, required: true },
-  media_urls:  [{ type: String }],
-  created_by:  { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-  created_at:  { type: Date, default: Date.now },
-  updated_at:  { type: Date, default: Date.now },
-});
-
-module.exports = mongoose.model('StartupUpdate', StartupUpdateSchema);
-*/
-
-// ─── models/StartupFeedback.js ───────────────────────────────────────────────────
-/*
-const mongoose = require('mongoose');
-
-const StartupFeedbackSchema = new mongoose.Schema({
-  startup_id:  { type: mongoose.Schema.Types.ObjectId, ref: 'Startup', required: true },
-  user_id:     { type: mongoose.Schema.Types.ObjectId, ref: 'User',    required: true },
-  message:     { type: String, required: true, trim: true },
-  media_url:   { type: String, default: '' },
-  is_deleted:  { type: Boolean, default: false },
-  created_at:  { type: Date, default: Date.now },
-  updated_at:  { type: Date, default: Date.now },
-});
-
-module.exports = mongoose.model('StartupFeedback', StartupFeedbackSchema);
-*/
-
-// ─── models/ColabNotification.js ─────────────────────────────────────────────────
-/*
-const mongoose = require('mongoose');
-
-const ColabNotificationSchema = new mongoose.Schema({
-  user_id:    { type: mongoose.Schema.Types.ObjectId, ref: 'User',    required: true },
-  startup_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Startup', default: null },
-  type:       {
-    type: String,
-    enum: ['request_approved','request_rejected','new_message','task_assigned','meeting_scheduled','new_request','feedback_reply'],
-    required: true,
-  },
-  title:      { type: String, required: true },
-  body:       { type: String, default: '' },
-  link:       { type: String, default: '' },  // frontend route to redirect
-  is_read:    { type: Boolean, default: false },
-  created_at: { type: Date, default: Date.now },
-});
-
-ColabNotificationSchema.index({ user_id: 1, is_read: 1, created_at: -1 });
-module.exports = mongoose.model('ColabNotification', ColabNotificationSchema);
-*/
-
-
-// ════════════════════════════════════════════════════════════════════════════════
-// SECTION B — MIDDLEWARE
-// ════════════════════════════════════════════════════════════════════════════════
-
-// ─── middleware/colabAuth.js ─────────────────────────────────────────────────────
-/*
-const Startup    = require('../models/Startup');
-const PageAccess = require('../models/PageAccess');
-const StartupPage = require('../models/StartupPage');
-
-// Verify the requesting user is a founder/owner of the startup
-const isFounder = async (req, res, next) => {
-  try {
-    const startupId = req.params.startupId || req.params.id;
-    const startup   = await Startup.findById(startupId);
-    if (!startup) return res.status(404).json({ error: 'Startup not found' });
-
-    const uid     = req.user._id.toString();
-    const allowed = startup.created_by.toString() === uid ||
-                    startup.founders.some(f => f.toString() === uid);
-
-    if (!allowed) return res.status(403).json({ error: 'Founders only' });
-    req.startup = startup;
-    next();
-  } catch (err) { res.status(500).json({ error: err.message }); }
-};
-
-// Verify user has approved access to a specific page
-const hasPageAccess = async (req, res, next) => {
-  try {
-    const { pageId } = req.params;
-    const userId     = req.user._id;
-
-    const page    = await StartupPage.findById(pageId);
-    if (!page) return res.status(404).json({ error: 'Page not found' });
-
-    const startup = await Startup.findById(page.startup_id);
-
-    // Founders get automatic access
-    const isFounderCheck = startup.created_by.toString() === userId.toString() ||
-                           startup.founders.some(f => f.toString() === userId.toString());
-    if (isFounderCheck) { req.page = page; req.startup = startup; return next(); }
-
-    // Page admin check
-    const isPageAdmin = page.admins.some(a => a.toString() === userId.toString());
-    if (isPageAdmin) { req.page = page; req.startup = startup; return next(); }
-
-    const access = await PageAccess.findOne({ page_id: pageId, user_id: userId });
-    if (!access) return res.status(403).json({ error: 'Access denied' });
-
-    req.page = page; req.startup = startup;
-    next();
-  } catch (err) { res.status(500).json({ error: err.message }); }
-};
-
-// Verify user is a page admin OR startup founder
-const isPageAdmin = async (req, res, next) => {
-  try {
-    const { pageId } = req.params;
-    const userId     = req.user._id;
-
-    const page    = await StartupPage.findById(pageId);
-    if (!page) return res.status(404).json({ error: 'Page not found' });
-
-    const startup = await Startup.findById(page.startup_id);
-    const isFounderCheck = startup.created_by.toString() === userId.toString() ||
-                           startup.founders.some(f => f.toString() === userId.toString());
-    if (isFounderCheck) { req.page = page; req.startup = startup; return next(); }
-
-    const isAdmin = page.admins.some(a => a.toString() === userId.toString());
-    if (!isAdmin) return res.status(403).json({ error: 'Page admin only' });
-
-    req.page = page; req.startup = startup;
-    next();
-  } catch (err) { res.status(500).json({ error: err.message }); }
-};
-
-module.exports = { isFounder, hasPageAccess, isPageAdmin };
-*/
-
-
-// ════════════════════════════════════════════════════════════════════════════════
-// SECTION C — BACKEND ROUTES  (routes/colab.js — COMPLETE)
-// ════════════════════════════════════════════════════════════════════════════════
-
-/*
-const express  = require('express');
-const router   = express.Router();
-const multer   = require('multer');
-const path     = require('path');
-
-const { protect }                          = require('../middleware/auth');
-const { isFounder, hasPageAccess, isPageAdmin } = require('../middleware/colabAuth');
-
-const Startup              = require('../models/Startup');
-const StartupPage          = require('../models/StartupPage');
-const PageAccess           = require('../models/PageAccess');
-const PageAccessRequest    = require('../models/PageAccessRequest');
-const PageTask             = require('../models/PageTask');
-const PageMeeting          = require('../models/PageMeeting');
-const PageFile             = require('../models/PageFile');
-const PageMessage          = require('../models/PageMessage');
-const StartupUpdate        = require('../models/StartupUpdate');
-const StartupFeedback      = require('../models/StartupFeedback');
-const ColabNotification    = require('../models/ColabNotification');
-
-// ── Upload config (reuse existing if available)
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, 'uploads/'),
-  filename:    (req, file, cb) => cb(null, `${Date.now()}-${file.originalname.replace(/\s/g,'_')}`),
-});
-const upload = multer({ storage, limits: { fileSize: 50 * 1024 * 1024 } }); // 50MB
-
-// ── Notification helper
-const notify = async (userId, type, title, body, link, startupId = null) => {
-  try {
-    await ColabNotification.create({ user_id: userId, startup_id: startupId, type, title, body, link });
-  } catch (_) {}
-};
-
-// ════════════════════════════════════════════════════════════════════════════
-// STARTUP CRUD
-// ════════════════════════════════════════════════════════════════════════════
-
-// GET /api/colab — List all startups (with optional search)
-router.get('/', protect, async (req, res) => {
-  try {
-    const { q, stage } = req.query;
-    const filter = { is_active: true };
-    if (q)     filter.$text = { $search: q };
-    if (stage) filter.stage = stage;
-
-    const startups = await Startup.find(filter)
-      .populate('created_by', 'name avatar username')
-      .populate('founders',   'name avatar username')
-      .sort({ created_at: -1 });
-
-    const data = await Promise.all(startups.map(async (s) => {
-      const updates      = await StartupUpdate.find({ startup_id: s._id }).sort({ created_at: -1 }).limit(2).populate('created_by','name avatar');
-      const feedbackCount= await StartupFeedback.countDocuments({ startup_id: s._id, is_deleted: false });
-      const memberCount  = await PageAccess.distinct('user_id', { startup_id: s._id });
-      const isBookmarked = s.bookmarks.some(b => b.toString() === req.user._id.toString());
-      return { ...s.toObject(), latest_updates: updates, feedback_count: feedbackCount, member_count: memberCount.length, is_bookmarked: isBookmarked };
-    }));
-    res.json(data);
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// POST /api/colab — Create startup
-router.post('/', protect, upload.single('logo'), async (req, res) => {
-  try {
-    const { name, description, problem, solution, website, stage, social_links } = req.body;
-    if (!req.file) return res.status(400).json({ error: 'Logo is required' });
-
-    const logo    = `/uploads/${req.file.filename}`;
-    const startup = await Startup.create({
-      name, description, problem, solution, website, stage,
-      logo,
-      social_links: typeof social_links === 'string' ? JSON.parse(social_links) : (social_links || {}),
-      created_by: req.user._id,
-      founders:   [req.user._id],
-    });
-
-    // Auto-create default pages
-    const defaultPages = StartupPage.DEFAULT_PAGES.map(p => ({
-      startup_id: startup._id, name: p.name, description: p.description, type: p.type,
-    }));
-    await StartupPage.insertMany(defaultPages);
-
-    const populated = await Startup.findById(startup._id).populate('created_by','name avatar username');
-    res.status(201).json(populated);
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// GET /api/colab/ref/:code — Referral code lookup
-router.get('/ref/:code', protect, async (req, res) => {
-  try {
-    const startup = await Startup.findOne({ referral_code: req.params.code.toUpperCase(), is_active: true })
-      .populate('founders', 'name avatar username');
-    if (!startup) return res.status(404).json({ error: 'Invalid referral code' });
-
-    // Get user's approved pages for this startup
-    const approvedAccess = await PageAccess.find({ startup_id: startup._id, user_id: req.user._id });
-    const approvedPageIds = approvedAccess.map(a => a.page_id.toString());
-
-    const pendingReq = await PageAccessRequest.findOne({ startup_id: startup._id, user_id: req.user._id, status: 'pending' });
-
-    const updates      = await StartupUpdate.find({ startup_id: startup._id }).sort({ created_at: -1 }).limit(3).populate('created_by','name avatar');
-    const feedbackCount= await StartupFeedback.countDocuments({ startup_id: startup._id, is_deleted: false });
-    const memberCount  = await PageAccess.distinct('user_id', { startup_id: startup._id });
-
-    res.json({
-      startup: { ...startup.toObject(), latest_updates: updates, feedback_count: feedbackCount, member_count: memberCount.length },
-      approved_page_ids: approvedPageIds,
-      has_pending_request: !!pendingReq,
-    });
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// GET /api/colab/:id — Startup detail
-router.get('/:id', protect, async (req, res) => {
-  try {
-    const startup = await Startup.findById(req.params.id)
-      .populate('created_by', 'name avatar username bio')
-      .populate('founders',   'name avatar username bio');
-    if (!startup) return res.status(404).json({ error: 'Startup not found' });
-
-    const approvedAccess  = await PageAccess.find({ startup_id: startup._id, user_id: req.user._id });
-    const approvedPageIds = approvedAccess.map(a => a.page_id.toString());
-
-    const pages = await StartupPage.find({ startup_id: startup._id, is_active: true });
-    const pagesWithStatus = pages.map(p => ({
-      ...p.toObject(),
-      access: approvedPageIds.includes(p._id.toString()) ? 'approved' : 'locked',
-    }));
-
-    const pendingReq   = await PageAccessRequest.findOne({ startup_id: startup._id, user_id: req.user._id, status: 'pending' });
-    const updates      = await StartupUpdate.find({ startup_id: startup._id }).sort({ created_at: -1 }).limit(20).populate('created_by','name avatar');
-    const feedback     = await StartupFeedback.find({ startup_id: startup._id, is_deleted: false }).sort({ created_at: -1 }).populate('user_id','name avatar username');
-    const memberCount  = await PageAccess.distinct('user_id', { startup_id: startup._id });
-    const isBookmarked = startup.bookmarks.some(b => b.toString() === req.user._id.toString());
-
-    const isFounder = startup.created_by._id.toString() === req.user._id.toString() ||
-                      startup.founders.some(f => f._id.toString() === req.user._id.toString());
-
-    res.json({ startup: { ...startup.toObject(), member_count: memberCount.length, is_bookmarked: isBookmarked }, pages: pagesWithStatus, updates, feedback, pending_request: pendingReq, is_founder: isFounder });
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// PUT /api/colab/:id — Edit startup
-router.put('/:id', protect, isFounder, upload.single('logo'), async (req, res) => {
-  try {
-    const { name, description, problem, solution, website, stage, social_links } = req.body;
-    const updates = { name, description, problem, solution, website, stage };
-    if (req.file) updates.logo = `/uploads/${req.file.filename}`;
-    if (social_links) updates.social_links = typeof social_links === 'string' ? JSON.parse(social_links) : social_links;
-
-    const startup = await Startup.findByIdAndUpdate(req.params.id, updates, { new: true })
-      .populate('founders','name avatar username');
-    res.json(startup);
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// POST /api/colab/:id/bookmark — Toggle bookmark
-router.post('/:id/bookmark', protect, async (req, res) => {
-  try {
-    const startup  = await Startup.findById(req.params.id);
-    if (!startup) return res.status(404).json({ error: 'Not found' });
-    const userId   = req.user._id.toString();
-    const idx      = startup.bookmarks.findIndex(b => b.toString() === userId);
-    if (idx > -1) startup.bookmarks.splice(idx, 1);
-    else           startup.bookmarks.push(req.user._id);
-    await startup.save();
-    res.json({ bookmarked: idx === -1 });
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// ════════════════════════════════════════════════════════════════════════════
-// JOIN FLOW  (roles-based, maps internally to pages)
-// ════════════════════════════════════════════════════════════════════════════
-
-// POST /api/colab/:id/join — Submit join request with selected roles
-router.post('/:id/join', protect, async (req, res) => {
-  try {
-    const { selected_roles, note } = req.body;  // ['investor','tech',...]
-    if (!selected_roles?.length) return res.status(400).json({ error: 'Select at least one role' });
-
-    // Check existing pending
-    const existing = await PageAccessRequest.findOne({ startup_id: req.params.id, user_id: req.user._id, status: 'pending' });
-    if (existing) return res.status(400).json({ error: 'You already have a pending request' });
-
-    // Map roles → page types → page IDs
-    const ROLE_MAP = StartupPage.ROLE_PAGE_MAP;
-    const pageTypes = [...new Set(selected_roles.map(r => ROLE_MAP[r]).filter(Boolean))];
-    const pages     = await StartupPage.find({ startup_id: req.params.id, type: { $in: pageTypes }, is_active: true });
-
-    // Filter out already-approved pages
-    const alreadyApproved = await PageAccess.find({ startup_id: req.params.id, user_id: req.user._id, page_id: { $in: pages.map(p => p._id) } });
-    const approvedPageIds = new Set(alreadyApproved.map(a => a.page_id.toString()));
-    const filteredPages   = pages.filter(p => !approvedPageIds.has(p._id.toString()));
-
-    if (!filteredPages.length) return res.status(400).json({ error: 'Already member of all matching pages' });
-
-    const request = await PageAccessRequest.create({
-      startup_id: req.params.id, user_id: req.user._id,
-      selected_roles, requested_pages: filteredPages.map(p => p._id), note,
-    });
-
-    // Notify founders
-    const startup = await Startup.findById(req.params.id);
-    const allFounders = [startup.created_by, ...startup.founders];
-    await Promise.all(allFounders.map(fId => notify(fId, 'new_request', 'New Join Request',
-      `${req.user.name} wants to join ${startup.name}`, `/colab/${req.params.id}/dashboard`, req.params.id)));
-
-    res.status(201).json(request);
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// ════════════════════════════════════════════════════════════════════════════
-// FOUNDER DASHBOARD
-// ════════════════════════════════════════════════════════════════════════════
-
-// GET /api/colab/:id/dashboard — Full founder dashboard data
-router.get('/:id/dashboard', protect, isFounder, async (req, res) => {
-  try {
-    const startupId = req.params.id;
-
-    const pages = await StartupPage.find({ startup_id: startupId }).populate('admins','name avatar username');
-    const requests = await PageAccessRequest.find({ startup_id: startupId, status: 'pending' })
-      .populate('user_id','name avatar username email bio')
-      .populate('requested_pages','name type')
-      .sort({ created_at: -1 });
-
-    // All members across all pages
-    const allAccess = await PageAccess.find({ startup_id: startupId })
-      .populate('user_id','name avatar username')
-      .populate('page_id','name type');
-
-    // Group members by page
-    const membersByPage = {};
-    allAccess.forEach(a => {
-      const pid = a.page_id._id.toString();
-      if (!membersByPage[pid]) membersByPage[pid] = [];
-      membersByPage[pid].push({ user: a.user_id, role: a.role, granted_at: a.granted_at });
-    });
-
-    // All meetings across all pages (global view)
-    const meetings = await PageMeeting.find({ startup_id: startupId, scheduled_at: { $gte: new Date() } })
-      .populate('page_id','name type')
-      .populate('created_by','name avatar')
-      .populate('participants','name avatar')
-      .sort({ scheduled_at: 1 })
-      .limit(50);
-
-    // Activity summary
-    const stats = {
-      total_members:   await PageAccess.distinct('user_id', { startup_id: startupId }).then(r => r.length),
-      total_requests:  await PageAccessRequest.countDocuments({ startup_id: startupId }),
-      pending_requests: requests.length,
-      total_tasks:     await PageTask.countDocuments({ startup_id: startupId }),
-      pending_tasks:   await PageTask.countDocuments({ startup_id: startupId, status: { $ne: 'completed' } }),
-      total_meetings:  await PageMeeting.countDocuments({ startup_id: startupId }),
-    };
-
-    res.json({ startup: req.startup, pages, requests, members_by_page: membersByPage, upcoming_meetings: meetings, stats });
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// POST /api/colab/:id/requests/:requestId/approve
-router.post('/:id/requests/:requestId/approve', protect, isFounder, async (req, res) => {
-  try {
-    const { page_ids } = req.body; // array of page IDs to approve
-    const request      = await PageAccessRequest.findById(req.params.requestId).populate('user_id','name');
-    if (!request) return res.status(404).json({ error: 'Request not found' });
-
-    await PageAccess.insertMany(
-      page_ids.map(pid => ({ startup_id: req.params.id, page_id: pid, user_id: request.user_id._id })),
-      { ordered: false }
-    ).catch(() => {});
-
-    const allApproved = request.requested_pages.every(p => page_ids.includes(p.toString()));
-    request.status     = allApproved ? 'approved' : 'partial';
-    request.updated_at = Date.now();
-    await request.save();
-
-    const startup = await Startup.findById(req.params.id);
-    await notify(request.user_id._id, 'request_approved', 'Request Approved!',
-      `You've been approved to join ${startup.name}`, `/colab/${req.params.id}`, req.params.id);
-
-    res.json({ message: 'Access granted' });
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// POST /api/colab/:id/requests/:requestId/reject
-router.post('/:id/requests/:requestId/reject', protect, isFounder, async (req, res) => {
-  try {
-    const request = await PageAccessRequest.findByIdAndUpdate(
-      req.params.requestId, { status: 'rejected', updated_at: Date.now() }, { new: true }
-    ).populate('user_id','name');
-
-    const startup = await Startup.findById(req.params.id);
-    await notify(request.user_id._id, 'request_rejected', 'Request Update',
-      `Your request to join ${startup.name} was not approved`, `/colab`, req.params.id);
-
-    res.json({ message: 'Rejected' });
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// ════════════════════════════════════════════════════════════════════════════
-// PAGE MANAGEMENT (founder only)
-// ════════════════════════════════════════════════════════════════════════════
-
-// POST /api/colab/:id/pages — Create new page
-router.post('/:id/pages', protect, isFounder, async (req, res) => {
-  try {
-    const { name, description, type } = req.body;
-    const page = await StartupPage.create({ startup_id: req.params.id, name, description, type: type || 'custom' });
-    res.status(201).json(page);
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// PUT /api/colab/:id/pages/:pageId — Edit page
-router.put('/:id/pages/:pageId', protect, isFounder, async (req, res) => {
-  try {
-    const page = await StartupPage.findByIdAndUpdate(req.params.pageId, req.body, { new: true });
-    res.json(page);
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// DELETE /api/colab/:id/pages/:pageId — Delete page
-router.delete('/:id/pages/:pageId', protect, isFounder, async (req, res) => {
-  try {
-    await StartupPage.findByIdAndUpdate(req.params.pageId, { is_active: false });
-    res.json({ message: 'Page deleted' });
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// POST /api/colab/:id/pages/:pageId/admins — Assign page admin
-router.post('/:id/pages/:pageId/admins', protect, isFounder, async (req, res) => {
-  try {
-    const { user_id } = req.body;
-    await StartupPage.findByIdAndUpdate(req.params.pageId, { $addToSet: { admins: user_id } });
-
-    // Also ensure they have page access
-    await PageAccess.findOneAndUpdate(
-      { page_id: req.params.pageId, user_id },
-      { startup_id: req.params.id, page_id: req.params.pageId, user_id, role: 'admin' },
-      { upsert: true }
-    );
-    res.json({ message: 'Admin assigned' });
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// DELETE /api/colab/:id/members/:userId — Remove member from startup
-router.delete('/:id/members/:userId', protect, isFounder, async (req, res) => {
-  try {
-    await PageAccess.deleteMany({ startup_id: req.params.id, user_id: req.params.userId });
-    res.json({ message: 'Member removed' });
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// ════════════════════════════════════════════════════════════════════════════
-// UPDATES (founders)
-// ════════════════════════════════════════════════════════════════════════════
-
-router.post('/:id/updates', protect, isFounder, upload.array('media', 5), async (req, res) => {
-  try {
-    const media_urls = req.files ? req.files.map(f => `/uploads/${f.filename}`) : [];
-    const update = await StartupUpdate.create({
-      startup_id: req.params.id, content: req.body.content,
-      media_urls, created_by: req.user._id,
-    });
-    await update.populate('created_by', 'name avatar');
-    res.status(201).json(update);
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-router.put('/:id/updates/:updateId', protect, isFounder, async (req, res) => {
-  try {
-    const update = await StartupUpdate.findByIdAndUpdate(req.params.updateId, { content: req.body.content, updated_at: Date.now() }, { new: true }).populate('created_by','name avatar');
-    res.json(update);
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-router.delete('/:id/updates/:updateId', protect, isFounder, async (req, res) => {
-  try {
-    await StartupUpdate.findByIdAndDelete(req.params.updateId);
-    res.json({ message: 'Deleted' });
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// ════════════════════════════════════════════════════════════════════════════
-// FEEDBACK (public)
-// ════════════════════════════════════════════════════════════════════════════
-
-router.get('/:id/feedback', protect, async (req, res) => {
-  try {
-    const feedback = await StartupFeedback.find({ startup_id: req.params.id, is_deleted: false })
-      .populate('user_id','name avatar username').sort({ created_at: -1 });
-    res.json(feedback);
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-router.post('/:id/feedback', protect, upload.single('media'), async (req, res) => {
-  try {
-    const media_url = req.file ? `/uploads/${req.file.filename}` : '';
-    const fb = await StartupFeedback.create({
-      startup_id: req.params.id, user_id: req.user._id, message: req.body.message, media_url,
-    });
-    await fb.populate('user_id','name avatar username');
-    res.status(201).json(fb);
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-router.put('/:id/feedback/:fbId', protect, isFounder, async (req, res) => {
-  try {
-    const fb = await StartupFeedback.findByIdAndUpdate(req.params.fbId, { message: req.body.message, updated_at: Date.now() }, { new: true }).populate('user_id','name avatar username');
-    res.json(fb);
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-router.delete('/:id/feedback/:fbId', protect, isFounder, async (req, res) => {
-  try {
-    await StartupFeedback.findByIdAndUpdate(req.params.fbId, { is_deleted: true });
-    res.json({ message: 'Deleted' });
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// ════════════════════════════════════════════════════════════════════════════
-// PAGE WORKSPACE ROUTES (approved users + founders)
-// ════════════════════════════════════════════════════════════════════════════
-
-// GET /api/colab/pages/:pageId — Page workspace data
-router.get('/pages/:pageId', protect, hasPageAccess, async (req, res) => {
-  try {
-    const { page, startup } = req;
-
-    const [tasks, meetings, files, members, messages] = await Promise.all([
-      PageTask.find({ page_id: page._id }).populate('assigned_to','name avatar').populate('created_by','name').sort({ created_at: -1 }),
-      PageMeeting.find({ page_id: page._id, scheduled_at: { $gte: new Date() } }).populate('created_by','name avatar').populate('participants','name avatar').sort({ scheduled_at: 1 }),
-      PageFile.find({ page_id: page._id }).populate('uploaded_by','name avatar').sort({ created_at: -1 }),
-      PageAccess.find({ page_id: page._id }).populate('user_id','name avatar username'),
-      PageMessage.find({ page_id: page._id, is_deleted: false }).populate('sender_id','name avatar username').populate('reply_to').sort({ created_at: 1 }).limit(100),
-    ]);
-
-    const isFounder = startup.created_by.toString() === req.user._id.toString() ||
-                      startup.founders.some(f => f.toString() === req.user._id.toString());
-    const isPageAdm = page.admins.some(a => a.toString() === req.user._id.toString());
-
-    res.json({ page, startup, tasks, meetings, files, members, messages, is_founder: isFounder, is_admin: isPageAdm });
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// ── TASKS
-router.post('/pages/:pageId/tasks', protect, hasPageAccess, async (req, res) => {
-  try {
-    const { title, description, assigned_to, priority, due_date } = req.body;
-    const task = await PageTask.create({
-      page_id: req.params.pageId, startup_id: req.page.startup_id,
-      title, description, assigned_to, priority, due_date, created_by: req.user._id,
-    });
-    await task.populate(['assigned_to','created_by']);
-
-    // Notify assignees
-    if (assigned_to?.length) {
-      await Promise.all(assigned_to.map(uid => notify(uid, 'task_assigned', 'Task Assigned',
-        `You've been assigned: ${title}`, `/colab/page/${req.params.pageId}`, req.page.startup_id)));
-    }
-    res.status(201).json(task);
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-router.put('/pages/:pageId/tasks/:taskId', protect, hasPageAccess, async (req, res) => {
-  try {
-    const task = await PageTask.findByIdAndUpdate(req.params.taskId, { ...req.body, updated_at: Date.now() }, { new: true })
-      .populate('assigned_to','name avatar').populate('created_by','name');
-    res.json(task);
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-router.delete('/pages/:pageId/tasks/:taskId', protect, isPageAdmin, async (req, res) => {
-  try {
-    await PageTask.findByIdAndDelete(req.params.taskId);
-    res.json({ message: 'Deleted' });
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// ── MEETINGS
-router.post('/pages/:pageId/meetings', protect, hasPageAccess, async (req, res) => {
-  try {
-    const { title, description, meeting_type, meeting_link, scheduled_at, duration_min, participants } = req.body;
-    const meeting = await PageMeeting.create({
-      page_id: req.params.pageId, startup_id: req.page.startup_id,
-      title, description, meeting_type, meeting_link, scheduled_at, duration_min,
-      created_by: req.user._id, participants: participants || [],
-    });
-    await meeting.populate(['created_by','participants']);
-
-    // Notify participants
-    if (participants?.length) {
-      await Promise.all(participants.map(uid => notify(uid, 'meeting_scheduled', 'Meeting Scheduled',
-        `${title} — ${new Date(scheduled_at).toLocaleString()}`, `/colab/page/${req.params.pageId}`, req.page.startup_id)));
-    }
-    res.status(201).json(meeting);
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-router.delete('/pages/:pageId/meetings/:meetId', protect, isPageAdmin, async (req, res) => {
-  try {
-    await PageMeeting.findByIdAndDelete(req.params.meetId);
-    res.json({ message: 'Deleted' });
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// ── FILES
-router.post('/pages/:pageId/files', protect, hasPageAccess, upload.single('file'), async (req, res) => {
-  try {
-    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
-    const pf = await PageFile.create({
-      page_id: req.params.pageId, startup_id: req.page.startup_id,
-      name: req.file.originalname, url: `/uploads/${req.file.filename}`,
-      mime_type: req.file.mimetype, size_bytes: req.file.size, uploaded_by: req.user._id,
-    });
-    await pf.populate('uploaded_by','name avatar');
-    res.status(201).json(pf);
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-router.delete('/pages/:pageId/files/:fileId', protect, isPageAdmin, async (req, res) => {
-  try {
-    await PageFile.findByIdAndDelete(req.params.fileId);
-    res.json({ message: 'Deleted' });
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// ── MESSAGES (REST fallback — primary via Socket.IO)
-router.get('/pages/:pageId/messages', protect, hasPageAccess, async (req, res) => {
-  try {
-    const { before } = req.query;
-    const filter = { page_id: req.params.pageId, is_deleted: false };
-    if (before) filter.created_at = { $lt: new Date(before) };
-    const messages = await PageMessage.find(filter)
-      .populate('sender_id','name avatar username')
-      .populate('reply_to')
-      .sort({ created_at: -1 })
-      .limit(50);
-    res.json(messages.reverse());
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-router.post('/pages/:pageId/messages', protect, hasPageAccess, upload.single('media'), async (req, res) => {
-  try {
-    const { content, type, reply_to, mentions } = req.body;
-    const media_url = req.file ? `/uploads/${req.file.filename}` : '';
-    const msg = await PageMessage.create({
-      page_id: req.params.pageId, startup_id: req.page.startup_id,
-      sender_id: req.user._id, content, type: type || 'text',
-      media_url, reply_to: reply_to || null,
-      mentions: mentions ? JSON.parse(mentions) : [],
-    });
-    await msg.populate(['sender_id','reply_to']);
-    res.status(201).json(msg);
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-router.delete('/pages/:pageId/messages/:msgId', protect, hasPageAccess, async (req, res) => {
-  try {
-    const msg = await PageMessage.findById(req.params.msgId);
-    if (!msg) return res.status(404).json({ error: 'Not found' });
-    if (msg.sender_id.toString() !== req.user._id.toString()) return res.status(403).json({ error: 'Not your message' });
-    await PageMessage.findByIdAndUpdate(req.params.msgId, { is_deleted: true, content: '' });
-    res.json({ message: 'Deleted' });
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// ── MESSAGE REACTION
-router.post('/pages/:pageId/messages/:msgId/react', protect, hasPageAccess, async (req, res) => {
-  try {
-    const { emoji } = req.body;
-    const msg       = await PageMessage.findById(req.params.msgId);
-    const existing  = msg.reactions.find(r => r.user_id.toString() === req.user._id.toString() && r.emoji === emoji);
-    if (existing) {
-      msg.reactions = msg.reactions.filter(r => !(r.user_id.toString() === req.user._id.toString() && r.emoji === emoji));
-    } else {
-      msg.reactions.push({ emoji, user_id: req.user._id });
-    }
-    await msg.save();
-    res.json(msg.reactions);
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// ════════════════════════════════════════════════════════════════════════════
-// NOTIFICATIONS
-// ════════════════════════════════════════════════════════════════════════════
-
-router.get('/notifications/me', protect, async (req, res) => {
-  try {
-    const notifs = await ColabNotification.find({ user_id: req.user._id })
-      .sort({ created_at: -1 }).limit(30);
-    const unread = await ColabNotification.countDocuments({ user_id: req.user._id, is_read: false });
-    res.json({ notifications: notifs, unread_count: unread });
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-router.post('/notifications/read-all', protect, async (req, res) => {
-  try {
-    await ColabNotification.updateMany({ user_id: req.user._id, is_read: false }, { is_read: true });
-    res.json({ message: 'Marked all as read' });
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-module.exports = router;
-*/
-
-
-// ════════════════════════════════════════════════════════════════════════════════
-// SECTION D — SOCKET.IO EXTENSION
-// Extend your EXISTING socket server — do not replace it
-// ════════════════════════════════════════════════════════════════════════════════
-
-// ─── In your existing socket.js or server.js, ADD this block ────────────────────
-/*
-const PageMessage = require('./models/PageMessage');
-const PageAccess  = require('./models/PageAccess');
-const Startup     = require('./models/Startup');
-
-// Add inside your existing io.on('connection', ...) handler:
-function registerColabSocket(socket, io) {
-  // Join a page chat room
-  socket.on('colab:join_page', async ({ pageId, token }) => {
-    try {
-      // Verify access (reuse your JWT verify logic)
-      const user      = await verifyToken(token); // your existing helper
-      const access    = await PageAccess.findOne({ page_id: pageId, user_id: user._id });
-      const startup   = await Startup.findOne({ founders: user._id });
-      if (!access && !startup) return socket.emit('colab:error', 'Access denied');
-
-      socket.join(`page:${pageId}`);
-      socket.emit('colab:joined', { pageId });
-    } catch (err) { socket.emit('colab:error', err.message); }
-  });
-
-  // Send message
-  socket.on('colab:message', async ({ pageId, content, type, reply_to, mentions, media_url, userId }) => {
-    try {
-      const msg = await PageMessage.create({
-        page_id: pageId, sender_id: userId,
-        content, type: type || 'text', reply_to: reply_to || null,
-        mentions: mentions || [], media_url: media_url || '',
-      });
-      const populated = await PageMessage.findById(msg._id)
-        .populate('sender_id','name avatar username')
-        .populate('reply_to');
-
-      io.to(`page:${pageId}`).emit('colab:new_message', populated);
-    } catch (err) { socket.emit('colab:error', err.message); }
-  });
-
-  // Typing indicator
-  socket.on('colab:typing', ({ pageId, user }) => {
-    socket.to(`page:${pageId}`).emit('colab:user_typing', user);
-  });
-
-  socket.on('colab:stop_typing', ({ pageId, userId }) => {
-    socket.to(`page:${pageId}`).emit('colab:user_stopped_typing', userId);
-  });
-
-  // Leave page room
-  socket.on('colab:leave_page', ({ pageId }) => {
-    socket.leave(`page:${pageId}`);
-  });
+// ─── ATOMS ───────────────────────────────────────────────────
+function Av({ profile = {}, size = 36 }) {
+  const name = profile.name || "?";
+  const ini = name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
+  const hue = profile.hue || strColor(name);
+  return (
+    <div style={{ width: size, height: size, borderRadius: "50%", background: profile.avatar ? "transparent" : `linear-gradient(135deg,${hue},${hue}99)`, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: size * 0.35, color: "#fff", flexShrink: 0, overflow: "hidden" }}>
+      {profile.avatar ? <img src={profile.avatar} alt={name} style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : ini}
+    </div>
+  );
 }
-// Then call: registerColabSocket(socket, io); inside your connection handler
-*/
 
-
-// ════════════════════════════════════════════════════════════════════════════════
-// SECTION E — FRONTEND SERVICE  (src/services/colabService.js)
-// ════════════════════════════════════════════════════════════════════════════════
-
-/*
-import axios from 'axios';
-const API = '/api/colab';
-const h   = { headers: { 'Content-Type': 'multipart/form-data' } };
-
-export const colabService = {
-  // Startups
-  list:            (params)               => axios.get(API, { params }),
-  get:             (id)                   => axios.get(`${API}/${id}`),
-  create:          (fd)                   => axios.post(API, fd, h),
-  update:          (id, fd)               => axios.put(`${API}/${id}`, fd, h),
-  bookmark:        (id)                   => axios.post(`${API}/${id}/bookmark`),
-
-  // Referral
-  findByCode:      (code)                 => axios.get(`${API}/ref/${code}`),
-
-  // Join
-  join:            (id, data)             => axios.post(`${API}/${id}/join`, data),
-
-  // Dashboard
-  getDashboard:    (id)                   => axios.get(`${API}/${id}/dashboard`),
-  approveRequest:  (id, reqId, pageIds)   => axios.post(`${API}/${id}/requests/${reqId}/approve`, { page_ids: pageIds }),
-  rejectRequest:   (id, reqId)            => axios.post(`${API}/${id}/requests/${reqId}/reject`),
-
-  // Page management (founder)
-  createPage:      (id, data)             => axios.post(`${API}/${id}/pages`, data),
-  updatePage:      (id, pid, data)        => axios.put(`${API}/${id}/pages/${pid}`, data),
-  deletePage:      (id, pid)              => axios.delete(`${API}/${id}/pages/${pid}`),
-  assignPageAdmin: (id, pid, userId)      => axios.post(`${API}/${id}/pages/${pid}/admins`, { user_id: userId }),
-  removeMember:    (id, userId)           => axios.delete(`${API}/${id}/members/${userId}`),
-
-  // Updates
-  postUpdate:      (id, fd)               => axios.post(`${API}/${id}/updates`, fd, h),
-  editUpdate:      (id, uid, content)     => axios.put(`${API}/${id}/updates/${uid}`, { content }),
-  deleteUpdate:    (id, uid)              => axios.delete(`${API}/${id}/updates/${uid}`),
-
-  // Feedback
-  getFeedback:     (id)                   => axios.get(`${API}/${id}/feedback`),
-  postFeedback:    (id, fd)               => axios.post(`${API}/${id}/feedback`, fd, h),
-  editFeedback:    (id, fbId, message)    => axios.put(`${API}/${id}/feedback/${fbId}`, { message }),
-  deleteFeedback:  (id, fbId)             => axios.delete(`${API}/${id}/feedback/${fbId}`),
-
-  // Page workspace
-  getPage:         (pageId)               => axios.get(`${API}/pages/${pageId}`),
-  createTask:      (pageId, data)         => axios.post(`${API}/pages/${pageId}/tasks`, data),
-  updateTask:      (pageId, tid, data)    => axios.put(`${API}/pages/${pageId}/tasks/${tid}`, data),
-  deleteTask:      (pageId, tid)          => axios.delete(`${API}/pages/${pageId}/tasks/${tid}`),
-  createMeeting:   (pageId, data)         => axios.post(`${API}/pages/${pageId}/meetings`, data),
-  deleteMeeting:   (pageId, mid)          => axios.delete(`${API}/pages/${pageId}/meetings/${mid}`),
-  uploadFile:      (pageId, fd)           => axios.post(`${API}/pages/${pageId}/files`, fd, h),
-  deleteFile:      (pageId, fid)          => axios.delete(`${API}/pages/${pageId}/files/${fid}`),
-  getMessages:     (pageId, before)       => axios.get(`${API}/pages/${pageId}/messages`, { params: { before } }),
-  sendMessage:     (pageId, fd)           => axios.post(`${API}/pages/${pageId}/messages`, fd, h),
-  deleteMessage:   (pageId, mid)          => axios.delete(`${API}/pages/${pageId}/messages/${mid}`),
-  reactMessage:    (pageId, mid, emoji)   => axios.post(`${API}/pages/${pageId}/messages/${mid}/react`, { emoji }),
-
-  // Notifications
-  getNotifications: ()                    => axios.get(`${API}/notifications/me`),
-  markAllRead:      ()                    => axios.post(`${API}/notifications/read-all`),
-};
-*/
-
-
-// ════════════════════════════════════════════════════════════════════════════════
-// SECTION F — SHARED COMPONENTS  (src/components/colab/)
-// ════════════════════════════════════════════════════════════════════════════════
-
-// ─── StackedAvatars.jsx ──────────────────────────────────────────────────────────
-/*
-import React from 'react';
-import { useNavigate } from 'react-router-dom';
-
-const StackedAvatars = ({ users = [], max = 4, size = 32, showCount = true }) => {
-  const navigate = useNavigate();
-  const visible  = users.slice(0, max);
-  const extra    = users.length - max;
+function StackedAv({ uids = [], profiles = {}, size = 26, max = 4 }) {
+  const vis = uids.slice(0, max); const extra = uids.length - max;
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-      <div style={{ display: 'flex' }}>
-        {visible.map((u, i) => (
-          <img key={u._id} src={u.avatar || '/default-avatar.png'} alt={u.name} title={u.name}
-            onClick={() => navigate(`/profile/${u.username}`)}
-            style={{ width: size, height: size, borderRadius: '50%', border: '2px solid var(--bg-primary,#fff)', marginLeft: i === 0 ? 0 : -size * 0.3, cursor: 'pointer', objectFit: 'cover', zIndex: visible.length - i, position: 'relative', transition: 'transform 0.15s' }}
-            onMouseEnter={e => (e.target.style.transform = 'scale(1.18) translateY(-2px)')}
-            onMouseLeave={e => (e.target.style.transform = 'scale(1)')}
-          />
-        ))}
-      </div>
-      {showCount && extra > 0 && <span style={{ fontSize: 12, color: 'var(--text-secondary,#666)', fontWeight: 600 }}>+{extra}</span>}
+    <div style={{ display: "flex", alignItems: "center" }}>
+      {vis.map((uid, i) => <div key={uid} style={{ marginLeft: i > 0 ? -(size * 0.3) : 0, zIndex: max - i, borderRadius: "50%", border: "2px solid transparent" }}><Av profile={profiles[uid] || { name: "?" }} size={size} /></div>)}
+      {extra > 0 && <div style={{ marginLeft: -(size * 0.3), width: size, height: size, borderRadius: "50%", background: "#3b82f6", display: "flex", alignItems: "center", justifyContent: "center", fontSize: size * 0.28, fontWeight: 800, color: "#fff" }}>+{extra}</div>}
     </div>
   );
-};
-export default StackedAvatars;
-*/
+}
 
-// ─── SocialLinks.jsx ─────────────────────────────────────────────────────────────
-/*
-import React from 'react';
-import { Linkedin, Twitter, Globe, Github } from 'lucide-react';
+function Spin({ size = 28, dk = false }) {
+  return <div style={{ width: size, height: size, border: `3px solid ${dk ? "#1c2d47" : "#e2e8f0"}`, borderTopColor: "#3b82f6", borderRadius: "50%", animation: "spin 0.8s linear infinite", margin: "32px auto", display: "block" }} />;
+}
 
-const SocialLinks = ({ links = {}, size = 16 }) => {
-  const items = [
-    { key: 'linkedin', icon: <Linkedin size={size} />, href: links.linkedin },
-    { key: 'twitter',  icon: <Twitter  size={size} />, href: links.twitter  },
-    { key: 'website',  icon: <Globe    size={size} />, href: links.website  },
-    { key: 'github',   icon: <Github   size={size} />, href: links.github   },
-  ].filter(i => i.href);
-  if (!items.length) return null;
+function Badge({ label, color = "#3b82f6" }) {
+  return <span style={{ background: color + "18", color, fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 99, border: `1px solid ${color}30` }}>{label}</span>;
+}
+
+function Btn({ children, onClick, color = "#3b82f6", outline = false, small = false, disabled = false, style: ext = {} }) {
   return (
-    <div style={{ display: 'flex', gap: 6 }}>
-      {items.map(({ key, icon, href }) => (
-        <a key={key} href={href} target="_blank" rel="noopener noreferrer"
-          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 32, height: 32, borderRadius: 8, background: 'var(--bg-secondary,#f3f4f6)', color: 'var(--text-secondary,#555)', transition: 'all 0.15s', textDecoration: 'none' }}
-          onMouseEnter={e => { e.currentTarget.style.background = 'var(--accent,#0a66c2)'; e.currentTarget.style.color = '#fff'; }}
-          onMouseLeave={e => { e.currentTarget.style.background = 'var(--bg-secondary,#f3f4f6)'; e.currentTarget.style.color = 'var(--text-secondary,#555)'; }}
-        >{icon}</a>
-      ))}
-    </div>
-  );
-};
-export default SocialLinks;
-*/
-
-// ─── ColabBadge.jsx — Stage / status badge ───────────────────────────────────────
-/*
-import React from 'react';
-
-const STAGE_COLORS = {
-  idea:    { bg: '#fef3c7', color: '#92400e', label: 'Idea' },
-  mvp:     { bg: '#dbeafe', color: '#1e40af', label: 'MVP'  },
-  growth:  { bg: '#dcfce7', color: '#166534', label: 'Growth' },
-  scaling: { bg: '#f3e8ff', color: '#6b21a8', label: 'Scaling' },
-};
-
-const ColabBadge = ({ stage }) => {
-  const s = STAGE_COLORS[stage] || STAGE_COLORS.idea;
-  return (
-    <span style={{ padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700, background: s.bg, color: s.color, letterSpacing: 0.5 }}>
-      {s.label}
-    </span>
-  );
-};
-export default ColabBadge;
-*/
-
-// ─── UserPreview.jsx — Hover profile card ───────────────────────────────────────
-/*
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-
-const UserPreview = ({ user, children }) => {
-  const navigate   = useNavigate();
-  const [show, setShow] = useState(false);
-  if (!user) return children;
-  return (
-    <div style={{ position: 'relative', display: 'inline-block' }}
-      onMouseEnter={() => setShow(true)} onMouseLeave={() => setShow(false)}>
+    <button onClick={onClick} disabled={disabled}
+      style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: small ? "5px 12px" : "9px 18px", background: outline ? "transparent" : disabled ? "#374151" : color, border: `1.5px solid ${outline ? color : "transparent"}`, borderRadius: 10, color: outline ? color : "#fff", fontSize: small ? 12 : 13, fontWeight: 700, cursor: disabled ? "default" : "pointer", opacity: disabled ? 0.5 : 1, fontFamily: "inherit", transition: "all .15s", ...ext }}>
       {children}
-      {show && (
-        <div style={{ position: 'absolute', bottom: 'calc(100% + 8px)', left: 0, background: 'var(--bg-card,#fff)', border: '1px solid var(--border,#e5e7eb)', borderRadius: 12, padding: 14, minWidth: 220, boxShadow: '0 8px 32px rgba(0,0,0,0.12)', zIndex: 500, animation: 'fadeIn 0.15s ease' }}>
-          <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 8 }}>
-            <img src={user.avatar || '/default-avatar.png'} style={{ width: 40, height: 40, borderRadius: '50%', objectFit: 'cover' }} />
-            <div>
-              <div style={{ fontWeight: 700, fontSize: 14 }}>{user.name}</div>
-              <div style={{ fontSize: 12, color: 'var(--text-secondary,#9ca3af)' }}>@{user.username}</div>
-            </div>
-          </div>
-          {user.bio && <p style={{ margin: '0 0 8px', fontSize: 12, color: 'var(--text-secondary,#6b7280)', lineHeight: 1.4 }}>{user.bio.slice(0, 80)}</p>}
-          <button onClick={() => navigate(`/profile/${user.username}`)} style={{ width: '100%', padding: '6px', background: 'var(--accent,#0a66c2)', color: '#fff', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>View Profile</button>
-        </div>
-      )}
-    </div>
+    </button>
   );
-};
-export default UserPreview;
-*/
+}
 
-// ─── ColabNotificationBell.jsx ───────────────────────────────────────────────────
-/*
-import React, { useEffect, useState } from 'react';
-import { Bell, CheckCheck } from 'lucide-react';
-import { colabService } from '../../services/colabService';
-import { useNavigate } from 'react-router-dom';
-
-const NOTIF_ICONS = {
-  request_approved:  '✅',
-  request_rejected:  '❌',
-  new_message:       '💬',
-  task_assigned:     '📋',
-  meeting_scheduled: '📅',
-  new_request:       '🔔',
-  feedback_reply:    '💡',
-};
-
-const ColabNotificationBell = () => {
-  const navigate = useNavigate();
-  const [open,   setOpen]   = useState(false);
-  const [data,   setData]   = useState({ notifications: [], unread_count: 0 });
-
-  const load = () => colabService.getNotifications().then(r => setData(r.data));
-  useEffect(() => { load(); const t = setInterval(load, 30000); return () => clearInterval(t); }, []);
-
-  const markRead = async () => { await colabService.markAllRead(); load(); };
-
+function Modal({ children, onClose, title, width = 480 }) {
   return (
-    <div style={{ position: 'relative' }}>
-      <button onClick={() => setOpen(!open)} style={{ position: 'relative', background: 'none', border: 'none', cursor: 'pointer', padding: 6 }}>
-        <Bell size={22} color="var(--text-primary,#111)" />
-        {data.unread_count > 0 && (
-          <span style={{ position: 'absolute', top: 2, right: 2, width: 16, height: 16, borderRadius: '50%', background: '#ef4444', color: '#fff', fontSize: 10, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{data.unread_count > 9 ? '9+' : data.unread_count}</span>
-        )}
-      </button>
-
-      {open && (
-        <>
-          <div style={{ position: 'fixed', inset: 0, zIndex: 498 }} onClick={() => setOpen(false)} />
-          <div style={{ position: 'absolute', right: 0, top: 'calc(100% + 8px)', width: 340, background: 'var(--bg-card,#fff)', border: '1px solid var(--border,#e5e7eb)', borderRadius: 14, boxShadow: '0 12px 40px rgba(0,0,0,0.12)', zIndex: 499, overflow: 'hidden' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', borderBottom: '1px solid var(--border,#e5e7eb)' }}>
-              <span style={{ fontWeight: 700, fontSize: 15 }}>Notifications</span>
-              {data.unread_count > 0 && (
-                <button onClick={markRead} style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: 'var(--accent,#0a66c2)', fontWeight: 600 }}>
-                  <CheckCheck size={13} /> Mark all read
-                </button>
-              )}
-            </div>
-            <div style={{ maxHeight: 380, overflowY: 'auto' }}>
-              {data.notifications.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: 32, color: 'var(--text-secondary,#9ca3af)', fontSize: 14 }}>All caught up! 🎉</div>
-              ) : data.notifications.map(n => (
-                <div key={n._id} onClick={() => { navigate(n.link || '/colab'); setOpen(false); }}
-                  style={{ display: 'flex', gap: 12, padding: '12px 16px', cursor: 'pointer', background: n.is_read ? 'transparent' : 'var(--accent-light,#eff6ff)', borderBottom: '1px solid var(--border,#f3f4f6)', transition: 'background 0.15s' }}
-                  onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-secondary,#f9fafb)')}
-                  onMouseLeave={e => (e.currentTarget.style.background = n.is_read ? 'transparent' : 'var(--accent-light,#eff6ff)')}
-                >
-                  <span style={{ fontSize: 20, flexShrink: 0 }}>{NOTIF_ICONS[n.type] || '🔔'}</span>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 600, fontSize: 13 }}>{n.title}</div>
-                    <div style={{ fontSize: 12, color: 'var(--text-secondary,#6b7280)', marginTop: 2 }}>{n.body}</div>
-                    <div style={{ fontSize: 11, color: 'var(--text-secondary,#9ca3af)', marginTop: 4 }}>{new Date(n.created_at).toLocaleString()}</div>
-                  </div>
-                  {!n.is_read && <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--accent,#0a66c2)', flexShrink: 0, marginTop: 4 }} />}
-                </div>
-              ))}
-            </div>
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.65)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 16, overflowY: "auto" }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: "#0e1525", border: "1px solid #1c2d47", borderRadius: 20, padding: 24, width: "100%", maxWidth: width, animation: "fadeUp .25s ease", margin: "auto", position: "relative" }}>
+        {title && (
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+            <h3 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: "#e8eeff" }}>{title}</h3>
+            <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: "#3d5278", display: "flex" }}><X size={18} /></button>
           </div>
-        </>
-      )}
+        )}
+        {children}
+      </div>
     </div>
   );
-};
-export default ColabNotificationBell;
-*/
+}
 
+function InpStyle(dk) {
+  const th = T(dk);
+  return { width: "100%", background: th.inp, border: `1px solid ${th.inpB}`, borderRadius: 10, padding: "9px 12px", fontSize: 13, outline: "none", color: th.txt, boxSizing: "border-box", fontFamily: "inherit" };
+}
 
-// ════════════════════════════════════════════════════════════════════════════════
-// SECTION G — MODALS  (src/components/colab/modals/)
-// ════════════════════════════════════════════════════════════════════════════════
+// ─── NOTIFY HELPER ────────────────────────────────────────────
+async function pushNotif(userId, startupId, type, title, body, data = {}) {
+  await db.post("rs_startup_notifications", { user_id: userId, startup_id: startupId, type, title, body, data });
+}
 
-// ─── JoinModal.jsx — Role-based join (NO page names shown to user) ───────────────
-/*
-import React, { useState } from 'react';
-import { X, CheckCircle, Loader } from 'lucide-react';
-import { colabService } from '../../../services/colabService';
+// ─── LOG ACTIVITY ─────────────────────────────────────────────
+async function logActivity(startupId, pageId, actorId, type, description, data = {}) {
+  await db.post("rs_startup_activity", { startup_id: startupId, page_id: pageId, actor_id: actorId, type, description, data });
+}
 
-const ROLES = [
-  { id: 'investor',         label: '💰 Investor',         desc: 'Looking to invest or advise'         },
-  { id: 'tech',             label: '⚙️ Tech / Engineer',  desc: 'Developer, designer, or technical'  },
-  { id: 'marketing',        label: '📣 Marketing',        desc: 'Growth, brand, or content focus'    },
-  { id: 'student_intern',   label: '🎓 Student / Intern', desc: 'Learning and contributing'          },
-  { id: 'general_audience', label: '👀 Just Exploring',   desc: 'Stay updated on progress'           },
-];
+// ============================================================
+// ─── CREATE STARTUP MODAL ────────────────────────────────────
+// ============================================================
+function CreateStartupModal({ me, myProfile, existing, onClose, onSave, dk }) {
+  const th = T(dk);
+  const inp = InpStyle(dk);
+  const [form, setForm] = useState({
+    name: existing?.name || "", logo: existing?.logo || "", description: existing?.description || "",
+    website: existing?.website || "", github_link: existing?.github_link || "",
+    twitter: existing?.social_links?.twitter || "", linkedin: existing?.social_links?.linkedin || "",
+  });
+  const [logoPreview, setLogoPreview] = useState(existing?.logo || null);
+  const [saving, setSaving] = useState(false);
+  const logoRef = useRef();
+  const setF = (k, v) => setForm(p => ({ ...p, [k]: v }));
+  const canSave = form.name.trim() && form.description.trim();
 
-const JoinModal = ({ startup, onClose, onSuccess }) => {
-  const [selected,   setSelected]   = useState([]);
-  const [note,       setNote]       = useState('');
-  const [submitting, setSubmitting] = useState(false);
-  const [success,    setSuccess]    = useState(false);
-  const [error,      setError]      = useState('');
+  const handleLogo = async files => {
+    if (!files[0]) return;
+    try { const b64 = await fileToB64(files[0], 2); setLogoPreview(b64); setF("logo", b64); } catch {}
+  };
 
-  const toggle = (id) => setSelected(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
-
-  const handleSubmit = async () => {
-    if (!selected.length) return setError('Select at least one role');
-    setSubmitting(true); setError('');
-    try {
-      await colabService.join(startup._id, { selected_roles: selected, note });
-      setSuccess(true);
-      if (onSuccess) onSuccess();
-    } catch (e) {
-      setError(e.response?.data?.error || 'Something went wrong');
-    } finally { setSubmitting(false); }
+  const handleSave = async () => {
+    if (!canSave) return; setSaving(true);
+    const payload = {
+      name: form.name.trim(), logo: form.logo, description: form.description.trim(),
+      website: form.website.trim(), github_link: form.github_link.trim(),
+      social_links: { twitter: form.twitter, linkedin: form.linkedin },
+      created_by: me, founders: existing?.founders || [me],
+      referral_code: existing?.referral_code || genCode(form.name),
+    };
+    let saved;
+    if (existing?.id) {
+      await db.patch("rs_startups", `id=eq.${existing.id}`, payload);
+      saved = { ...existing, ...payload };
+    } else {
+      saved = await db.post("rs_startups", payload);
+      if (saved?.id) {
+        const defaultPages = [
+          { startup_id: saved.id, name: "Investor Page", page_type: "investor", description: "Pitch deck, funding & traction" },
+          { startup_id: saved.id, name: "Tech Page", page_type: "tech", description: "Dev logs, code & tech updates" },
+          { startup_id: saved.id, name: "Marketing Page", page_type: "marketing", description: "Campaigns, content & growth" },
+          { startup_id: saved.id, name: "Community Page", page_type: "community", description: "Public updates & engagement" },
+        ];
+        const pages = await db.postMany("rs_startup_pages", defaultPages);
+        // Founder gets access to all pages
+        if (pages?.length) {
+          await db.postMany("rs_page_access", pages.map(pg => ({ startup_id: saved.id, page_id: pg.id, user_id: me, role_type: "founder", is_admin: true, status: "approved" })));
+        }
+        await logActivity(saved.id, null, me, "startup_created", `${myProfile?.name || "Founder"} created this startup`);
+      }
+    }
+    setSaving(false); onSave(saved); onClose();
   };
 
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }} onClick={e => e.target === e.currentTarget && onClose()}>
-      <div style={{ background: 'var(--bg-card,#fff)', borderRadius: 18, padding: 28, width: '100%', maxWidth: 500, position: 'relative', boxShadow: '0 24px 64px rgba(0,0,0,0.16)' }}>
-        <button onClick={onClose} style={{ position: 'absolute', top: 16, right: 16, background: 'none', border: 'none', cursor: 'pointer' }}><X size={20} /></button>
+    <Modal title={existing ? "Edit Startup" : "Create Startup"} onClose={onClose} width={500}>
+      {/* Logo Upload */}
+      <div style={{ display: "flex", justifyContent: "center", marginBottom: 20 }}>
+        <div onClick={() => logoRef.current?.click()} style={{ width: 80, height: 80, borderRadius: 20, background: logoPreview ? "transparent" : "#1c2d47", border: "2px dashed #3b82f640", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", overflow: "hidden", position: "relative" }}>
+          {logoPreview ? <img src={logoPreview} style={{ width: "100%", height: "100%", objectFit: "cover" }} alt="logo" /> : <div style={{ textAlign: "center" }}><Upload size={20} color="#3b82f6" /><div style={{ fontSize: 10, color: "#7a93c0", marginTop: 4 }}>Logo</div></div>}
+          <input ref={logoRef} type="file" accept="image/*" style={{ display: "none" }} onChange={e => handleLogo(e.target.files)} />
+        </div>
+      </div>
 
-        {success ? (
-          <div style={{ textAlign: 'center', padding: '16px 0' }}>
-            <CheckCircle size={52} color="#22c55e" style={{ marginBottom: 14 }} />
-            <h3 style={{ margin: '0 0 8px', fontSize: 20, fontWeight: 800 }}>Request Sent!</h3>
-            <p style={{ color: 'var(--text-secondary,#6b7280)', fontSize: 14 }}>The founders of <strong>{startup.name}</strong> will review your request. You'll be notified once approved.</p>
-            <button onClick={onClose} style={{ marginTop: 20, padding: '10px 28px', background: 'var(--accent,#0a66c2)', color: '#fff', border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: 700 }}>Got it</button>
+      <div style={{ display: "grid", gap: 12 }}>
+        {[
+          { k: "name", l: "Startup Name *", p: "e.g. SkillSwap" },
+          { k: "website", l: "Website", p: "https://…" },
+          { k: "github_link", l: "GitHub", p: "https://github.com/…" },
+          { k: "twitter", l: "Twitter / X", p: "https://twitter.com/…" },
+          { k: "linkedin", l: "LinkedIn", p: "https://linkedin.com/company/…" },
+        ].map(f => (
+          <div key={f.k}>
+            <label style={{ fontSize: 11, fontWeight: 700, color: "#7a93c0", display: "block", marginBottom: 5, letterSpacing: 0.4 }}>{f.l.toUpperCase()}</label>
+            <input value={form[f.k]} onChange={e => setF(f.k, e.target.value)} placeholder={f.p} style={inp} />
           </div>
-        ) : (
-          <>
-            <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 20 }}>
-              <img src={startup.logo || '/default-startup.png'} style={{ width: 48, height: 48, borderRadius: 12, objectFit: 'cover' }} />
-              <div>
-                <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>Join {startup.name}</h2>
-                <p style={{ margin: '2px 0 0', fontSize: 13, color: 'var(--text-secondary,#6b7280)' }}>Tell us about your interest</p>
-              </div>
-            </div>
+        ))}
+        <div>
+          <label style={{ fontSize: 11, fontWeight: 700, color: "#7a93c0", display: "block", marginBottom: 5, letterSpacing: 0.4 }}>DESCRIPTION — PROBLEM & SOLUTION *</label>
+          <textarea value={form.description} onChange={e => setF("description", e.target.value)} placeholder="What problem are you solving and how?" rows={4} style={{ ...inp, resize: "vertical" }} />
+        </div>
+      </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
-              {ROLES.map(r => {
-                const sel = selected.includes(r.id);
+      {!existing && (
+        <div style={{ background: "#3b82f618", border: "1px solid #3b82f630", borderRadius: 10, padding: "10px 14px", marginTop: 14 }}>
+          <div style={{ fontSize: 12, color: "#3b82f6", fontWeight: 600, marginBottom: 6 }}>✨ Auto-created pages:</div>
+          <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
+            {["Investor","Tech","Marketing","Community"].map(p => <Badge key={p} label={p} color="#3b82f6" />)}
+          </div>
+        </div>
+      )}
+
+      <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
+        <Btn onClick={onClose} outline color="#7a93c0" style={{ flex: 1 }}>Cancel</Btn>
+        <Btn onClick={handleSave} disabled={!canSave || saving} style={{ flex: 2 }}>
+          {saving ? "Saving…" : existing ? "Save Changes" : "Create Startup 🚀"}
+        </Btn>
+      </div>
+    </Modal>
+  );
+}
+
+// ============================================================
+// ─── JOIN MODAL (Simple role selection, no page names shown) ─
+// ============================================================
+function JoinModal({ startup, pages, me, myProfile, existingAccess, onClose, onSubmit, dk }) {
+  const th = T(dk);
+  const [selectedRoles, setSelectedRoles] = useState([]);
+  const [message, setMessage] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  const toggleRole = id => setSelectedRoles(r => r.includes(id) ? r.filter(x => x !== id) : [...r, id]);
+
+  // Map roles → page ids internally
+  const getMappedPages = () => {
+    const pageTypeIds = [...new Set(selectedRoles.flatMap(rid => JOIN_ROLES.find(r => r.id === rid)?.pages || []))];
+    return pages.filter(pg => pageTypeIds.includes(pg.page_type) && !existingAccess.includes(pg.id)).map(p => p.id);
+  };
+
+  const submit = async () => {
+    if (!selectedRoles.length) return;
+    setSubmitting(true);
+    const mappedPages = getMappedPages();
+    const pageStatuses = {};
+    mappedPages.forEach(pid => { pageStatuses[pid] = "pending"; });
+    await onSubmit({ startup_id: startup.id, user_id: me, selected_roles: selectedRoles, requested_pages: mappedPages, page_statuses: pageStatuses, message, status: "pending" });
+    setSubmitting(false); onClose();
+  };
+
+  return (
+    <Modal title={`Join ${startup.name}`} onClose={onClose}>
+      <p style={{ fontSize: 13, color: "#7a93c0", margin: "0 0 20px" }}>Tell us about yourself — we'll match you to the right spaces.</p>
+
+      <label style={{ fontSize: 11, fontWeight: 700, color: "#7a93c0", display: "block", marginBottom: 10, letterSpacing: 0.4 }}>I AM A… (SELECT ALL THAT APPLY)</label>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 20 }}>
+        {JOIN_ROLES.map(r => {
+          const sel = selectedRoles.includes(r.id);
+          return (
+            <button key={r.id} onClick={() => toggleRole(r.id)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", borderRadius: 12, border: `1.5px solid ${sel ? "#3b82f6" : "#1c2d47"}`, background: sel ? "#3b82f618" : "transparent", cursor: "pointer", textAlign: "left", transition: "all .15s" }}>
+              <span style={{ fontSize: 22 }}>{r.e}</span>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: sel ? "#3b82f6" : "#e8eeff" }}>{r.label}</div>
+              </div>
+              {sel && <Check size={14} color="#3b82f6" style={{ marginLeft: "auto" }} />}
+            </button>
+          );
+        })}
+      </div>
+
+      <div style={{ marginBottom: 20 }}>
+        <label style={{ fontSize: 11, fontWeight: 700, color: "#7a93c0", display: "block", marginBottom: 6, letterSpacing: 0.4 }}>MESSAGE (OPTIONAL)</label>
+        <textarea value={message} onChange={e => setMessage(e.target.value)} placeholder="Why do you want to join? What can you contribute?" rows={3} style={{ ...InpStyle(true), resize: "none" }} />
+      </div>
+
+      <div style={{ display: "flex", gap: 10 }}>
+        <Btn onClick={onClose} outline color="#7a93c0" style={{ flex: 1 }}>Cancel</Btn>
+        <Btn onClick={submit} disabled={submitting || !selectedRoles.length} style={{ flex: 2 }}>
+          {submitting ? "Sending…" : `Request to Join`}
+        </Btn>
+      </div>
+    </Modal>
+  );
+}
+
+// ============================================================
+// ─── REFERRAL CODE MODAL ─────────────────────────────────────
+// ============================================================
+function ReferralModal({ me, myProfile, onClose, onSuccess, dk }) {
+  const [code, setCode] = useState("");
+  const [startup, setStartup] = useState(null);
+  const [pages, setPages] = useState([]);
+  const [myAccess, setMyAccess] = useState([]);
+  const [checking, setChecking] = useState(false);
+  const [err, setErr] = useState("");
+  const [showJoin, setShowJoin] = useState(false);
+
+  const check = async () => {
+    if (!code.trim()) return;
+    setChecking(true); setErr(""); setStartup(null);
+    const rows = await db.get("rs_startups", `referral_code=eq.${code.trim().toUpperCase()}`);
+    if (!rows?.length) { setErr("Invalid code. Please check and try again."); setChecking(false); return; }
+    const s = rows[0];
+    const [pg, acc] = await Promise.all([
+      db.get("rs_startup_pages", `startup_id=eq.${s.id}&order=position.asc`),
+      db.get("rs_page_access", `startup_id=eq.${s.id}&user_id=eq.${me}&status=eq.approved`),
+    ]);
+    setStartup(s); setPages(pg || []); setMyAccess((acc || []).map(a => a.page_id)); setChecking(false);
+  };
+
+  const handleJoin = async data => {
+    const saved = await db.post("rs_page_access_requests", data);
+    if (saved) {
+      // Notify founder
+      const founders = startup.founders || [startup.created_by];
+      for (const fid of founders) {
+        await pushNotif(fid, startup.id, "request_received", "New Join Request", `${myProfile?.name || "Someone"} wants to join ${startup.name}`, { request_id: saved.id });
+      }
+      onSuccess(startup);
+    }
+    onClose();
+  };
+
+  if (showJoin && startup) return <JoinModal startup={startup} pages={pages} me={me} myProfile={myProfile} existingAccess={myAccess} onClose={onClose} onSubmit={handleJoin} dk={dk} />;
+
+  return (
+    <Modal title="Join via Referral Code" onClose={onClose} width={400}>
+      <p style={{ fontSize: 13, color: "#7a93c0", margin: "0 0 16px" }}>Enter the referral code shared by a startup founder.</p>
+      <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+        <input value={code} onChange={e => { setCode(e.target.value.toUpperCase()); setErr(""); setStartup(null); }} onKeyDown={e => e.key === "Enter" && check()} placeholder="e.g. SKILL-A3B2" style={{ ...InpStyle(true), flex: 1, fontFamily: "monospace", letterSpacing: 1.5, fontSize: 15 }} />
+        <Btn onClick={check} disabled={checking || !code.trim()}>{checking ? "…" : "Check"}</Btn>
+      </div>
+      {err && <div style={{ display: "flex", gap: 6, alignItems: "center", padding: "8px 12px", background: "#ef444418", border: "1px solid #ef444440", borderRadius: 8, marginBottom: 12 }}><AlertCircle size={13} color="#ef4444" /><span style={{ fontSize: 12, color: "#ef4444" }}>{err}</span></div>}
+      {startup && (
+        <div style={{ background: "#131d30", border: "1px solid #10b98130", borderRadius: 14, padding: 16, marginBottom: 16 }}>
+          <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 10 }}>
+            <div style={{ width: 44, height: 44, borderRadius: 12, background: "linear-gradient(135deg,#3b82f6,#8b5cf6)", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+              {startup.logo ? <img src={startup.logo} style={{ width: "100%", height: "100%", objectFit: "cover" }} alt="logo" /> : <span style={{ fontSize: 22 }}>🚀</span>}
+            </div>
+            <div>
+              <div style={{ fontWeight: 800, fontSize: 15, color: "#e8eeff" }}>{startup.name}</div>
+              <div style={{ fontSize: 12, color: "#10b981", fontWeight: 600 }}>✓ Valid startup found</div>
+            </div>
+          </div>
+          <p style={{ fontSize: 13, color: "#7a93c0", margin: 0, lineHeight: 1.5 }}>{startup.description?.slice(0, 120)}…</p>
+        </div>
+      )}
+      {startup && <Btn onClick={() => setShowJoin(true)} style={{ width: "100%", justifyContent: "center" }}>Select Role & Join →</Btn>}
+    </Modal>
+  );
+}
+
+// ============================================================
+// ─── BOOK MEETING MODAL ───────────────────────────────────────
+// ============================================================
+function BookMeetingModal({ startup, page, me, profiles, allPageMembers, onClose, onSave, dk }) {
+  const [form, setForm] = useState({ title: "Team Meeting", platform: "google_meet", meeting_link: "", date: "", time: "", duration_mins: 60, note: "", participants: page ? allPageMembers.map(m => m.user_id) : [] });
+  const [saving, setSaving] = useState(false);
+  const [done, setDone] = useState(false);
+  const setF = (k, v) => setForm(p => ({ ...p, [k]: v }));
+  const canSave = form.title.trim() && form.date && form.time;
+
+  const handleSave = async () => {
+    setSaving(true);
+    const link = form.meeting_link.trim() || `https://${form.platform === "zoom" ? "zoom.us/j/" : "meet.google.com/"}${genId()}`;
+    const saved = await db.post("rs_startup_meetings", {
+      startup_id: startup.id, page_id: page?.id || null, created_by: me,
+      title: form.title, platform: form.platform, meeting_link: link,
+      scheduled_at: new Date(`${form.date}T${form.time}`).toISOString(),
+      duration_mins: form.duration_mins, participants: form.participants, note: form.note, status: "scheduled",
+    });
+    if (saved) {
+      await logActivity(startup.id, page?.id || null, me, "meeting_scheduled", `Meeting scheduled: ${form.title}`);
+      // Notify participants
+      for (const uid of form.participants) {
+        if (uid !== me) await pushNotif(uid, startup.id, "meeting_scheduled", "Meeting Scheduled", `${form.title} on ${fmtDate(saved.scheduled_at)}`, { meeting_id: saved.id });
+      }
+      onSave(saved);
+    }
+    setSaving(false); setDone(true); setTimeout(onClose, 2000);
+  };
+
+  if (done) return (
+    <Modal onClose={onClose} width={380}>
+      <div style={{ textAlign: "center", padding: "20px 0" }}>
+        <div style={{ fontSize: 52, marginBottom: 12 }}>📅</div>
+        <h3 style={{ color: "#e8eeff", fontWeight: 800, margin: "0 0 6px" }}>Meeting Scheduled!</h3>
+        <p style={{ color: "#7a93c0", fontSize: 13 }}>Participants have been notified.</p>
+      </div>
+    </Modal>
+  );
+
+  return (
+    <Modal title="Book a Meeting" onClose={onClose} width={460}>
+      <div style={{ display: "grid", gap: 14 }}>
+        <div>
+          <label style={{ fontSize: 11, fontWeight: 700, color: "#7a93c0", display: "block", marginBottom: 5 }}>TITLE</label>
+          <input value={form.title} onChange={e => setF("title", e.target.value)} style={InpStyle(true)} />
+        </div>
+
+        <div>
+          <label style={{ fontSize: 11, fontWeight: 700, color: "#7a93c0", display: "block", marginBottom: 8 }}>PLATFORM</label>
+          <div style={{ display: "flex", gap: 8 }}>
+            {[["google_meet", "🟢 Google Meet"], ["zoom", "🔵 Zoom"]].map(([id, label]) => (
+              <button key={id} onClick={() => setF("platform", id)} style={{ flex: 1, padding: "10px", borderRadius: 10, border: `1.5px solid ${form.platform === id ? "#3b82f6" : "#1c2d47"}`, background: form.platform === id ? "#3b82f618" : "transparent", color: form.platform === id ? "#3b82f6" : "#7a93c0", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+          <div>
+            <label style={{ fontSize: 11, fontWeight: 700, color: "#7a93c0", display: "block", marginBottom: 5 }}>DATE *</label>
+            <input type="date" value={form.date} onChange={e => setF("date", e.target.value)} style={InpStyle(true)} />
+          </div>
+          <div>
+            <label style={{ fontSize: 11, fontWeight: 700, color: "#7a93c0", display: "block", marginBottom: 5 }}>TIME *</label>
+            <input type="time" value={form.time} onChange={e => setF("time", e.target.value)} style={InpStyle(true)} />
+          </div>
+        </div>
+
+        <div>
+          <label style={{ fontSize: 11, fontWeight: 700, color: "#7a93c0", display: "block", marginBottom: 5 }}>DURATION (MINS)</label>
+          <select value={form.duration_mins} onChange={e => setF("duration_mins", +e.target.value)} style={{ ...InpStyle(true) }}>
+            {[30, 45, 60, 90, 120].map(m => <option key={m} value={m}>{m} minutes</option>)}
+          </select>
+        </div>
+
+        <div>
+          <label style={{ fontSize: 11, fontWeight: 700, color: "#7a93c0", display: "block", marginBottom: 5 }}>MEETING LINK (auto-generated if blank)</label>
+          <input value={form.meeting_link} onChange={e => setF("meeting_link", e.target.value)} placeholder={`https://meet.google.com/…`} style={InpStyle(true)} />
+        </div>
+
+        {allPageMembers?.length > 0 && (
+          <div>
+            <label style={{ fontSize: 11, fontWeight: 700, color: "#7a93c0", display: "block", marginBottom: 8 }}>PARTICIPANTS ({form.participants.length} selected)</label>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 160, overflowY: "auto" }}>
+              {allPageMembers.map(m => {
+                const p = profiles[m.user_id] || { name: "Member" };
+                const sel = form.participants.includes(m.user_id);
                 return (
-                  <div key={r.id} onClick={() => toggle(r.id)} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderRadius: 10, border: `2px solid ${sel ? 'var(--accent,#0a66c2)' : 'var(--border,#e5e7eb)'}`, background: sel ? 'var(--accent-light,#eff6ff)' : 'transparent', cursor: 'pointer', transition: 'all 0.15s' }}>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontWeight: 700, fontSize: 14 }}>{r.label}</div>
-                      <div style={{ fontSize: 12, color: 'var(--text-secondary,#6b7280)' }}>{r.desc}</div>
-                    </div>
-                    {sel && <CheckCircle size={18} color="var(--accent,#0a66c2)" />}
+                  <div key={m.user_id} onClick={() => setF("participants", sel ? form.participants.filter(x => x !== m.user_id) : [...form.participants, m.user_id])} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", borderRadius: 8, border: `1px solid ${sel ? "#3b82f640" : "#1c2d47"}`, background: sel ? "#3b82f610" : "transparent", cursor: "pointer" }}>
+                    <Av profile={p} size={28} />
+                    <span style={{ fontSize: 13, color: "#e8eeff", flex: 1 }}>{p.name}</span>
+                    {sel && <Check size={13} color="#3b82f6" />}
                   </div>
                 );
               })}
             </div>
-
-            <textarea
-              placeholder="Tell them why you want to join… (optional)"
-              value={note} onChange={e => setNote(e.target.value)}
-              style={{ width: '100%', minHeight: 70, padding: 12, borderRadius: 8, border: '1.5px solid var(--border,#e5e7eb)', fontSize: 14, resize: 'vertical', boxSizing: 'border-box' }}
-            />
-
-            {error && <p style={{ color: '#ef4444', fontSize: 13, marginTop: 8 }}>{error}</p>}
-
-            <button
-              onClick={handleSubmit} disabled={submitting || !selected.length}
-              style={{ marginTop: 14, width: '100%', padding: 13, background: selected.length ? 'var(--accent,#0a66c2)' : 'var(--bg-secondary,#e5e7eb)', color: selected.length ? '#fff' : 'var(--text-secondary,#9ca3af)', border: 'none', borderRadius: 10, fontSize: 15, fontWeight: 700, cursor: selected.length ? 'pointer' : 'not-allowed', transition: 'all 0.15s' }}
-            >
-              {submitting ? <Loader size={16} /> : `Send Request`}
-            </button>
-          </>
-        )}
-      </div>
-    </div>
-  );
-};
-export default JoinModal;
-*/
-
-// ─── CreateStartupModal.jsx ──────────────────────────────────────────────────────
-/*
-import React, { useState, useRef } from 'react';
-import { X, Upload, ArrowRight, ArrowLeft, Loader, Check } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
-import { colabService } from '../../../services/colabService';
-
-const IS = { width: '100%', padding: '10px 12px', borderRadius: 8, border: '1.5px solid var(--border,#e5e7eb)', fontSize: 14, background: 'var(--bg-input,#f9fafb)', outline: 'none', boxSizing: 'border-box' };
-
-const STAGES = ['idea','mvp','growth','scaling'];
-
-const CreateStartupModal = ({ onClose }) => {
-  const navigate  = useNavigate();
-  const fileRef   = useRef();
-  const [step,    setStep]    = useState(1);
-  const [loading, setLoading] = useState(false);
-  const [error,   setError]   = useState('');
-  const [preview, setPreview] = useState(null);
-  const [form, setForm] = useState({
-    name: '', description: '', problem: '', solution: '', website: '', stage: 'idea',
-    logo: null, linkedin: '', twitter: '', github: '',
-  });
-
-  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
-
-  const handleLogo = (e) => {
-    const f = e.target.files[0]; if (!f) return;
-    set('logo', f); setPreview(URL.createObjectURL(f));
-  };
-
-  const validate = () => {
-    if (step === 1 && (!form.logo || !form.name || !form.description)) return 'Logo, name and description are required';
-    return '';
-  };
-
-  const next = () => { const e = validate(); if (e) return setError(e); setError(''); setStep(s => s + 1); };
-
-  const handleSubmit = async () => {
-    setLoading(true); setError('');
-    try {
-      const fd = new FormData();
-      ['name','description','problem','solution','website','stage'].forEach(k => fd.append(k, form[k]));
-      fd.append('logo', form.logo);
-      fd.append('social_links', JSON.stringify({ linkedin: form.linkedin, twitter: form.twitter, github: form.github }));
-      const { data } = await colabService.create(fd);
-      navigate(`/colab/${data._id}/dashboard`);
-      onClose();
-    } catch (e) {
-      setError(e.response?.data?.error || 'Failed to create startup');
-    } finally { setLoading(false); }
-  };
-
-  const StepBar = () => (
-    <div style={{ display: 'flex', gap: 6, marginBottom: 24 }}>
-      {[1,2,3].map(s => <div key={s} style={{ height: 3, flex: 1, borderRadius: 2, background: step >= s ? 'var(--accent,#0a66c2)' : 'var(--border,#e5e7eb)', transition: 'background 0.3s' }} />)}
-    </div>
-  );
-
-  return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }} onClick={e => e.target === e.currentTarget && onClose()}>
-      <div style={{ background: 'var(--bg-card,#fff)', borderRadius: 18, padding: 32, width: '100%', maxWidth: 520, position: 'relative', boxShadow: '0 24px 64px rgba(0,0,0,0.16)', maxHeight: '90vh', overflowY: 'auto' }}>
-        <button onClick={onClose} style={{ position: 'absolute', top: 16, right: 16, background: 'none', border: 'none', cursor: 'pointer' }}><X size={20} /></button>
-        <StepBar />
-
-        {step === 1 && (
-          <>
-            <h2 style={{ margin: '0 0 4px', fontSize: 22, fontWeight: 800 }}>Create Your Startup</h2>
-            <p style={{ margin: '0 0 22px', fontSize: 14, color: 'var(--text-secondary,#6b7280)' }}>Start with the basics</p>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 20 }}>
-              <div onClick={() => fileRef.current.click()} style={{ width: 80, height: 80, borderRadius: 16, background: 'var(--bg-secondary,#f3f4f6)', border: `2px dashed ${preview ? 'var(--accent,#0a66c2)' : 'var(--border,#d1d5db)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', overflow: 'hidden', flexShrink: 0, position: 'relative' }}>
-                {preview ? <img src={preview} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <Upload size={24} color="var(--text-secondary,#9ca3af)" />}
-                {preview && <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0, transition: 'opacity 0.15s' }} onMouseEnter={e => (e.currentTarget.style.opacity = 1)} onMouseLeave={e => (e.currentTarget.style.opacity = 0)}><Upload size={18} color="#fff" /></div>}
-              </div>
-              <div>
-                <div style={{ fontWeight: 700, fontSize: 14 }}>Upload Logo <span style={{ color: '#ef4444' }}>*</span></div>
-                <div style={{ fontSize: 12, color: 'var(--text-secondary,#6b7280)', marginTop: 2 }}>PNG, JPG — up to 5MB</div>
-              </div>
-              <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleLogo} />
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <input style={IS} placeholder="Startup Name *" value={form.name} onChange={e => set('name', e.target.value)} />
-              <textarea style={{ ...IS, minHeight: 80, resize: 'vertical' }} placeholder="Short Description *" value={form.description} onChange={e => set('description', e.target.value)} />
-              <div>
-                <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary,#6b7280)', display: 'block', marginBottom: 6 }}>Stage</label>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  {STAGES.map(s => (
-                    <button key={s} onClick={() => set('stage', s)} style={{ flex: 1, padding: '7px 4px', borderRadius: 8, border: `1.5px solid ${form.stage === s ? 'var(--accent,#0a66c2)' : 'var(--border,#e5e7eb)'}`, background: form.stage === s ? 'var(--accent-light,#eff6ff)' : 'transparent', color: form.stage === s ? 'var(--accent,#0a66c2)' : 'var(--text-secondary,#6b7280)', fontSize: 12, fontWeight: 600, cursor: 'pointer', textTransform: 'capitalize' }}>
-                      {s}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {error && <p style={{ color: '#ef4444', fontSize: 13, marginTop: 10 }}>{error}</p>}
-            <button onClick={next} style={{ marginTop: 20, width: '100%', padding: 13, background: 'var(--accent,#0a66c2)', color: '#fff', border: 'none', borderRadius: 10, fontWeight: 700, fontSize: 15, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-              Next <ArrowRight size={16} />
-            </button>
-          </>
-        )}
-
-        {step === 2 && (
-          <>
-            <h2 style={{ margin: '0 0 4px', fontSize: 22, fontWeight: 800 }}>Your Story</h2>
-            <p style={{ margin: '0 0 22px', fontSize: 14, color: 'var(--text-secondary,#6b7280)' }}>Help people understand what you're building</p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <textarea style={{ ...IS, minHeight: 80, resize: 'vertical' }} placeholder="Problem you're solving" value={form.problem} onChange={e => set('problem', e.target.value)} />
-              <textarea style={{ ...IS, minHeight: 80, resize: 'vertical' }} placeholder="Your solution" value={form.solution} onChange={e => set('solution', e.target.value)} />
-              <input style={IS} placeholder="Website URL" value={form.website} onChange={e => set('website', e.target.value)} />
-            </div>
-            <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
-              <button onClick={() => setStep(1)} style={{ flex: 1, padding: 13, background: 'var(--bg-secondary,#f3f4f6)', border: 'none', borderRadius: 10, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}><ArrowLeft size={15} /> Back</button>
-              <button onClick={next} style={{ flex: 2, padding: 13, background: 'var(--accent,#0a66c2)', color: '#fff', border: 'none', borderRadius: 10, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>Next <ArrowRight size={16} /></button>
-            </div>
-          </>
-        )}
-
-        {step === 3 && (
-          <>
-            <h2 style={{ margin: '0 0 4px', fontSize: 22, fontWeight: 800 }}>Social Presence</h2>
-            <p style={{ margin: '0 0 22px', fontSize: 14, color: 'var(--text-secondary,#6b7280)' }}>Optional — add links to grow reach</p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {['linkedin','twitter','github'].map(k => (
-                <input key={k} style={IS} placeholder={`${k.charAt(0).toUpperCase() + k.slice(1)} URL`} value={form[k]} onChange={e => set(k, e.target.value)} />
-              ))}
-            </div>
-            {error && <p style={{ color: '#ef4444', fontSize: 13, marginTop: 10 }}>{error}</p>}
-            <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
-              <button onClick={() => setStep(2)} style={{ flex: 1, padding: 13, background: 'var(--bg-secondary,#f3f4f6)', border: 'none', borderRadius: 10, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}><ArrowLeft size={15} /> Back</button>
-              <button onClick={handleSubmit} disabled={loading} style={{ flex: 2, padding: 13, background: 'var(--accent,#0a66c2)', color: '#fff', border: 'none', borderRadius: 10, fontWeight: 700, fontSize: 15, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-                {loading ? <Loader size={16} /> : <><Check size={16} /> Launch Startup</>}
-              </button>
-            </div>
-          </>
-        )}
-      </div>
-    </div>
-  );
-};
-export default CreateStartupModal;
-*/
-
-// ─── MeetingModal.jsx ────────────────────────────────────────────────────────────
-/*
-import React, { useState } from 'react';
-import { X, Video, Loader } from 'lucide-react';
-import { colabService } from '../../../services/colabService';
-
-const IS = { width: '100%', padding: '10px 12px', borderRadius: 8, border: '1.5px solid var(--border,#e5e7eb)', fontSize: 14, boxSizing: 'border-box' };
-
-const MeetingModal = ({ pageId, members = [], onClose, onSuccess }) => {
-  const [form, setForm] = useState({ title: '', description: '', meeting_type: 'google_meet', meeting_link: '', scheduled_at: '', duration_min: 60, participants: [] });
-  const [saving, setSaving] = useState(false);
-  const [error,  setError]  = useState('');
-  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
-  const togglePart = (uid) => setForm(f => ({ ...f, participants: f.participants.includes(uid) ? f.participants.filter(x => x !== uid) : [...f.participants, uid] }));
-
-  const handleSubmit = async () => {
-    if (!form.title || !form.meeting_link || !form.scheduled_at) return setError('Fill all required fields');
-    setSaving(true); setError('');
-    try {
-      await colabService.createMeeting(pageId, form);
-      if (onSuccess) onSuccess();
-      onClose();
-    } catch (e) { setError(e.response?.data?.error || 'Error'); }
-    finally { setSaving(false); }
-  };
-
-  return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }} onClick={e => e.target === e.currentTarget && onClose()}>
-      <div style={{ background: 'var(--bg-card,#fff)', borderRadius: 18, padding: 28, width: '100%', maxWidth: 480, position: 'relative', boxShadow: '0 24px 64px rgba(0,0,0,0.16)', maxHeight: '90vh', overflowY: 'auto' }}>
-        <button onClick={onClose} style={{ position: 'absolute', top: 16, right: 16, background: 'none', border: 'none', cursor: 'pointer' }}><X size={20} /></button>
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 20 }}>
-          <Video size={22} color="var(--accent,#0a66c2)" />
-          <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800 }}>Schedule Meeting</h2>
-        </div>
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <input style={IS} placeholder="Meeting Title *" value={form.title} onChange={e => set('title', e.target.value)} />
-          <textarea style={{ ...IS, minHeight: 60, resize: 'vertical' }} placeholder="Description (optional)" value={form.description} onChange={e => set('description', e.target.value)} />
-
-          <div style={{ display: 'flex', gap: 8 }}>
-            {['google_meet','zoom','custom'].map(t => (
-              <button key={t} onClick={() => set('meeting_type', t)} style={{ flex: 1, padding: '8px 4px', borderRadius: 8, border: `1.5px solid ${form.meeting_type === t ? 'var(--accent,#0a66c2)' : 'var(--border,#e5e7eb)'}`, background: form.meeting_type === t ? 'var(--accent-light,#eff6ff)' : 'transparent', fontSize: 12, fontWeight: 600, cursor: 'pointer', color: form.meeting_type === t ? 'var(--accent,#0a66c2)' : 'var(--text-secondary,#6b7280)' }}>
-                {t === 'google_meet' ? 'Google Meet' : t === 'zoom' ? 'Zoom' : 'Custom'}
-              </button>
-            ))}
           </div>
+        )}
 
-          <input style={IS} placeholder="Meeting Link *" value={form.meeting_link} onChange={e => set('meeting_link', e.target.value)} />
-          <input style={IS} type="datetime-local" value={form.scheduled_at} onChange={e => set('scheduled_at', e.target.value)} />
-          <input style={IS} type="number" placeholder="Duration (minutes)" value={form.duration_min} onChange={e => set('duration_min', +e.target.value)} min={15} max={480} />
-
-          {members.length > 0 && (
-            <div>
-              <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary,#6b7280)', display: 'block', marginBottom: 8 }}>Invite Participants</label>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 160, overflowY: 'auto' }}>
-                {members.map(m => {
-                  const u   = m.user || m.user_id;
-                  const uid = u._id;
-                  const sel = form.participants.includes(uid);
-                  return (
-                    <div key={uid} onClick={() => togglePart(uid)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 8, border: `1.5px solid ${sel ? 'var(--accent,#0a66c2)' : 'var(--border,#e5e7eb)'}`, cursor: 'pointer', background: sel ? 'var(--accent-light,#eff6ff)' : 'transparent' }}>
-                      <img src={u.avatar || '/default-avatar.png'} style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover' }} />
-                      <span style={{ fontSize: 14, fontWeight: 600 }}>{u.name}</span>
-                      {sel && <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--accent,#0a66c2)', fontWeight: 700 }}>✓ Invited</span>}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-        </div>
-
-        {error && <p style={{ color: '#ef4444', fontSize: 13, marginTop: 10 }}>{error}</p>}
-
-        <button onClick={handleSubmit} disabled={saving} style={{ marginTop: 18, width: '100%', padding: 13, background: 'var(--accent,#0a66c2)', color: '#fff', border: 'none', borderRadius: 10, fontWeight: 700, fontSize: 15, cursor: 'pointer' }}>
-          {saving ? <Loader size={16} /> : 'Schedule Meeting'}
-        </button>
-      </div>
-    </div>
-  );
-};
-export default MeetingModal;
-*/
-
-// ─── TaskModal.jsx ───────────────────────────────────────────────────────────────
-/*
-import React, { useState } from 'react';
-import { X, Loader } from 'lucide-react';
-import { colabService } from '../../../services/colabService';
-
-const IS = { width: '100%', padding: '10px 12px', borderRadius: 8, border: '1.5px solid var(--border,#e5e7eb)', fontSize: 14, boxSizing: 'border-box' };
-
-const TaskModal = ({ pageId, members = [], task = null, onClose, onSuccess }) => {
-  const editing = !!task;
-  const [form, setForm] = useState({
-    title:       task?.title || '',
-    description: task?.description || '',
-    priority:    task?.priority || 'medium',
-    due_date:    task?.due_date ? task.due_date.slice(0,16) : '',
-    assigned_to: task?.assigned_to?.map(u => u._id) || [],
-  });
-  const [saving, setSaving] = useState(false);
-  const [error,  setError]  = useState('');
-  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
-  const toggleAssign = (uid) => setForm(f => ({ ...f, assigned_to: f.assigned_to.includes(uid) ? f.assigned_to.filter(x => x !== uid) : [...f.assigned_to, uid] }));
-
-  const handleSubmit = async () => {
-    if (!form.title) return setError('Title is required');
-    setSaving(true); setError('');
-    try {
-      if (editing) await colabService.updateTask(pageId, task._id, form);
-      else         await colabService.createTask(pageId, form);
-      if (onSuccess) onSuccess();
-      onClose();
-    } catch (e) { setError(e.response?.data?.error || 'Error'); }
-    finally { setSaving(false); }
-  };
-
-  const PRIOS = ['low','medium','high'];
-  const PRIO_COLORS = { low: '#22c55e', medium: '#f59e0b', high: '#ef4444' };
-
-  return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }} onClick={e => e.target === e.currentTarget && onClose()}>
-      <div style={{ background: 'var(--bg-card,#fff)', borderRadius: 18, padding: 28, width: '100%', maxWidth: 460, position: 'relative', boxShadow: '0 24px 64px rgba(0,0,0,0.16)', maxHeight: '90vh', overflowY: 'auto' }}>
-        <button onClick={onClose} style={{ position: 'absolute', top: 16, right: 16, background: 'none', border: 'none', cursor: 'pointer' }}><X size={20} /></button>
-        <h2 style={{ margin: '0 0 20px', fontSize: 20, fontWeight: 800 }}>{editing ? 'Edit Task' : 'New Task'}</h2>
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <input style={IS} placeholder="Task Title *" value={form.title} onChange={e => set('title', e.target.value)} />
-          <textarea style={{ ...IS, minHeight: 70, resize: 'vertical' }} placeholder="Description" value={form.description} onChange={e => set('description', e.target.value)} />
-
-          <div>
-            <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary,#6b7280)', display: 'block', marginBottom: 8 }}>Priority</label>
-            <div style={{ display: 'flex', gap: 8 }}>
-              {PRIOS.map(p => (
-                <button key={p} onClick={() => set('priority', p)} style={{ flex: 1, padding: '8px', borderRadius: 8, border: `1.5px solid ${form.priority === p ? PRIO_COLORS[p] : 'var(--border,#e5e7eb)'}`, background: form.priority === p ? `${PRIO_COLORS[p]}18` : 'transparent', fontSize: 12, fontWeight: 700, cursor: 'pointer', color: form.priority === p ? PRIO_COLORS[p] : 'var(--text-secondary,#6b7280)', textTransform: 'capitalize' }}>
-                  {p}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <input style={IS} type="datetime-local" value={form.due_date} onChange={e => set('due_date', e.target.value)} />
-
-          {members.length > 0 && (
-            <div>
-              <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary,#6b7280)', display: 'block', marginBottom: 8 }}>Assign To</label>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 160, overflowY: 'auto' }}>
-                {members.map(m => {
-                  const u   = m.user || m.user_id;
-                  const uid = u._id;
-                  const sel = form.assigned_to.includes(uid);
-                  return (
-                    <div key={uid} onClick={() => toggleAssign(uid)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 8, border: `1.5px solid ${sel ? 'var(--accent,#0a66c2)' : 'var(--border,#e5e7eb)'}`, cursor: 'pointer', background: sel ? 'var(--accent-light,#eff6ff)' : 'transparent' }}>
-                      <img src={u.avatar || '/default-avatar.png'} style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover' }} />
-                      <span style={{ fontSize: 14, fontWeight: 600 }}>{u.name}</span>
-                      {sel && <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--accent,#0a66c2)', fontWeight: 700 }}>✓</span>}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-        </div>
-
-        {error && <p style={{ color: '#ef4444', fontSize: 13, marginTop: 10 }}>{error}</p>}
-        <button onClick={handleSubmit} disabled={saving} style={{ marginTop: 18, width: '100%', padding: 13, background: 'var(--accent,#0a66c2)', color: '#fff', border: 'none', borderRadius: 10, fontWeight: 700, fontSize: 15, cursor: 'pointer' }}>
-          {saving ? <Loader size={16} /> : editing ? 'Save Changes' : 'Create Task'}
-        </button>
-      </div>
-    </div>
-  );
-};
-export default TaskModal;
-*/
-
-
-// ════════════════════════════════════════════════════════════════════════════════
-// SECTION H — PAGES  (src/pages/colab/)
-// ════════════════════════════════════════════════════════════════════════════════
-
-// ─── ColabListPage.jsx ───────────────────────────────────────────────────────────
-/*
-import React, { useEffect, useState } from 'react';
-import { Search, Plus, Hash, Bookmark, TrendingUp, MessageSquare, Users } from 'lucide-react';
-import { colabService } from '../../services/colabService';
-import StackedAvatars   from '../../components/colab/StackedAvatars';
-import SocialLinks      from '../../components/colab/SocialLinks';
-import ColabBadge       from '../../components/colab/ColabBadge';
-import JoinModal        from '../../components/colab/modals/JoinModal';
-import CreateStartupModal from '../../components/colab/modals/CreateStartupModal';
-import { useSelector }  from 'react-redux'; // adjust to your auth store
-import { useNavigate }  from 'react-router-dom';
-
-const ColabListPage = () => {
-  const navigate    = useNavigate();
-  const currentUser = useSelector(s => s.auth.user);
-  const [startups,    setStartups]    = useState([]);
-  const [loading,     setLoading]     = useState(true);
-  const [search,      setSearch]      = useState('');
-  const [stage,       setStage]       = useState('');
-  const [joinTarget,  setJoinTarget]  = useState(null);
-  const [showCreate,  setShowCreate]  = useState(false);
-  const [refCode,     setRefCode]     = useState('');
-  const [refLoading,  setRefLoading]  = useState(false);
-  const [refError,    setRefError]    = useState('');
-
-  const load = () => {
-    setLoading(true);
-    colabService.list({ q: search || undefined, stage: stage || undefined })
-      .then(r => { setStartups(r.data); setLoading(false); });
-  };
-
-  useEffect(() => { load(); }, [search, stage]);
-
-  const handleRef = async () => {
-    if (!refCode.trim()) return;
-    setRefLoading(true); setRefError('');
-    try {
-      const { data } = await colabService.findByCode(refCode.trim());
-      navigate(`/colab/${data.startup._id}`);
-    } catch (e) { setRefError(e.response?.data?.error || 'Invalid code'); }
-    finally { setRefLoading(false); }
-  };
-
-  const toggleBookmark = async (e, id) => {
-    e.stopPropagation();
-    await colabService.bookmark(id);
-    load();
-  };
-
-  const STAGES = ['','idea','mvp','growth','scaling'];
-
-  return (
-    <div style={{ maxWidth: 1100, margin: '0 auto', padding: '28px 16px' }}>
-
-      // Header
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 28, flexWrap: 'wrap', gap: 14 }}>
         <div>
-          <h1 style={{ margin: 0, fontSize: 28, fontWeight: 900, letterSpacing: -0.5 }}>Colab</h1>
-          <p style={{ margin: '4px 0 0', color: 'var(--text-secondary,#6b7280)', fontSize: 15 }}>Discover startups. Build together.</p>
+          <label style={{ fontSize: 11, fontWeight: 700, color: "#7a93c0", display: "block", marginBottom: 5 }}>AGENDA / NOTE</label>
+          <textarea value={form.note} onChange={e => setF("note", e.target.value)} placeholder="What's the agenda?" rows={2} style={{ ...InpStyle(true), resize: "none" }} />
         </div>
-        <button onClick={() => setShowCreate(true)} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '11px 22px', background: 'var(--accent,#0a66c2)', color: '#fff', border: 'none', borderRadius: 12, fontWeight: 700, fontSize: 14, cursor: 'pointer', boxShadow: '0 2px 12px rgba(10,102,194,0.3)' }}>
-          <Plus size={16} /> Create Startup
-        </button>
       </div>
 
-      // Referral Code Row
-      <div style={{ display: 'flex', gap: 8, marginBottom: 18 }}>
-        <div style={{ position: 'relative', flex: 1 }}>
-          <Hash size={14} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary,#9ca3af)' }} />
-          <input placeholder="Enter referral code to join a startup…" value={refCode} onChange={e => setRefCode(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleRef()} style={{ width: '100%', paddingLeft: 36, padding: '11px 12px 11px 36px', borderRadius: 10, border: '1.5px solid var(--border,#e5e7eb)', fontSize: 14, boxSizing: 'border-box', background: 'var(--bg-card,#fff)' }} />
-        </div>
-        <button onClick={handleRef} disabled={refLoading} style={{ padding: '11px 22px', background: 'var(--bg-secondary,#f3f4f6)', border: '1.5px solid var(--border,#e5e7eb)', borderRadius: 10, fontWeight: 700, cursor: 'pointer', fontSize: 14, whiteSpace: 'nowrap' }}>
-          {refLoading ? '…' : 'Join via Code'}
-        </button>
+      <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
+        <Btn onClick={onClose} outline color="#7a93c0" style={{ flex: 1 }}>Cancel</Btn>
+        <Btn onClick={handleSave} disabled={saving || !canSave} style={{ flex: 2 }}>{saving ? "Scheduling…" : "Schedule Meeting"}</Btn>
       </div>
-      {refError && <p style={{ color: '#ef4444', fontSize: 13, marginBottom: 12 }}>{refError}</p>}
+    </Modal>
+  );
+}
 
-      // Search + Stage Filter
-      <div style={{ display: 'flex', gap: 10, marginBottom: 24, flexWrap: 'wrap' }}>
-        <div style={{ position: 'relative', flex: 1, minWidth: 200 }}>
-          <Search size={14} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary,#9ca3af)' }} />
-          <input placeholder="Search startups…" value={search} onChange={e => setSearch(e.target.value)} style={{ width: '100%', paddingLeft: 36, padding: '10px 12px 10px 36px', borderRadius: 10, border: '1.5px solid var(--border,#e5e7eb)', fontSize: 14, boxSizing: 'border-box', background: 'var(--bg-card,#fff)' }} />
-        </div>
-        <div style={{ display: 'flex', gap: 6 }}>
-          {STAGES.map(s => (
-            <button key={s} onClick={() => setStage(s)} style={{ padding: '10px 14px', borderRadius: 10, border: `1.5px solid ${stage === s ? 'var(--accent,#0a66c2)' : 'var(--border,#e5e7eb)'}`, background: stage === s ? 'var(--accent-light,#eff6ff)' : 'var(--bg-card,#fff)', color: stage === s ? 'var(--accent,#0a66c2)' : 'var(--text-secondary,#6b7280)', fontSize: 13, fontWeight: 600, cursor: 'pointer', textTransform: 'capitalize', whiteSpace: 'nowrap' }}>
-              {s || 'All'}
-            </button>
+// ============================================================
+// ─── TASK BOARD ───────────────────────────────────────────────
+// ============================================================
+function TaskBoard({ startup, page, me, profiles, members, dk }) {
+  const th = T(dk);
+  const [tasks, setTasks] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({ title: "", description: "", assigned_to: "", priority: "medium", due_date: "" });
+  const [filter, setFilter] = useState("all");
+  const setF = (k, v) => setForm(p => ({ ...p, [k]: v }));
+
+  const load = useCallback(async () => {
+    const data = await db.get("rs_startup_tasks", `page_id=eq.${page.id}&order=created_at.desc`);
+    setTasks(data || []); setLoading(false);
+  }, [page.id]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const createTask = async () => {
+    if (!form.title.trim()) return;
+    const saved = await db.post("rs_startup_tasks", { ...form, startup_id: startup.id, page_id: page.id, created_by: me, status: "pending" });
+    if (saved) {
+      setTasks(ts => [saved, ...ts]);
+      setForm({ title: "", description: "", assigned_to: "", priority: "medium", due_date: "" });
+      setShowForm(false);
+      if (form.assigned_to) {
+        await pushNotif(form.assigned_to, startup.id, "task_assigned", "Task Assigned", `You've been assigned: ${form.title}`, { task_id: saved.id });
+      }
+      await logActivity(startup.id, page.id, me, "task_created", `Task created: ${form.title}`);
+    }
+  };
+
+  const updateStatus = async (id, status) => {
+    setTasks(ts => ts.map(t => t.id === id ? { ...t, status } : t));
+    await db.patch("rs_startup_tasks", `id=eq.${id}`, { status });
+    if (status === "completed") await logActivity(startup.id, page.id, me, "task_completed", `Task completed`);
+  };
+
+  const deleteTask = async id => {
+    setTasks(ts => ts.filter(t => t.id !== id));
+    await db.del("rs_startup_tasks", `id=eq.${id}`);
+  };
+
+  const priorityColors = { low: "#10b981", medium: "#f59e0b", high: "#ef4444" };
+  const filtered = filter === "all" ? tasks : tasks.filter(t => t.status === filter);
+
+  return (
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+        <div style={{ display: "flex", gap: 6 }}>
+          {["all", "pending", "inprogress", "completed"].map(f => (
+            <button key={f} onClick={() => setFilter(f)} style={{ padding: "5px 12px", borderRadius: 20, border: `1px solid ${filter === f ? "#3b82f6" : th.bdr}`, background: filter === f ? "#3b82f618" : "transparent", color: filter === f ? "#3b82f6" : th.txt2, fontSize: 11, fontWeight: 600, cursor: "pointer", textTransform: "capitalize" }}>{f === "all" ? `All (${tasks.length})` : f}</button>
           ))}
         </div>
+        <Btn onClick={() => setShowForm(x => !x)} small><Plus size={13} /> New Task</Btn>
       </div>
 
-      // Grid
-      {loading ? (
-        <div style={{ textAlign: 'center', padding: 80, color: 'var(--text-secondary,#9ca3af)' }}>Loading startups…</div>
-      ) : startups.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: 80, color: 'var(--text-secondary,#9ca3af)' }}>No startups found</div>
-      ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: 16 }}>
-          {startups.map(s => (
-            <div key={s._id} style={{ background: 'var(--bg-card,#fff)', border: '1px solid var(--border,#e5e7eb)', borderRadius: 14, padding: 20, display: 'flex', flexDirection: 'column', gap: 14, transition: 'box-shadow 0.2s', cursor: 'pointer' }}
-              onMouseEnter={e => (e.currentTarget.style.boxShadow = '0 4px 24px rgba(0,0,0,0.08)')}
-              onMouseLeave={e => (e.currentTarget.style.boxShadow = 'none')}>
-
-              // Card header
-              <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-                <img src={s.logo || '/default-startup.png'} alt={s.name} onClick={() => navigate(`/colab/${s._id}`)} style={{ width: 60, height: 60, borderRadius: 14, objectFit: 'cover', flexShrink: 0, cursor: 'pointer' }} />
-                <div style={{ flex: 1 }}>
-                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
-                    <h3 onClick={() => navigate(`/colab/${s._id}`)} style={{ margin: 0, fontSize: 16, fontWeight: 800, cursor: 'pointer', color: 'var(--text-primary,#111)' }}>{s.name}</h3>
-                    <button onClick={e => toggleBookmark(e, s._id)} style={{ background: 'none', border: 'none', cursor: 'pointer', flexShrink: 0, padding: 2 }}>
-                      <Bookmark size={16} fill={s.is_bookmarked ? 'var(--accent,#0a66c2)' : 'none'} color={s.is_bookmarked ? 'var(--accent,#0a66c2)' : 'var(--text-secondary,#9ca3af)'} />
-                    </button>
-                  </div>
-                  <ColabBadge stage={s.stage} />
-                  <p style={{ margin: '6px 0 0', fontSize: 13, color: 'var(--text-secondary,#6b7280)', lineHeight: 1.4 }}>{s.description?.slice(0,100)}{s.description?.length > 100 ? '…' : ''}</p>
-                </div>
-              </div>
-
-              <SocialLinks links={s.social_links} />
-
-              // Founders + stats
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <StackedAvatars users={s.founders || []} max={4} size={28} />
-                <div style={{ display: 'flex', gap: 12 }}>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--text-secondary,#9ca3af)' }}><Users size={12} />{s.member_count || 0}</span>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--text-secondary,#9ca3af)' }}><MessageSquare size={12} />{s.feedback_count || 0}</span>
-                </div>
-              </div>
-
-              // Latest update preview
-              {s.latest_updates?.length > 0 && (
-                <div style={{ borderTop: '1px solid var(--border,#f3f4f6)', paddingTop: 12 }}>
-                  <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 6 }}>
-                    <TrendingUp size={12} color="var(--accent,#0a66c2)" />
-                    <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent,#0a66c2)', textTransform: 'uppercase', letterSpacing: 0.5 }}>Latest</span>
-                  </div>
-                  <p style={{ margin: 0, fontSize: 13, color: 'var(--text-secondary,#6b7280)', lineHeight: 1.4 }}>{s.latest_updates[0].content?.slice(0,90)}{s.latest_updates[0].content?.length > 90 ? '…' : ''}</p>
-                </div>
-              )}
-
-              // CTA
-              <button onClick={e => { e.stopPropagation(); setJoinTarget(s); }} style={{ padding: '10px', background: 'var(--accent,#0a66c2)', color: '#fff', border: 'none', borderRadius: 10, fontWeight: 700, fontSize: 14, cursor: 'pointer', transition: 'opacity 0.15s', marginTop: 'auto' }}
-                onMouseEnter={e => (e.target.style.opacity = 0.88)} onMouseLeave={e => (e.target.style.opacity = 1)}>
-                Join Startup
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {joinTarget  && <JoinModal startup={joinTarget} onClose={() => setJoinTarget(null)} onSuccess={load} />}
-      {showCreate  && <CreateStartupModal onClose={() => setShowCreate(false)} />}
-    </div>
-  );
-};
-export default ColabListPage;
-*/
-
-// ─── ColabDetailPage.jsx ─────────────────────────────────────────────────────────
-/*
-import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { Settings, Lock, CheckCircle, Send, Trash2, Edit3, Image, Mic } from 'lucide-react';
-import { colabService } from '../../services/colabService';
-import StackedAvatars   from '../../components/colab/StackedAvatars';
-import SocialLinks      from '../../components/colab/SocialLinks';
-import ColabBadge       from '../../components/colab/ColabBadge';
-import JoinModal        from '../../components/colab/modals/JoinModal';
-import { useSelector }  from 'react-redux';
-
-const PAGE_ICONS = { investor: '💰', tech: '⚙️', marketing: '📣', community: '🌍', custom: '📄' };
-
-const ColabDetailPage = () => {
-  const { id }        = useParams();
-  const navigate      = useNavigate();
-  const currentUser   = useSelector(s => s.auth.user);
-  const [data,        setData]       = useState(null);
-  const [loading,     setLoading]    = useState(true);
-  const [tab,         setTab]        = useState('updates');
-  const [showJoin,    setShowJoin]   = useState(false);
-  const [fbMsg,       setFbMsg]      = useState('');
-  const [updateText,  setUpdateText] = useState('');
-  const [submitting,  setSubmitting] = useState(false);
-  const [editUpdate,  setEditUpdate] = useState(null);
-  const [editFb,      setEditFb]     = useState(null);
-
-  const load = () => {
-    setLoading(true);
-    colabService.get(id).then(r => { setData(r.data); setLoading(false); });
-  };
-  useEffect(load, [id]);
-
-  if (loading || !data) return <div style={{ textAlign: 'center', padding: 100 }}>Loading…</div>;
-
-  const { startup, pages, updates, feedback, pending_request, is_founder } = data;
-
-  const postUpdate = async () => {
-    if (!updateText.trim()) return;
-    setSubmitting(true);
-    const fd = new FormData(); fd.append('content', updateText);
-    await colabService.postUpdate(id, fd);
-    setUpdateText(''); load(); setSubmitting(false);
-  };
-
-  const postFeedback = async () => {
-    if (!fbMsg.trim()) return;
-    setSubmitting(true);
-    const fd = new FormData(); fd.append('message', fbMsg);
-    await colabService.postFeedback(id, fd);
-    setFbMsg(''); load(); setSubmitting(false);
-  };
-
-  const saveUpdateEdit = async (uid, content) => {
-    await colabService.editUpdate(id, uid, content);
-    setEditUpdate(null); load();
-  };
-
-  const TABS = ['updates','pages','feedback'];
-
-  return (
-    <div style={{ maxWidth: 860, margin: '0 auto', padding: '28px 16px' }}>
-
-      // Hero
-      <div style={{ background: 'var(--bg-card,#fff)', border: '1px solid var(--border,#e5e7eb)', borderRadius: 18, padding: 28, marginBottom: 20 }}>
-        <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-          <img src={startup.logo || '/default-startup.png'} style={{ width: 88, height: 88, borderRadius: 18, objectFit: 'cover', flexShrink: 0, boxShadow: '0 4px 16px rgba(0,0,0,0.1)' }} />
-          <div style={{ flex: 1, minWidth: 200 }}>
-            <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginBottom: 6 }}>
-              <h1 style={{ margin: 0, fontSize: 26, fontWeight: 900, letterSpacing: -0.5 }}>{startup.name}</h1>
-              <ColabBadge stage={startup.stage} />
-              {is_founder && (
-                <button onClick={() => navigate(`/colab/${id}/dashboard`)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 16px', background: 'var(--bg-secondary,#f3f4f6)', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 700 }}>
-                  <Settings size={14} /> Dashboard
-                </button>
-              )}
-            </div>
-            <p style={{ margin: '0 0 12px', color: 'var(--text-secondary,#4b5563)', fontSize: 15, lineHeight: 1.6 }}>{startup.description}</p>
-            {startup.problem && <p style={{ margin: '0 0 4px', fontSize: 13, color: 'var(--text-secondary,#6b7280)' }}><strong>Problem:</strong> {startup.problem}</p>}
-            {startup.solution && <p style={{ margin: '0 0 12px', fontSize: 13, color: 'var(--text-secondary,#6b7280)' }}><strong>Solution:</strong> {startup.solution}</p>}
-            <SocialLinks links={startup.social_links} />
-          </div>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 20, flexWrap: 'wrap', gap: 12 }}>
-          <StackedAvatars users={startup.founders || []} max={6} size={36} />
-          {!is_founder && (
-            pending_request
-              ? <span style={{ padding: '9px 20px', background: '#fef9c3', color: '#92400e', borderRadius: 20, fontSize: 13, fontWeight: 700 }}>⏳ Request Pending</span>
-              : <button onClick={() => setShowJoin(true)} style={{ padding: '10px 28px', background: 'var(--accent,#0a66c2)', color: '#fff', border: 'none', borderRadius: 20, fontWeight: 700, cursor: 'pointer', fontSize: 14, boxShadow: '0 2px 10px rgba(10,102,194,0.3)' }}>Join Startup</button>
-          )}
-        </div>
-      </div>
-
-      // Tabs
-      <div style={{ display: 'flex', gap: 4, marginBottom: 20, background: 'var(--bg-card,#fff)', border: '1px solid var(--border,#e5e7eb)', borderRadius: 12, padding: 4 }}>
-        {TABS.map(t => (
-          <button key={t} onClick={() => setTab(t)} style={{ flex: 1, padding: '10px', border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: 700, fontSize: 13, textTransform: 'capitalize', background: tab === t ? 'var(--accent,#0a66c2)' : 'transparent', color: tab === t ? '#fff' : 'var(--text-secondary,#6b7280)', transition: 'all 0.15s' }}>
-            {t === 'feedback' ? `Feedback (${feedback.length})` : t === 'pages' ? `Pages (${pages.length})` : 'Updates'}
-          </button>
-        ))}
-      </div>
-
-      // ── UPDATES
-      {tab === 'updates' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          {is_founder && (
-            <div style={{ background: 'var(--bg-card,#fff)', border: '1px solid var(--border,#e5e7eb)', borderRadius: 14, padding: 18 }}>
-              <textarea placeholder="Share an update with your community…" value={updateText} onChange={e => setUpdateText(e.target.value)} style={{ width: '100%', minHeight: 90, padding: 12, borderRadius: 8, border: '1.5px solid var(--border,#e5e7eb)', fontSize: 14, resize: 'vertical', boxSizing: 'border-box' }} />
-              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 10 }}>
-                <button onClick={postUpdate} disabled={submitting || !updateText.trim()} style={{ padding: '9px 22px', background: 'var(--accent,#0a66c2)', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <Send size={14} /> Post Update
-                </button>
-              </div>
-            </div>
-          )}
-          {updates.length === 0
-            ? <div style={{ textAlign: 'center', padding: 50, color: 'var(--text-secondary,#9ca3af)' }}>No updates yet</div>
-            : updates.map(u => (
-              <div key={u._id} style={{ background: 'var(--bg-card,#fff)', border: '1px solid var(--border,#e5e7eb)', borderRadius: 14, padding: 18 }}>
-                <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 12 }}>
-                  <img src={u.created_by?.avatar || '/default-avatar.png'} style={{ width: 38, height: 38, borderRadius: '50%', objectFit: 'cover' }} />
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 700, fontSize: 14 }}>{u.created_by?.name}</div>
-                    <div style={{ fontSize: 12, color: 'var(--text-secondary,#9ca3af)' }}>{new Date(u.created_at).toLocaleDateString()}</div>
-                  </div>
-                  {is_founder && (
-                    <div style={{ display: 'flex', gap: 6 }}>
-                      <button onClick={() => setEditUpdate(u)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}><Edit3 size={14} /></button>
-                      <button onClick={async () => { await colabService.deleteUpdate(id, u._id); load(); }} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}><Trash2 size={14} color="#ef4444" /></button>
-                    </div>
-                  )}
-                </div>
-                {editUpdate?._id === u._id ? (
-                  <div>
-                    <textarea defaultValue={u.content} id={`edit-${u._id}`} style={{ width: '100%', padding: 10, borderRadius: 8, border: '1.5px solid var(--border,#e5e7eb)', fontSize: 14, minHeight: 70, resize: 'vertical', boxSizing: 'border-box' }} />
-                    <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-                      <button onClick={() => saveUpdateEdit(u._id, document.getElementById(`edit-${u._id}`).value)} style={{ padding: '7px 18px', background: 'var(--accent,#0a66c2)', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}>Save</button>
-                      <button onClick={() => setEditUpdate(null)} style={{ padding: '7px 18px', background: 'var(--bg-secondary,#f3f4f6)', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}>Cancel</button>
-                    </div>
-                  </div>
-                ) : (
-                  <>
-                    <p style={{ margin: 0, fontSize: 14, lineHeight: 1.7 }}>{u.content}</p>
-                    {u.media_urls?.map((url, i) => <img key={i} src={url} style={{ marginTop: 10, maxWidth: '100%', borderRadius: 8 }} />)}
-                  </>
-                )}
-              </div>
-            ))
-          }
-        </div>
-      )}
-
-      // ── PAGES
-      {tab === 'pages' && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 12 }}>
-          {pages.map(page => {
-            const approved = page.access === 'approved' || is_founder;
-            return (
-              <div key={page._id} onClick={() => approved ? navigate(`/colab/page/${page._id}`) : setShowJoin(true)}
-                style={{ background: 'var(--bg-card,#fff)', border: `2px solid ${approved ? 'var(--accent,#0a66c2)20' : 'var(--border,#e5e7eb)'}`, borderRadius: 14, padding: 18, cursor: 'pointer', position: 'relative', overflow: 'hidden', transition: 'all 0.2s' }}
-                onMouseEnter={e => (e.currentTarget.style.boxShadow = '0 4px 20px rgba(0,0,0,0.08)')}
-                onMouseLeave={e => (e.currentTarget.style.boxShadow = 'none')}>
-
-                {!approved && (
-                  <div style={{ position: 'absolute', inset: 0, backdropFilter: 'blur(3px)', background: 'rgba(255,255,255,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 12, zIndex: 1 }}>
-                    <Lock size={24} color="var(--text-secondary,#9ca3af)" />
-                  </div>
-                )}
-
-                <div style={{ fontSize: 28, marginBottom: 10 }}>{PAGE_ICONS[page.type] || '📄'}</div>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                  <span style={{ fontWeight: 800, fontSize: 16 }}>{page.name}</span>
-                  {approved ? <CheckCircle size={16} color="#22c55e" /> : <Lock size={14} color="var(--text-secondary,#9ca3af)" />}
-                </div>
-                <p style={{ margin: 0, fontSize: 13, color: 'var(--text-secondary,#6b7280)', lineHeight: 1.4 }}>{page.description}</p>
-                <div style={{ marginTop: 12, fontSize: 12, fontWeight: 700, color: approved ? 'var(--accent,#0a66c2)' : 'var(--text-secondary,#9ca3af)' }}>
-                  {approved ? 'Open workspace →' : 'Request access →'}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      // ── FEEDBACK
-      {tab === 'feedback' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <div style={{ background: 'var(--bg-card,#fff)', border: '1px solid var(--border,#e5e7eb)', borderRadius: 14, padding: 18 }}>
-            <div style={{ display: 'flex', gap: 10 }}>
-              <img src={currentUser?.avatar || '/default-avatar.png'} style={{ width: 38, height: 38, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
-              <div style={{ flex: 1 }}>
-                <textarea placeholder="Share your thoughts on this startup…" value={fbMsg} onChange={e => setFbMsg(e.target.value)} style={{ width: '100%', minHeight: 70, padding: 12, borderRadius: 8, border: '1.5px solid var(--border,#e5e7eb)', fontSize: 14, resize: 'vertical', boxSizing: 'border-box' }} />
-                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
-                  <button onClick={postFeedback} disabled={submitting || !fbMsg.trim()} style={{ padding: '8px 20px', background: 'var(--accent,#0a66c2)', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, cursor: 'pointer', fontSize: 13 }}>
-                    {submitting ? '…' : 'Post Feedback'}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {feedback.length === 0
-            ? <div style={{ textAlign: 'center', padding: 50, color: 'var(--text-secondary,#9ca3af)' }}>No feedback yet — be the first!</div>
-            : feedback.map(f => (
-              <div key={f._id} style={{ background: 'var(--bg-card,#fff)', border: '1px solid var(--border,#e5e7eb)', borderRadius: 14, padding: 16, display: 'flex', gap: 12 }}>
-                <img src={f.user_id?.avatar || '/default-avatar.png'} style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
-                <div style={{ flex: 1 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <div style={{ fontWeight: 700, fontSize: 14 }}>{f.user_id?.name}</div>
-                    {is_founder && (
-                      <div style={{ display: 'flex', gap: 4 }}>
-                        <button onClick={() => setEditFb(f)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}><Edit3 size={13} /></button>
-                        <button onClick={async () => { await colabService.deleteFeedback(id, f._id); load(); }} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}><Trash2 size={13} color="#ef4444" /></button>
-                      </div>
-                    )}
-                  </div>
-                  {editFb?._id === f._id ? (
-                    <div style={{ marginTop: 6 }}>
-                      <textarea defaultValue={f.message} id={`fb-edit-${f._id}`} style={{ width: '100%', padding: 8, borderRadius: 6, border: '1.5px solid var(--border,#e5e7eb)', fontSize: 13, resize: 'vertical', boxSizing: 'border-box' }} />
-                      <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
-                        <button onClick={async () => { await colabService.editFeedback(id, f._id, document.getElementById(`fb-edit-${f._id}`).value); setEditFb(null); load(); }} style={{ padding: '6px 14px', background: 'var(--accent,#0a66c2)', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 600, fontSize: 12 }}>Save</button>
-                        <button onClick={() => setEditFb(null)} style={{ padding: '6px 14px', background: 'var(--bg-secondary,#f3f4f6)', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 600, fontSize: 12 }}>Cancel</button>
-                      </div>
-                    </div>
-                  ) : (
-                    <p style={{ margin: '4px 0 0', fontSize: 14, color: 'var(--text-secondary,#374151)', lineHeight: 1.6 }}>{f.message}</p>
-                  )}
-                  <div style={{ fontSize: 11, color: 'var(--text-secondary,#9ca3af)', marginTop: 6 }}>{new Date(f.created_at).toLocaleDateString()}</div>
-                </div>
-              </div>
-            ))
-          }
-        </div>
-      )}
-
-      {showJoin && <JoinModal startup={startup} onClose={() => setShowJoin(false)} onSuccess={load} />}
-    </div>
-  );
-};
-export default ColabDetailPage;
-*/
-
-// ─── ColabDashboardPage.jsx ──────────────────────────────────────────────────────
-/*
-import React, { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
-import { Copy, Check, Plus, Trash2, UserMinus, Shield, Calendar, Users, ClipboardList, BarChart2, Loader } from 'lucide-react';
-import { colabService } from '../../services/colabService';
-
-const IS = { width: '100%', padding: '10px 12px', borderRadius: 8, border: '1.5px solid var(--border,#e5e7eb)', fontSize: 14, boxSizing: 'border-box', background: 'var(--bg-input,#f9fafb)' };
-
-const ColabDashboardPage = () => {
-  const { id }       = useParams();
-  const [data,       setData]      = useState(null);
-  const [loading,    setLoading]   = useState(true);
-  const [tab,        setTab]       = useState('overview');
-  const [copied,     setCopied]    = useState(false);
-  const [newPage,    setNewPage]   = useState({ name: '', description: '', type: 'custom' });
-  const [addingPage, setAddingPage]= useState(false);
-  const [editStartup,setEditStartup] = useState(false);
-  const [editForm,   setEditForm]  = useState({});
-  const [saving,     setSaving]    = useState(false);
-
-  const load = () => {
-    colabService.getDashboard(id).then(r => {
-      setData(r.data);
-      setEditForm({ name: r.data.startup.name, description: r.data.startup.description, ...r.data.startup.social_links });
-      setLoading(false);
-    });
-  };
-  useEffect(load, [id]);
-
-  if (loading || !data) return <div style={{ textAlign: 'center', padding: 100 }}>Loading dashboard…</div>;
-  const { startup, pages, requests, members_by_page, upcoming_meetings, stats } = data;
-
-  const copyCode = () => { navigator.clipboard.writeText(startup.referral_code); setCopied(true); setTimeout(() => setCopied(false), 2500); };
-
-  const createPage = async () => {
-    if (!newPage.name.trim()) return;
-    setAddingPage(true);
-    await colabService.createPage(id, newPage);
-    setNewPage({ name: '', description: '', type: 'custom' });
-    setAddingPage(false); load();
-  };
-
-  const deletePage = async (pid) => {
-    if (!window.confirm('Delete this page?')) return;
-    await colabService.deletePage(id, pid); load();
-  };
-
-  const removeMember = async (uid) => {
-    if (!window.confirm('Remove this member?')) return;
-    await colabService.removeMember(id, uid); load();
-  };
-
-  const saveEdit = async () => {
-    setSaving(true);
-    const fd = new FormData();
-    ['name','description','website'].forEach(k => fd.append(k, editForm[k] || ''));
-    fd.append('social_links', JSON.stringify({ linkedin: editForm.linkedin || '', twitter: editForm.twitter || '', github: editForm.github || '' }));
-    await colabService.update(id, fd);
-    setSaving(false); setEditStartup(false); load();
-  };
-
-  const TABS = ['overview','requests','pages','members','meetings','edit'];
-  const PAGE_TYPE_OPTIONS = ['investor','tech','marketing','community','custom'];
-  const PRIO_COLORS = { low: '#22c55e', medium: '#f59e0b', high: '#ef4444' };
-  const STATUS_COLORS = { pending: '#f59e0b', in_progress: '#3b82f6', completed: '#22c55e' };
-
-  return (
-    <div style={{ maxWidth: 960, margin: '0 auto', padding: '28px 16px' }}>
-
-      // Header
-      <div style={{ background: 'var(--bg-card,#fff)', border: '1px solid var(--border,#e5e7eb)', borderRadius: 18, padding: 24, marginBottom: 20 }}>
-        <div style={{ display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
-          <img src={startup.logo || '/default-startup.png'} style={{ width: 68, height: 68, borderRadius: 14, objectFit: 'cover' }} />
-          <div style={{ flex: 1 }}>
-            <h1 style={{ margin: 0, fontSize: 22, fontWeight: 900 }}>{startup.name} <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-secondary,#6b7280)' }}>— Founder Dashboard</span></h1>
-            <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--text-secondary,#6b7280)' }}>{startup.description?.slice(0,80)}…</p>
-          </div>
-        </div>
-        // Referral code
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 16, background: 'var(--bg-secondary,#f9fafb)', borderRadius: 12, padding: '12px 16px', border: '1px solid var(--border,#e5e7eb)' }}>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-secondary,#9ca3af)', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 2 }}>Referral Code</div>
-            <div style={{ fontFamily: 'monospace', fontWeight: 800, fontSize: 22, letterSpacing: 4, color: 'var(--text-primary,#111)' }}>{startup.referral_code}</div>
-          </div>
-          <button onClick={copyCode} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 20px', background: copied ? '#dcfce7' : 'var(--accent,#0a66c2)', color: copied ? '#166534' : '#fff', border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: 700, fontSize: 13, transition: 'all 0.2s' }}>
-            {copied ? <><Check size={14} /> Copied!</> : <><Copy size={14} /> Copy</>}
-          </button>
-        </div>
-      </div>
-
-      // Stats Row
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12, marginBottom: 20 }}>
-        {[
-          { icon: <Users size={18} />,         label: 'Members',          val: stats.total_members    },
-          { icon: <ClipboardList size={18} />,  label: 'Requests',         val: stats.total_requests   },
-          { icon: <BarChart2 size={18} />,      label: 'Pending Tasks',    val: stats.pending_tasks    },
-          { icon: <Calendar size={18} />,       label: 'Meetings',         val: stats.total_meetings   },
-        ].map(s => (
-          <div key={s.label} style={{ background: 'var(--bg-card,#fff)', border: '1px solid var(--border,#e5e7eb)', borderRadius: 14, padding: '16px', textAlign: 'center' }}>
-            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 8, color: 'var(--accent,#0a66c2)' }}>{s.icon}</div>
-            <div style={{ fontSize: 24, fontWeight: 900 }}>{s.val}</div>
-            <div style={{ fontSize: 12, color: 'var(--text-secondary,#9ca3af)', fontWeight: 600 }}>{s.label}</div>
-          </div>
-        ))}
-      </div>
-
-      // Tabs
-      <div style={{ display: 'flex', gap: 4, marginBottom: 20, background: 'var(--bg-card,#fff)', border: '1px solid var(--border,#e5e7eb)', borderRadius: 12, padding: 4, overflowX: 'auto' }}>
-        {TABS.map(t => (
-          <button key={t} onClick={() => setTab(t)} style={{ flex: '0 0 auto', padding: '9px 16px', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 700, fontSize: 13, textTransform: 'capitalize', background: tab === t ? 'var(--accent,#0a66c2)' : 'transparent', color: tab === t ? '#fff' : 'var(--text-secondary,#6b7280)', transition: 'all 0.15s', whiteSpace: 'nowrap' }}>
-            {t === 'requests' ? `Requests (${requests.length})` : t}
-          </button>
-        ))}
-      </div>
-
-      // ── OVERVIEW
-      {tab === 'overview' && (
-        <div style={{ background: 'var(--bg-card,#fff)', border: '1px solid var(--border,#e5e7eb)', borderRadius: 16, padding: 24 }}>
-          <h3 style={{ margin: '0 0 16px', fontWeight: 800 }}>Upcoming Meetings</h3>
-          {upcoming_meetings?.length === 0
-            ? <p style={{ color: 'var(--text-secondary,#9ca3af)', fontSize: 14 }}>No upcoming meetings</p>
-            : upcoming_meetings?.slice(0,5).map(m => (
-              <div key={m._id} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '12px 0', borderBottom: '1px solid var(--border,#f3f4f6)' }}>
-                <div style={{ width: 44, height: 44, borderRadius: 12, background: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 20 }}>📅</div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 700, fontSize: 14 }}>{m.title}</div>
-                  <div style={{ fontSize: 12, color: 'var(--text-secondary,#9ca3af)' }}>{m.page_id?.name} · {new Date(m.scheduled_at).toLocaleString()}</div>
-                </div>
-                <a href={m.meeting_link} target="_blank" rel="noopener noreferrer" style={{ padding: '7px 16px', background: 'var(--accent-light,#eff6ff)', color: 'var(--accent,#0a66c2)', borderRadius: 8, fontSize: 13, fontWeight: 700, textDecoration: 'none' }}>Join</a>
-              </div>
-            ))
-          }
-        </div>
-      )}
-
-      // ── REQUESTS
-      {tab === 'requests' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          {requests.length === 0
-            ? <div style={{ textAlign: 'center', padding: 60, color: 'var(--text-secondary,#9ca3af)' }}>No pending requests 🎉</div>
-            : requests.map(req => (
-              <div key={req._id} style={{ background: 'var(--bg-card,#fff)', border: '1px solid var(--border,#e5e7eb)', borderRadius: 14, padding: 20 }}>
-                <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 14 }}>
-                  <img src={req.user_id?.avatar || '/default-avatar.png'} style={{ width: 48, height: 48, borderRadius: '50%', objectFit: 'cover' }} />
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 800, fontSize: 15 }}>{req.user_id?.name}</div>
-                    <div style={{ fontSize: 12, color: 'var(--text-secondary,#9ca3af)' }}>{req.user_id?.email}</div>
-                    {req.note && <p style={{ margin: '6px 0 0', fontSize: 13, color: 'var(--text-secondary,#6b7280)', background: 'var(--bg-secondary,#f9fafb)', padding: '6px 10px', borderRadius: 8 }}>"{req.note}"</p>}
-                  </div>
-                  <div style={{ fontSize: 11, color: 'var(--text-secondary,#9ca3af)', textAlign: 'right' }}>{new Date(req.created_at).toLocaleDateString()}</div>
-                </div>
-
-                <div style={{ marginBottom: 14 }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary,#9ca3af)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>Roles selected</div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                    {req.selected_roles?.map(r => (
-                      <span key={r} style={{ padding: '4px 12px', background: 'var(--accent-light,#eff6ff)', color: 'var(--accent,#0a66c2)', borderRadius: 20, fontSize: 12, fontWeight: 700 }}>{r}</span>
-                    ))}
-                  </div>
-                </div>
-
-                <div style={{ marginBottom: 16 }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary,#9ca3af)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>Pages requested</div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                    {req.requested_pages?.map(p => (
-                      <span key={p._id} style={{ padding: '4px 12px', background: '#f3f4f6', borderRadius: 20, fontSize: 12, fontWeight: 600 }}>{p.name}</span>
-                    ))}
-                  </div>
-                </div>
-
-                <div style={{ display: 'flex', gap: 10 }}>
-                  <button onClick={() => colabService.approveRequest(id, req._id, req.requested_pages?.map(p => p._id)).then(load)} style={{ flex: 1, padding: 10, background: 'var(--accent,#0a66c2)', color: '#fff', border: 'none', borderRadius: 10, fontWeight: 700, cursor: 'pointer' }}>✓ Approve All</button>
-                  <button onClick={() => colabService.rejectRequest(id, req._id).then(load)} style={{ flex: 1, padding: 10, background: '#fee2e2', color: '#dc2626', border: 'none', borderRadius: 10, fontWeight: 700, cursor: 'pointer' }}>✕ Reject</button>
-                </div>
-              </div>
-            ))
-          }
-        </div>
-      )}
-
-      // ── PAGES
-      {tab === 'pages' && (
-        <div>
-          <div style={{ background: 'var(--bg-card,#fff)', border: '1px solid var(--border,#e5e7eb)', borderRadius: 14, padding: 20, marginBottom: 16 }}>
-            <h3 style={{ margin: '0 0 14px', fontWeight: 800 }}>Add New Page</h3>
-            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-              <input style={{ ...IS, flex: 2, minWidth: 150 }} placeholder="Page Name" value={newPage.name} onChange={e => setNewPage(p => ({ ...p, name: e.target.value }))} />
-              <input style={{ ...IS, flex: 3, minWidth: 150 }} placeholder="Description" value={newPage.description} onChange={e => setNewPage(p => ({ ...p, description: e.target.value }))} />
-              <select style={{ ...IS, flex: 1, minWidth: 120 }} value={newPage.type} onChange={e => setNewPage(p => ({ ...p, type: e.target.value }))}>
-                {PAGE_TYPE_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
+      {showForm && (
+        <div style={{ background: th.surf2, border: `1px solid ${th.bdr}`, borderRadius: 14, padding: 16, marginBottom: 14 }}>
+          <div style={{ display: "grid", gap: 10 }}>
+            <input value={form.title} onChange={e => setF("title", e.target.value)} placeholder="Task title *" style={InpStyle(dk)} />
+            <textarea value={form.description} onChange={e => setF("description", e.target.value)} placeholder="Description…" rows={2} style={{ ...InpStyle(dk), resize: "none" }} />
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+              <select value={form.assigned_to} onChange={e => setF("assigned_to", e.target.value)} style={InpStyle(dk)}>
+                <option value="">Assign to…</option>
+                {members.map(m => <option key={m.user_id} value={m.user_id}>{profiles[m.user_id]?.name || m.user_id}</option>)}
               </select>
-              <button onClick={createPage} disabled={addingPage || !newPage.name.trim()} style={{ padding: '10px 20px', background: 'var(--accent,#0a66c2)', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                {addingPage ? <Loader size={16} /> : <><Plus size={14} /> Add</>}
-              </button>
+              <select value={form.priority} onChange={e => setF("priority", e.target.value)} style={InpStyle(dk)}>
+                {["low", "medium", "high"].map(p => <option key={p} value={p}>{p.charAt(0).toUpperCase() + p.slice(1)}</option>)}
+              </select>
+              <input type="date" value={form.due_date} onChange={e => setF("due_date", e.target.value)} style={InpStyle(dk)} />
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <Btn onClick={createTask} disabled={!form.title.trim()} small>Create Task</Btn>
+              <Btn onClick={() => setShowForm(false)} outline color="#7a93c0" small>Cancel</Btn>
             </div>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12 }}>
-            {pages.map(p => (
-              <div key={p._id} style={{ background: 'var(--bg-card,#fff)', border: '1px solid var(--border,#e5e7eb)', borderRadius: 12, padding: 16 }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                  <span style={{ fontWeight: 800, fontSize: 15 }}>{p.name}</span>
-                  <button onClick={() => deletePage(p._id)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}><Trash2 size={14} color="#ef4444" /></button>
-                </div>
-                <p style={{ margin: 0, fontSize: 12, color: 'var(--text-secondary,#6b7280)' }}>{p.description}</p>
-                <span style={{ display: 'inline-block', marginTop: 10, padding: '3px 10px', background: 'var(--bg-secondary,#f3f4f6)', borderRadius: 20, fontSize: 11, fontWeight: 600, textTransform: 'capitalize' }}>{p.type}</span>
+        </div>
+      )}
+
+      {loading ? <Spin dk={dk} /> : filtered.length === 0 ? (
+        <div style={{ textAlign: "center", padding: 40, color: th.txt3 }}>
+          <CheckCircle2 size={36} style={{ marginBottom: 10, opacity: 0.4 }} />
+          <p>No tasks yet. Create one!</p>
+        </div>
+      ) : filtered.map(task => {
+        const st = TASK_STATUS[task.status] || TASK_STATUS.pending;
+        const Icon = st.icon;
+        const assignee = profiles[task.assigned_to] || null;
+        return (
+          <div key={task.id} style={{ background: th.surf, border: `1px solid ${th.bdr}`, borderRadius: 12, padding: "12px 14px", marginBottom: 8, display: "flex", gap: 12, alignItems: "flex-start" }}>
+            <button onClick={() => { const next = task.status === "pending" ? "inprogress" : task.status === "inprogress" ? "completed" : "pending"; updateStatus(task.id, next); }} style={{ background: "none", border: "none", cursor: "pointer", color: st.c, flexShrink: 0, marginTop: 1, display: "flex" }}>
+              <Icon size={18} />
+            </button>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontWeight: 700, fontSize: 14, color: task.status === "completed" ? th.txt3 : th.txt, textDecoration: task.status === "completed" ? "line-through" : "none" }}>{task.title}</div>
+              {task.description && <p style={{ fontSize: 12, color: th.txt3, margin: "3px 0 6px", lineHeight: 1.4 }}>{task.description}</p>}
+              <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                <span style={{ fontSize: 10, fontWeight: 700, color: priorityColors[task.priority] || "#f59e0b", background: (priorityColors[task.priority] || "#f59e0b") + "15", padding: "2px 7px", borderRadius: 99 }}>{task.priority?.toUpperCase()}</span>
+                <Badge label={st.label} color={st.c} />
+                {assignee && <div style={{ display: "flex", alignItems: "center", gap: 5 }}><Av profile={assignee} size={16} /><span style={{ fontSize: 11, color: th.txt3 }}>{assignee.name?.split(" ")[0]}</span></div>}
+                {task.due_date && <span style={{ fontSize: 11, color: th.txt3 }}>Due {fmtDate(task.due_date)}</span>}
               </div>
-            ))}
+            </div>
+            <button onClick={() => deleteTask(task.id)} style={{ background: "none", border: "none", cursor: "pointer", color: th.txt3, display: "flex" }}><Trash2 size={13} /></button>
           </div>
-        </div>
-      )}
-
-      // ── MEMBERS
-      {tab === 'members' && (
-        <div style={{ background: 'var(--bg-card,#fff)', border: '1px solid var(--border,#e5e7eb)', borderRadius: 16, padding: 24 }}>
-          {pages.map(page => {
-            const members = members_by_page[page._id] || [];
-            if (!members.length) return null;
-            return (
-              <div key={page._id} style={{ marginBottom: 28 }}>
-                <h3 style={{ margin: '0 0 14px', fontSize: 16, fontWeight: 800 }}>{page.name} <span style={{ fontWeight: 500, color: 'var(--text-secondary,#9ca3af)', fontSize: 13 }}>({members.length})</span></h3>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {members.map(m => {
-                    const u = m.user || m.user_id;
-                    return (
-                      <div key={u._id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', borderRadius: 10, border: '1px solid var(--border,#e5e7eb)' }}>
-                        <img src={u.avatar || '/default-avatar.png'} style={{ width: 38, height: 38, borderRadius: '50%', objectFit: 'cover' }} />
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontWeight: 700, fontSize: 14 }}>{u.name}</div>
-                          <div style={{ fontSize: 12, color: 'var(--text-secondary,#9ca3af)' }}>@{u.username} · {m.role}</div>
-                        </div>
-                        <div style={{ display: 'flex', gap: 6 }}>
-                          <button onClick={() => colabService.assignPageAdmin(id, page._id, u._id).then(load)} title="Make admin" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6 }}><Shield size={15} color="var(--accent,#0a66c2)" /></button>
-                          <button onClick={() => removeMember(u._id)} title="Remove member" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6 }}><UserMinus size={15} color="#ef4444" /></button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      // ── MEETINGS (global)
-      {tab === 'meetings' && (
-        <div style={{ background: 'var(--bg-card,#fff)', border: '1px solid var(--border,#e5e7eb)', borderRadius: 16, padding: 24 }}>
-          <h3 style={{ margin: '0 0 18px', fontWeight: 800 }}>All Upcoming Meetings</h3>
-          {upcoming_meetings?.length === 0
-            ? <div style={{ textAlign: 'center', padding: 50, color: 'var(--text-secondary,#9ca3af)' }}>No upcoming meetings</div>
-            : upcoming_meetings?.map(m => (
-              <div key={m._id} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 0', borderBottom: '1px solid var(--border,#f3f4f6)' }}>
-                <div style={{ width: 48, height: 48, borderRadius: 12, background: m.meeting_type === 'zoom' ? '#e8f4fd' : '#e8f5e9', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, flexShrink: 0 }}>
-                  {m.meeting_type === 'zoom' ? '🎥' : '📹'}
-                </div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 700, fontSize: 15 }}>{m.title}</div>
-                  <div style={{ fontSize: 12, color: 'var(--text-secondary,#9ca3af)', marginTop: 2 }}>
-                    {m.page_id?.name} · {new Date(m.scheduled_at).toLocaleString()} · {m.duration_min} min
-                  </div>
-                  {m.participants?.length > 0 && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6 }}>
-                      {m.participants.slice(0,5).map(p => <img key={p._id} src={p.avatar || '/default-avatar.png'} style={{ width: 22, height: 22, borderRadius: '50%', objectFit: 'cover' }} />)}
-                      {m.participants.length > 5 && <span style={{ fontSize: 11, color: 'var(--text-secondary,#9ca3af)' }}>+{m.participants.length - 5}</span>}
-                    </div>
-                  )}
-                </div>
-                <a href={m.meeting_link} target="_blank" rel="noopener noreferrer" style={{ padding: '8px 18px', background: 'var(--accent-light,#eff6ff)', color: 'var(--accent,#0a66c2)', borderRadius: 8, fontSize: 13, fontWeight: 700, textDecoration: 'none', whiteSpace: 'nowrap' }}>Join Meeting</a>
-              </div>
-            ))
-          }
-        </div>
-      )}
-
-      // ── EDIT
-      {tab === 'edit' && (
-        <div style={{ background: 'var(--bg-card,#fff)', border: '1px solid var(--border,#e5e7eb)', borderRadius: 16, padding: 24 }}>
-          <h3 style={{ margin: '0 0 18px', fontWeight: 800 }}>Edit Startup</h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <input style={IS} placeholder="Startup Name" value={editForm.name || ''} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} />
-            <textarea style={{ ...IS, minHeight: 80, resize: 'vertical' }} placeholder="Description" value={editForm.description || ''} onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))} />
-            <input style={IS} placeholder="Website" value={editForm.website || ''} onChange={e => setEditForm(f => ({ ...f, website: e.target.value }))} />
-            {['linkedin','twitter','github'].map(k => (
-              <input key={k} style={IS} placeholder={`${k.charAt(0).toUpperCase()+k.slice(1)} URL`} value={editForm[k] || ''} onChange={e => setEditForm(f => ({ ...f, [k]: e.target.value }))} />
-            ))}
-          </div>
-          <button onClick={saveEdit} disabled={saving} style={{ marginTop: 20, padding: '12px 28px', background: 'var(--accent,#0a66c2)', color: '#fff', border: 'none', borderRadius: 10, fontWeight: 700, fontSize: 15, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>
-            {saving ? <Loader size={16} /> : 'Save Changes'}
-          </button>
-        </div>
-      )}
+        );
+      })}
     </div>
   );
-};
-export default ColabDashboardPage;
-*/
+}
 
-// ─── ColabPageWorkspace.jsx — FULL workspace with chat, tasks, meetings, files ───
-/*
-import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { useParams } from 'react-router-dom';
-import { MessageSquare, CheckSquare, Calendar, Paperclip, Plus, Send, Trash2, Edit3, CheckCircle, Clock, MoreHorizontal, Smile, Reply, Video } from 'lucide-react';
-import { colabService } from '../../services/colabService';
-import MeetingModal from '../../components/colab/modals/MeetingModal';
-import TaskModal    from '../../components/colab/modals/TaskModal';
-import { useSelector } from 'react-redux';
-import io from 'socket.io-client'; // your existing socket instance/import
+// ============================================================
+// ─── PAGE CHAT ────────────────────────────────────────────────
+// ============================================================
+function PageChat({ startup, page, me, profiles, members, dk }) {
+  const th = T(dk);
+  const [messages, setMessages] = useState([]);
+  const [text, setText] = useState("");
+  const [media, setMedia] = useState([]);
+  const [replyTo, setReplyTo] = useState(null);
+  const [showEmoji, setShowEmoji] = useState(false);
+  const [recording, setRecording] = useState(false);
+  const [recDur, setRecDur] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const endRef = useRef();
+  const pollRef = useRef();
+  const recRef = useRef();
+  const timerRef = useRef();
+  const fileRef = useRef();
 
-const PAGE_ICONS = { investor: '💰', tech: '⚙️', marketing: '📣', community: '🌍', custom: '📄' };
-const STATUS_COLORS = { pending: { bg: '#fef9c3', color: '#92400e' }, in_progress: { bg: '#dbeafe', color: '#1e40af' }, completed: { bg: '#dcfce7', color: '#166534' } };
-const PRIO_COLORS   = { low: '#22c55e', medium: '#f59e0b', high: '#ef4444' };
-
-const ColabPageWorkspace = () => {
-  const { pageId }     = useParams();
-  const currentUser    = useSelector(s => s.auth.user);
-  const [data,         setData]        = useState(null);
-  const [loading,      setLoading]     = useState(true);
-  const [tab,          setTab]         = useState('chat');
-  const [msgText,      setMsgText]     = useState('');
-  const [replyTo,      setReplyTo]     = useState(null);
-  const [messages,     setMessages]    = useState([]);
-  const [sending,      setSending]     = useState(false);
-  const [showMeeting,  setShowMeeting] = useState(false);
-  const [showTask,     setShowTask]    = useState(false);
-  const [editTask,     setEditTask]    = useState(null);
-  const [uploading,    setUploading]   = useState(false);
-  const chatEnd        = useRef(null);
-  const fileRef        = useRef();
-  const socketRef      = useRef(null);
-
-  const load = useCallback(() => {
-    colabService.getPage(pageId).then(r => {
-      setData(r.data);
-      setMessages(r.data.messages || []);
-      setLoading(false);
-    });
-  }, [pageId]);
+  const load = useCallback(async () => {
+    const data = await db.get("rs_page_messages", `page_id=eq.${page.id}&order=created_at.asc&limit=100`);
+    setMessages(data || []); setLoading(false);
+    setTimeout(() => endRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+  }, [page.id]);
 
   useEffect(() => {
     load();
+    pollRef.current = setInterval(load, 4000);
+    return () => clearInterval(pollRef.current);
+  }, [load]);
 
-    // Socket setup
-    // socketRef.current = io(process.env.REACT_APP_SOCKET_URL); // your existing socket server URL
-    // socketRef.current.emit('colab:join_page', { pageId, token: localStorage.getItem('token') });
-    // socketRef.current.on('colab:new_message', (msg) => setMessages(prev => [...prev, msg]));
-    // return () => { if (socketRef.current) socketRef.current.emit('colab:leave_page', { pageId }); };
-  }, [pageId, load]);
-
-  useEffect(() => { chatEnd.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
-
-  if (loading || !data) return <div style={{ textAlign: 'center', padding: 100 }}>Loading workspace…</div>;
-  const { page, startup, tasks, meetings, files, members, is_founder, is_admin } = data;
-  const canManage = is_founder || is_admin;
-
-  const sendMsg = async () => {
-    if (!msgText.trim()) return;
-    setSending(true);
-    const fd = new FormData();
-    fd.append('content', msgText);
-    if (replyTo) fd.append('reply_to', replyTo._id);
-    const { data: msg } = await colabService.sendMessage(pageId, fd);
-    setMessages(prev => [...prev, msg]);
-    setMsgText(''); setReplyTo(null); setSending(false);
+  const addFile = async files => {
+    const items = [];
+    for (const f of files) {
+      try {
+        const b64 = await fileToB64(f, 10);
+        items.push({ type: f.type.startsWith("video") ? "video" : f.type.startsWith("audio") ? "audio" : "image", url: b64, name: f.name });
+      } catch {}
+    }
+    setMedia(m => [...m, ...items].slice(0, 4));
   };
 
-  const sendFile = async (e) => {
-    const file = e.target.files[0]; if (!file) return;
-    setUploading(true);
-    const fd = new FormData();
-    fd.append('media', file);
-    fd.append('type', file.type.startsWith('image') ? 'image' : 'file');
-    const { data: msg } = await colabService.sendMessage(pageId, fd);
-    setMessages(prev => [...prev, msg]);
-    setUploading(false);
+  const startRec = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mr = new MediaRecorder(stream);
+      const chunks = [];
+      mr.ondataavailable = e => chunks.push(e.data);
+      mr.onstop = () => {
+        const blob = new Blob(chunks, { type: "audio/webm" });
+        const reader = new FileReader();
+        reader.onload = () => setMedia(m => [...m, { type: "audio", url: reader.result, name: "voice.webm" }]);
+        reader.readAsDataURL(blob);
+        stream.getTracks().forEach(t => t.stop());
+      };
+      mr.start(); recRef.current = mr; setRecording(true); setRecDur(0);
+      timerRef.current = setInterval(() => setRecDur(d => d + 1), 1000);
+    } catch {}
+  };
+  const stopRec = () => { recRef.current?.stop(); setRecording(false); clearInterval(timerRef.current); };
+
+  const send = async () => {
+    if (!text.trim() && !media.length) return;
+    const saved = await db.post("rs_page_messages", {
+      page_id: page.id, startup_id: startup.id, sender_id: me,
+      content: text.trim(), media, reply_to: replyTo?.id || null, mentions: [],
+    });
+    if (saved) {
+      setMessages(ms => [...ms, saved]);
+      setText(""); setMedia([]); setReplyTo(null); setShowEmoji(false);
+      setTimeout(() => endRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
+      await logActivity(startup.id, page.id, me, "message", `Message sent in ${page.name}`);
+    }
   };
 
-  const deleteMsg = async (mid) => {
-    await colabService.deleteMessage(pageId, mid);
-    setMessages(prev => prev.map(m => m._id === mid ? { ...m, is_deleted: true, content: '' } : m));
-  };
-
-  const updateTaskStatus = async (tid, status) => {
-    await colabService.updateTask(pageId, tid, { status });
-    load();
-  };
-
-  const deleteFile = async (fid) => {
-    await colabService.deleteFile(pageId, fid); load();
-  };
-
-  const TABS = [
-    { id: 'chat',     label: '💬 Chat',     show: true },
-    { id: 'tasks',    label: '📋 Tasks',    show: true },
-    { id: 'meetings', label: '📅 Meetings', show: true },
-    { id: 'files',    label: '📁 Files',    show: true },
-  ];
+  const pt = PAGE_TYPES.find(x => page.page_type === x.id) || PAGE_TYPES[6];
 
   return (
-    <div style={{ maxWidth: 920, margin: '0 auto', padding: '20px 16px', display: 'flex', flexDirection: 'column', height: 'calc(100vh - 80px)' }}>
-
-      // Header
-      <div style={{ background: 'var(--bg-card,#fff)', border: '1px solid var(--border,#e5e7eb)', borderRadius: 16, padding: '16px 20px', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 14, flexShrink: 0 }}>
-        <span style={{ fontSize: 32 }}>{PAGE_ICONS[page.type] || '📄'}</span>
-        <div>
-          <h2 style={{ margin: 0, fontSize: 20, fontWeight: 900 }}>{page.name}</h2>
-          <p style={{ margin: '2px 0 0', fontSize: 13, color: 'var(--text-secondary,#6b7280)' }}>{page.description} · {startup.name}</p>
-        </div>
-      </div>
-
-      // Tabs
-      <div style={{ display: 'flex', gap: 4, marginBottom: 16, background: 'var(--bg-card,#fff)', border: '1px solid var(--border,#e5e7eb)', borderRadius: 12, padding: 4, flexShrink: 0 }}>
-        {TABS.map(t => (
-          <button key={t.id} onClick={() => setTab(t.id)} style={{ flex: 1, padding: '9px', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 700, fontSize: 13, background: tab === t.id ? 'var(--accent,#0a66c2)' : 'transparent', color: tab === t.id ? '#fff' : 'var(--text-secondary,#6b7280)', transition: 'all 0.15s' }}>
-            {t.label}
-          </button>
-        ))}
-      </div>
-
-      // ── CHAT
-      {tab === 'chat' && (
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'var(--bg-card,#fff)', border: '1px solid var(--border,#e5e7eb)', borderRadius: 16, overflow: 'hidden' }}>
-          <div style={{ flex: 1, overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {messages.length === 0 && <div style={{ textAlign: 'center', color: 'var(--text-secondary,#9ca3af)', paddingTop: 40, fontSize: 14 }}>No messages yet. Start the conversation!</div>}
-            {messages.map(m => {
-              const isMine = m.sender_id?._id === currentUser?._id;
-              if (m.is_deleted) return <div key={m._id} style={{ textAlign: 'center', fontSize: 12, color: 'var(--text-secondary,#9ca3af)', fontStyle: 'italic' }}>Message deleted</div>;
-              return (
-                <div key={m._id} style={{ display: 'flex', gap: 10, justifyContent: isMine ? 'flex-end' : 'flex-start' }}>
-                  {!isMine && <img src={m.sender_id?.avatar || '/default-avatar.png'} style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover', flexShrink: 0, marginTop: 4 }} />}
-                  <div style={{ maxWidth: '72%' }}>
-                    {!isMine && <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary,#6b7280)', marginBottom: 3 }}>{m.sender_id?.name}</div>}
-                    {m.reply_to && (
-                      <div style={{ fontSize: 12, padding: '6px 10px', background: 'var(--bg-secondary,#f3f4f6)', borderRadius: 8, marginBottom: 4, borderLeft: '3px solid var(--accent,#0a66c2)', color: 'var(--text-secondary,#6b7280)' }}>
-                        ↩ {m.reply_to.content?.slice(0,60)}…
-                      </div>
-                    )}
-                    <div style={{ padding: m.type === 'image' ? '4px' : '10px 14px', background: isMine ? 'var(--accent,#0a66c2)' : 'var(--bg-secondary,#f3f4f6)', borderRadius: isMine ? '18px 18px 4px 18px' : '18px 18px 18px 4px', color: isMine ? '#fff' : 'var(--text-primary,#111)', fontSize: 14, lineHeight: 1.5, wordBreak: 'break-word', position: 'relative', group: true }}>
-                      {m.type === 'image' && m.media_url ? <img src={m.media_url} style={{ maxWidth: 240, borderRadius: 14, display: 'block' }} /> : m.content}
+    <div style={{ display: "flex", flexDirection: "column", height: "60vh", minHeight: 400 }}>
+      {/* Messages */}
+      <div style={{ flex: 1, overflowY: "auto", padding: "12px 0" }}>
+        {loading ? <Spin dk={dk} /> : messages.length === 0 ? (
+          <div style={{ textAlign: "center", padding: 40, color: th.txt3 }}>
+            <MessageCircle size={36} style={{ marginBottom: 10, opacity: 0.4 }} />
+            <p>No messages yet. Say hi!</p>
+          </div>
+        ) : messages.map((m, idx) => {
+          const isMe = m.sender_id === me;
+          const sender = profiles[m.sender_id] || { name: "Member" };
+          const prevMsg = messages[idx - 1];
+          const showAvatar = !prevMsg || prevMsg.sender_id !== m.sender_id;
+          const replyMsg = m.reply_to ? messages.find(x => x.id === m.reply_to) : null;
+          return (
+            <div key={m.id} style={{ display: "flex", flexDirection: isMe ? "row-reverse" : "row", gap: 8, marginBottom: showAvatar ? 12 : 4, alignItems: "flex-end", padding: "0 4px" }}>
+              {!isMe && (showAvatar ? <Av profile={sender} size={30} /> : <div style={{ width: 30 }} />)}
+              <div style={{ maxWidth: "72%" }}>
+                {showAvatar && !isMe && <div style={{ fontSize: 11, fontWeight: 700, color: pt.c, marginBottom: 3 }}>{sender.name}</div>}
+                {replyMsg && (
+                  <div style={{ background: isMe ? "rgba(255,255,255,.1)" : th.surf2, borderLeft: `3px solid ${pt.c}`, padding: "4px 8px", borderRadius: 6, marginBottom: 4, fontSize: 11, color: th.txt3 }}>
+                    {profiles[replyMsg.sender_id]?.name}: {replyMsg.content?.slice(0, 60)}
+                  </div>
+                )}
+                <div onClick={() => setReplyTo(m)} style={{ background: isMe ? pt.c : th.surf2, borderRadius: isMe ? "14px 14px 4px 14px" : "14px 14px 14px 4px", padding: "9px 13px", cursor: "pointer", border: `1px solid ${isMe ? "transparent" : th.bdr}` }}>
+                  {m.content && <p style={{ margin: 0, fontSize: 13, color: isMe ? "#fff" : th.txt, lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{m.content}</p>}
+                  {m.media?.map((med, i) => (
+                    <div key={i} style={{ marginTop: m.content ? 6 : 0 }}>
+                      {med.type === "image" && <img src={med.url} style={{ maxWidth: 220, borderRadius: 8, display: "block" }} alt="media" />}
+                      {med.type === "video" && <video src={med.url} controls style={{ maxWidth: 220, borderRadius: 8 }} />}
+                      {med.type === "audio" && <audio src={med.url} controls style={{ maxWidth: 200 }} />}
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
-                      <span style={{ fontSize: 10, color: 'var(--text-secondary,#9ca3af)' }}>{new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                      <button onClick={() => setReplyTo(m)} style={{ fontSize: 10, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary,#9ca3af)', display: 'flex', alignItems: 'center', gap: 3 }}><Reply size={10} /> Reply</button>
-                      {isMine && <button onClick={() => deleteMsg(m._id)} style={{ fontSize: 10, background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', display: 'flex', alignItems: 'center', gap: 3 }}><Trash2 size={10} /></button>}
-                    </div>
+                  ))}
+                  <div style={{ fontSize: 10, color: isMe ? "rgba(255,255,255,.55)" : th.txt3, marginTop: 4, textAlign: isMe ? "right" : "left" }}>
+                    {ago(new Date(m.created_at).getTime())}
+                    {m.reply_to && <span style={{ marginLeft: 6 }}>↩ reply</span>}
                   </div>
                 </div>
-              );
-            })}
-            <div ref={chatEnd} />
-          </div>
-
-          // Chat input
-          <div style={{ padding: '12px 16px', borderTop: '1px solid var(--border,#e5e7eb)', flexShrink: 0 }}>
-            {replyTo && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', background: 'var(--bg-secondary,#f3f4f6)', borderRadius: 8, marginBottom: 8, fontSize: 12 }}>
-                <Reply size={12} color="var(--accent,#0a66c2)" />
-                <span style={{ flex: 1, color: 'var(--text-secondary,#6b7280)' }}>Replying to: {replyTo.content?.slice(0,60)}</span>
-                <button onClick={() => setReplyTo(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: 'var(--text-secondary,#9ca3af)' }}>×</button>
               </div>
-            )}
-            <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
-              <input ref={fileRef} type="file" accept="image/*,audio/*,video/*" style={{ display: 'none' }} onChange={sendFile} />
-              <button onClick={() => fileRef.current.click()} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 8, color: 'var(--text-secondary,#9ca3af)' }} title="Attach file">
-                <Paperclip size={18} />
-              </button>
-              <textarea
-                placeholder="Write a message… (@mention, emojis welcome)"
-                value={msgText}
-                onChange={e => setMsgText(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMsg(); } }}
-                style={{ flex: 1, padding: '10px 14px', borderRadius: 12, border: '1.5px solid var(--border,#e5e7eb)', fontSize: 14, resize: 'none', minHeight: 42, maxHeight: 120, overflowY: 'auto', boxSizing: 'border-box' }}
-                rows={1}
-              />
-              <button onClick={sendMsg} disabled={sending || !msgText.trim()} style={{ padding: '10px 18px', background: 'var(--accent,#0a66c2)', color: '#fff', border: 'none', borderRadius: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700, opacity: msgText.trim() ? 1 : 0.5 }}>
-                <Send size={16} />
-              </button>
             </div>
-          </div>
+          );
+        })}
+        <div ref={endRef} />
+      </div>
+
+      {/* Reply preview */}
+      {replyTo && (
+        <div style={{ background: th.surf2, borderLeft: `3px solid ${pt.c}`, padding: "6px 12px", display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12, color: th.txt3 }}>
+          <span>↩ Replying to {profiles[replyTo.sender_id]?.name}: {replyTo.content?.slice(0, 50)}</span>
+          <button onClick={() => setReplyTo(null)} style={{ background: "none", border: "none", cursor: "pointer", color: th.txt3, display: "flex" }}><X size={13} /></button>
         </div>
       )}
 
-      // ── TASKS
-      {tab === 'tasks' && (
-        <div style={{ flex: 1, overflowY: 'auto' }}>
-          {canManage && (
-            <div style={{ marginBottom: 14 }}>
-              <button onClick={() => setShowTask(true)} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 20px', background: 'var(--accent,#0a66c2)', color: '#fff', border: 'none', borderRadius: 10, fontWeight: 700, cursor: 'pointer' }}>
-                <Plus size={16} /> New Task
-              </button>
+      {/* Media preview */}
+      {media.length > 0 && (
+        <div style={{ display: "flex", gap: 6, padding: "8px 0", flexWrap: "wrap" }}>
+          {media.map((m, i) => (
+            <div key={i} style={{ position: "relative", width: 52, height: 52, borderRadius: 8, overflow: "hidden", border: `1px solid ${th.bdr}` }}>
+              {m.type === "image" ? <img src={m.url} style={{ width: "100%", height: "100%", objectFit: "cover" }} alt="" />
+                : m.type === "audio" ? <div style={{ width: "100%", height: "100%", background: "linear-gradient(135deg,#8b5cf6,#3b82f6)", display: "flex", alignItems: "center", justifyContent: "center" }}><Mic size={16} color="#fff" /></div>
+                : <div style={{ width: "100%", height: "100%", background: "#1c2d47", display: "flex", alignItems: "center", justifyContent: "center" }}><Video size={16} color="#7a93c0" /></div>}
+              <button onClick={() => setMedia(m => m.filter((_, j) => j !== i))} style={{ position: "absolute", top: 1, right: 1, background: "rgba(0,0,0,.6)", border: "none", borderRadius: "50%", width: 16, height: 16, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#fff" }}><X size={9} /></button>
             </div>
-          )}
-          {['pending','in_progress','completed'].map(status => {
-            const group = tasks.filter(t => t.status === status);
-            if (!group.length) return null;
-            const S = STATUS_COLORS[status];
+          ))}
+        </div>
+      )}
+
+      {/* Emoji picker */}
+      {showEmoji && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 4, background: th.surf2, borderRadius: 10, padding: 8, border: `1px solid ${th.bdr}` }}>
+          {EMOJIS.map(e => <button key={e} onClick={() => { setText(t => t + e); setShowEmoji(false); }} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 18 }}>{e}</button>)}
+        </div>
+      )}
+
+      {/* Input */}
+      <div style={{ display: "flex", gap: 8, alignItems: "flex-end", borderTop: `1px solid ${th.bdr}`, paddingTop: 10, marginTop: 4 }}>
+        <div style={{ display: "flex", gap: 4 }}>
+          <button onClick={() => fileRef.current?.click()} style={{ background: "none", border: "none", cursor: "pointer", color: th.txt3, display: "flex" }}><Image size={16} /></button>
+          <button onClick={() => setShowEmoji(x => !x)} style={{ background: "none", border: "none", cursor: "pointer", color: th.txt3, display: "flex" }}><span style={{ fontSize: 15 }}>😊</span></button>
+          <button onClick={recording ? stopRec : startRec} style={{ background: "none", border: "none", cursor: "pointer", color: recording ? "#ef4444" : th.txt3, display: "flex" }}>
+            {recording ? <MicOff size={16} /> : <Mic size={16} />}
+          </button>
+          {recording && <span style={{ fontSize: 11, color: "#ef4444", alignSelf: "center" }}>{recDur}s</span>}
+          <input ref={fileRef} type="file" accept="image/*,video/*,audio/*" multiple style={{ display: "none" }} onChange={e => addFile([...e.target.files])} />
+        </div>
+        <textarea
+          value={text}
+          onChange={e => setText(e.target.value)}
+          onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
+          placeholder={`Message ${page.name}…`}
+          rows={1}
+          style={{ flex: 1, background: th.inp, border: `1px solid ${th.inpB}`, borderRadius: 12, padding: "9px 12px", fontSize: 13, outline: "none", resize: "none", fontFamily: "inherit", color: th.txt, maxHeight: 80 }}
+        />
+        <button onClick={send} disabled={!text.trim() && !media.length} style={{ background: (text.trim() || media.length) ? pt.c : th.surf2, border: "none", borderRadius: 10, padding: "9px 14px", cursor: (text.trim() || media.length) ? "pointer" : "default", color: "#fff", display: "flex", alignItems: "center" }}>
+          <Send size={15} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// ─── FILE MANAGER ────────────────────────────────────────────
+// ============================================================
+function FileManager({ startup, page, me, profiles, dk }) {
+  const th = T(dk);
+  const [files, setFiles] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const fileRef = useRef();
+
+  useEffect(() => {
+    db.get("rs_page_files", `page_id=eq.${page.id}&order=created_at.desc`).then(d => { setFiles(d || []); setLoading(false); });
+  }, [page.id]);
+
+  const upload = async selectedFiles => {
+    for (const f of selectedFiles) {
+      try {
+        const url = await fileToB64(f, 10);
+        const type = f.type.startsWith("image") ? "image" : f.type.startsWith("video") ? "video" : f.type === "application/pdf" ? "pdf" : "other";
+        const saved = await db.post("rs_page_files", { startup_id: startup.id, page_id: page.id, uploaded_by: me, name: f.name, file_type: type, url, size_bytes: f.size });
+        if (saved) {
+          setFiles(fs => [saved, ...fs]);
+          await logActivity(startup.id, page.id, me, "file_uploaded", `File uploaded: ${f.name}`);
+        }
+      } catch {}
+    }
+  };
+
+  const del = async id => {
+    setFiles(fs => fs.filter(f => f.id !== id));
+    await db.del("rs_page_files", `id=eq.${id}`);
+  };
+
+  const fileIcons = { image: "🖼️", video: "🎬", pdf: "📄", other: "📎" };
+  const fmtSize = b => b > 1024 * 1024 ? `${(b / 1024 / 1024).toFixed(1)}MB` : `${(b / 1024).toFixed(0)}KB`;
+
+  return (
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+        <span style={{ fontSize: 14, fontWeight: 700, color: th.txt }}>{files.length} file{files.length !== 1 ? "s" : ""}</span>
+        <Btn onClick={() => fileRef.current?.click()} small><Upload size={13} /> Upload</Btn>
+        <input ref={fileRef} type="file" multiple style={{ display: "none" }} onChange={e => upload([...e.target.files])} />
+      </div>
+      {loading ? <Spin dk={dk} /> : files.length === 0 ? (
+        <div onClick={() => fileRef.current?.click()} style={{ textAlign: "center", padding: 40, color: th.txt3, border: `2px dashed ${th.bdr}`, borderRadius: 14, cursor: "pointer" }}>
+          <Upload size={32} style={{ marginBottom: 10, opacity: 0.4 }} /><p>Click to upload files</p>
+        </div>
+      ) : (
+        <div style={{ display: "grid", gap: 8 }}>
+          {files.map(f => {
+            const uploader = profiles[f.uploaded_by] || { name: "Member" };
             return (
-              <div key={status} style={{ marginBottom: 20 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                  <span style={{ padding: '4px 12px', borderRadius: 20, background: S.bg, color: S.color, fontSize: 12, fontWeight: 800, textTransform: 'capitalize' }}>{status.replace('_',' ')}</span>
-                  <span style={{ fontSize: 13, color: 'var(--text-secondary,#9ca3af)' }}>({group.length})</span>
+              <div key={f.id} style={{ display: "flex", gap: 12, alignItems: "center", background: th.surf, border: `1px solid ${th.bdr}`, borderRadius: 12, padding: "10px 14px" }}>
+                <span style={{ fontSize: 24 }}>{fileIcons[f.file_type] || "📎"}</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: th.txt, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.name}</div>
+                  <div style={{ fontSize: 11, color: th.txt3 }}>{fmtSize(f.size_bytes || 0)} · {uploader.name} · {ago(new Date(f.created_at).getTime())}</div>
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {group.map(task => (
-                    <div key={task._id} style={{ background: 'var(--bg-card,#fff)', border: '1px solid var(--border,#e5e7eb)', borderRadius: 12, padding: 16, display: 'flex', gap: 12 }}>
-                      <button onClick={() => updateTaskStatus(task._id, task.status === 'completed' ? 'pending' : 'completed')} style={{ background: 'none', border: 'none', cursor: 'pointer', flexShrink: 0, marginTop: 2 }}>
-                        <CheckCircle size={20} color={task.status === 'completed' ? '#22c55e' : 'var(--border,#d1d5db)'} fill={task.status === 'completed' ? '#22c55e' : 'none'} />
-                      </button>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 4 }}>
-                          <span style={{ fontWeight: 700, fontSize: 15, textDecoration: task.status === 'completed' ? 'line-through' : 'none', color: task.status === 'completed' ? 'var(--text-secondary,#9ca3af)' : 'var(--text-primary,#111)' }}>{task.title}</span>
-                          <span style={{ padding: '2px 8px', borderRadius: 20, background: `${PRIO_COLORS[task.priority]}18`, color: PRIO_COLORS[task.priority], fontSize: 11, fontWeight: 700, textTransform: 'uppercase' }}>{task.priority}</span>
-                        </div>
-                        {task.description && <p style={{ margin: '0 0 8px', fontSize: 13, color: 'var(--text-secondary,#6b7280)' }}>{task.description}</p>}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                          {task.assigned_to?.length > 0 && (
-                            <div style={{ display: 'flex', gap: -4 }}>
-                              {task.assigned_to.slice(0,3).map(u => <img key={u._id} src={u.avatar || '/default-avatar.png'} style={{ width: 22, height: 22, borderRadius: '50%', objectFit: 'cover', border: '1.5px solid #fff' }} />)}
-                            </div>
-                          )}
-                          {task.due_date && <span style={{ fontSize: 12, color: 'var(--text-secondary,#9ca3af)', display: 'flex', alignItems: 'center', gap: 4 }}><Clock size={12} /> {new Date(task.due_date).toLocaleDateString()}</span>}
-                          <select value={task.status} onChange={e => updateTaskStatus(task._id, e.target.value)} style={{ fontSize: 12, padding: '3px 8px', borderRadius: 6, border: '1px solid var(--border,#e5e7eb)', cursor: 'pointer' }}>
-                            <option value="pending">Pending</option>
-                            <option value="in_progress">In Progress</option>
-                            <option value="completed">Completed</option>
-                          </select>
-                        </div>
-                      </div>
-                      {canManage && (
-                        <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
-                          <button onClick={() => setEditTask(task)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}><Edit3 size={14} /></button>
-                          <button onClick={() => colabService.deleteTask(pageId, task._id).then(load)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}><Trash2 size={14} color="#ef4444" /></button>
-                        </div>
-                      )}
-                    </div>
-                  ))}
+                <div style={{ display: "flex", gap: 6 }}>
+                  <a href={f.url} download={f.name} style={{ display: "flex", alignItems: "center", background: "#3b82f618", border: "1px solid #3b82f630", borderRadius: 8, padding: "5px 8px", color: "#3b82f6" }}><Download size={13} /></a>
+                  {f.uploaded_by === me && <button onClick={() => del(f.id)} style={{ display: "flex", alignItems: "center", background: "#ef444418", border: "1px solid #ef444430", borderRadius: 8, padding: "5px 8px", color: "#ef4444", cursor: "pointer" }}><Trash2 size={13} /></button>}
                 </div>
               </div>
             );
           })}
-          {tasks.length === 0 && <div style={{ textAlign: 'center', padding: 60, color: 'var(--text-secondary,#9ca3af)' }}>No tasks yet</div>}
         </div>
       )}
-
-      // ── MEETINGS
-      {tab === 'meetings' && (
-        <div style={{ flex: 1, overflowY: 'auto' }}>
-          <div style={{ marginBottom: 14 }}>
-            <button onClick={() => setShowMeeting(true)} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 20px', background: 'var(--accent,#0a66c2)', color: '#fff', border: 'none', borderRadius: 10, fontWeight: 700, cursor: 'pointer' }}>
-              <Calendar size={16} /> Schedule Meeting
-            </button>
-          </div>
-          {meetings.length === 0
-            ? <div style={{ textAlign: 'center', padding: 60, color: 'var(--text-secondary,#9ca3af)' }}>No upcoming meetings</div>
-            : meetings.map(m => (
-              <div key={m._id} style={{ background: 'var(--bg-card,#fff)', border: '1px solid var(--border,#e5e7eb)', borderRadius: 14, padding: 20, marginBottom: 12 }}>
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
-                  <div style={{ width: 52, height: 52, borderRadius: 14, background: m.meeting_type === 'zoom' ? '#e8f4fd' : '#e8f5e9', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, flexShrink: 0 }}>
-                    {m.meeting_type === 'zoom' ? '🎥' : '📹'}
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 800, fontSize: 16, marginBottom: 4 }}>{m.title}</div>
-                    {m.description && <p style={{ margin: '0 0 8px', fontSize: 13, color: 'var(--text-secondary,#6b7280)' }}>{m.description}</p>}
-                    <div style={{ fontSize: 13, color: 'var(--text-secondary,#6b7280)' }}>📅 {new Date(m.scheduled_at).toLocaleString()} · ⏱ {m.duration_min} min</div>
-                    {m.participants?.length > 0 && (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 10 }}>
-                        {m.participants.map(p => <img key={p._id} src={p.avatar || '/default-avatar.png'} title={p.name} style={{ width: 26, height: 26, borderRadius: '50%', objectFit: 'cover' }} />)}
-                      </div>
-                    )}
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flexShrink: 0 }}>
-                    <a href={m.meeting_link} target="_blank" rel="noopener noreferrer" style={{ padding: '9px 20px', background: 'var(--accent,#0a66c2)', color: '#fff', borderRadius: 10, fontSize: 13, fontWeight: 700, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <Video size={14} /> Join
-                    </a>
-                    {canManage && <button onClick={() => colabService.deleteMeeting(pageId, m._id).then(load)} style={{ padding: '7px', background: '#fee2e2', border: 'none', borderRadius: 8, cursor: 'pointer' }}><Trash2 size={13} color="#dc2626" /></button>}
-                  </div>
-                </div>
-              </div>
-            ))
-          }
-        </div>
-      )}
-
-      // ── FILES
-      {tab === 'files' && (
-        <div style={{ flex: 1, overflowY: 'auto' }}>
-          <div style={{ marginBottom: 14 }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 20px', background: 'var(--accent,#0a66c2)', color: '#fff', borderRadius: 10, fontWeight: 700, cursor: 'pointer', width: 'fit-content' }}>
-              <Paperclip size={16} /> {uploading ? 'Uploading…' : 'Upload File'}
-              <input type="file" style={{ display: 'none' }} disabled={uploading} onChange={async e => {
-                const f = e.target.files[0]; if (!f) return;
-                setUploading(true);
-                const fd = new FormData(); fd.append('file', f);
-                await colabService.uploadFile(pageId, fd);
-                setUploading(false); load();
-              }} />
-            </label>
-          </div>
-          {files.length === 0
-            ? <div style={{ textAlign: 'center', padding: 60, color: 'var(--text-secondary,#9ca3af)' }}>No files uploaded yet</div>
-            : files.map(f => (
-              <div key={f._id} style={{ background: 'var(--bg-card,#fff)', border: '1px solid var(--border,#e5e7eb)', borderRadius: 12, padding: '14px 18px', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 12 }}>
-                <div style={{ width: 44, height: 44, borderRadius: 10, background: 'var(--bg-secondary,#f3f4f6)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, flexShrink: 0 }}>
-                  {f.mime_type?.startsWith('image') ? '🖼️' : f.mime_type?.includes('pdf') ? '📄' : '📎'}
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 700, fontSize: 14, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{f.name}</div>
-                  <div style={{ fontSize: 12, color: 'var(--text-secondary,#9ca3af)' }}>{(f.size_bytes / 1024).toFixed(1)} KB · {f.uploaded_by?.name} · {new Date(f.created_at).toLocaleDateString()}</div>
-                </div>
-                <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-                  <a href={f.url} download target="_blank" rel="noopener noreferrer" style={{ padding: '7px 16px', background: 'var(--accent-light,#eff6ff)', color: 'var(--accent,#0a66c2)', borderRadius: 8, fontSize: 13, fontWeight: 700, textDecoration: 'none' }}>Download</a>
-                  {canManage && <button onClick={() => deleteFile(f._id)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6 }}><Trash2 size={14} color="#ef4444" /></button>}
-                </div>
-              </div>
-            ))
-          }
-        </div>
-      )}
-
-      // Modals
-      {showMeeting && <MeetingModal pageId={pageId} members={members} onClose={() => setShowMeeting(false)} onSuccess={load} />}
-      {(showTask || editTask) && <TaskModal pageId={pageId} members={members} task={editTask} onClose={() => { setShowTask(false); setEditTask(null); }} onSuccess={load} />}
     </div>
   );
-};
-export default ColabPageWorkspace;
-*/
+}
 
+// ============================================================
+// ─── INVESTOR DATA PANEL ─────────────────────────────────────
+// ============================================================
+function InvestorPanel({ startup, me, dk, isFounder }) {
+  const th = T(dk);
+  const [data, setData] = useState(null);
+  const [editing, setEditing] = useState(false);
+  const [form, setForm] = useState({ stage: "pre-seed", funding_goal: 0, raised_so_far: 0, one_liner: "", traction: { mrr: 0, users: 0, growth_rate: 0 } });
+  const setF = (k, v) => setForm(p => ({ ...p, [k]: v }));
+  const setT = (k, v) => setForm(p => ({ ...p, traction: { ...p.traction, [k]: v } }));
 
-// ════════════════════════════════════════════════════════════════════════════════
-// SECTION I — ROUTER REGISTRATION
-// Add to your existing App.jsx / routes config
-// ════════════════════════════════════════════════════════════════════════════════
+  useEffect(() => {
+    db.get("rs_startup_investor_data", `startup_id=eq.${startup.id}`).then(d => {
+      if (d?.[0]) { setData(d[0]); setForm({ stage: d[0].stage, funding_goal: d[0].funding_goal, raised_so_far: d[0].raised_so_far, one_liner: d[0].one_liner, traction: d[0].traction || { mrr: 0, users: 0, growth_rate: 0 } }); }
+    });
+  }, [startup.id]);
 
-/*
-// ADD these imports:
-import ColabListPage       from './pages/colab/ColabListPage';
-import ColabDetailPage     from './pages/colab/ColabDetailPage';
-import ColabDashboardPage  from './pages/colab/ColabDashboardPage';
-import ColabPageWorkspace  from './pages/colab/ColabPageWorkspace';
+  const save = async () => {
+    const saved = await db.upsert("rs_startup_investor_data", { startup_id: startup.id, ...form });
+    if (saved) { setData(saved); setEditing(false); }
+  };
 
-// ADD inside your <Routes> (all require auth):
-<Route path="/colab"                  element={<ProtectedRoute><ColabListPage /></ProtectedRoute>} />
-<Route path="/colab/:id"              element={<ProtectedRoute><ColabDetailPage /></ProtectedRoute>} />
-<Route path="/colab/:id/dashboard"    element={<ProtectedRoute><ColabDashboardPage /></ProtectedRoute>} />
-<Route path="/colab/page/:pageId"     element={<ProtectedRoute><ColabPageWorkspace /></ProtectedRoute>} />
+  const stages = ["pre-seed", "seed", "series-a", "series-b", "growth"];
+  const fmtUSD = n => n >= 1e6 ? `$${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `$${(n / 1e3).toFixed(0)}K` : `$${n}`;
 
-// ADD in server/app.js or index.js:
-app.use('/api/colab', require('./routes/colab'));
-*/
+  if (editing && isFounder) return (
+    <div style={{ display: "grid", gap: 12 }}>
+      <div>
+        <label style={{ fontSize: 11, fontWeight: 700, color: th.txt3, display: "block", marginBottom: 6 }}>STAGE</label>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+          {stages.map(s => <button key={s} onClick={() => setF("stage", s)} style={{ padding: "5px 12px", borderRadius: 20, border: `1px solid ${form.stage === s ? "#10b981" : th.bdr}`, background: form.stage === s ? "#10b98118" : "transparent", color: form.stage === s ? "#10b981" : th.txt3, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>{s}</button>)}
+        </div>
+      </div>
+      {[{ k: "one_liner", l: "One Liner", p: "We help X do Y by Z" }, { k: "funding_goal", l: "Funding Goal (USD)", p: "500000", t: "number" }, { k: "raised_so_far", l: "Raised So Far (USD)", p: "0", t: "number" }].map(f => (
+        <div key={f.k}>
+          <label style={{ fontSize: 11, fontWeight: 700, color: th.txt3, display: "block", marginBottom: 5 }}>{f.l.toUpperCase()}</label>
+          <input type={f.t || "text"} value={form[f.k]} onChange={e => setF(f.k, f.t === "number" ? +e.target.value : e.target.value)} placeholder={f.p} style={InpStyle(dk)} />
+        </div>
+      ))}
+      <div>
+        <label style={{ fontSize: 11, fontWeight: 700, color: th.txt3, display: "block", marginBottom: 8 }}>TRACTION</label>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+          {[["mrr", "MRR ($)"], ["users", "Users"], ["growth_rate", "Growth %"]].map(([k, l]) => (
+            <div key={k}>
+              <label style={{ fontSize: 10, color: th.txt3, display: "block", marginBottom: 4 }}>{l}</label>
+              <input type="number" value={form.traction[k] || 0} onChange={e => setT(k, +e.target.value)} style={InpStyle(dk)} />
+            </div>
+          ))}
+        </div>
+      </div>
+      <div style={{ display: "flex", gap: 8 }}><Btn onClick={save} small>Save</Btn><Btn onClick={() => setEditing(false)} outline color="#7a93c0" small>Cancel</Btn></div>
+    </div>
+  );
 
+  return (
+    <div>
+      {isFounder && <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}><Btn onClick={() => setEditing(true)} outline color="#3b82f6" small><Edit3 size={12} /> Edit</Btn></div>}
+      {!data ? (
+        <div style={{ textAlign: "center", padding: 40, color: th.txt3 }}>
+          <Star size={32} style={{ marginBottom: 10, opacity: 0.4 }} />
+          <p>{isFounder ? "Add investor information to attract funding." : "No investor data published yet."}</p>
+        </div>
+      ) : (
+        <div style={{ display: "grid", gap: 12 }}>
+          <div style={{ background: "linear-gradient(135deg,#10b98118,#3b82f618)", border: "1px solid #10b98130", borderRadius: 14, padding: 16 }}>
+            <div style={{ fontSize: 12, color: "#10b981", fontWeight: 700, marginBottom: 4 }}>STAGE</div>
+            <div style={{ fontSize: 20, fontWeight: 800, color: th.txt, textTransform: "capitalize" }}>{data.stage}</div>
+            {data.one_liner && <p style={{ fontSize: 13, color: th.txt2, margin: "8px 0 0", lineHeight: 1.5 }}>{data.one_liner}</p>}
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            {[{ l: "Funding Goal", v: fmtUSD(data.funding_goal || 0) }, { l: "Raised So Far", v: fmtUSD(data.raised_so_far || 0) }].map(({ l, v }) => (
+              <div key={l} style={{ background: th.surf2, border: `1px solid ${th.bdr}`, borderRadius: 12, padding: 14 }}>
+                <div style={{ fontSize: 11, color: th.txt3, fontWeight: 700 }}>{l}</div>
+                <div style={{ fontSize: 22, fontWeight: 800, color: th.txt, marginTop: 4 }}>{v}</div>
+              </div>
+            ))}
+          </div>
+          {data.traction && (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+              {[["MRR", `$${data.traction.mrr || 0}`], ["Users", data.traction.users || 0], ["Growth", `${data.traction.growth_rate || 0}%`]].map(([l, v]) => (
+                <div key={l} style={{ background: th.surf2, border: `1px solid ${th.bdr}`, borderRadius: 12, padding: 14, textAlign: "center" }}>
+                  <div style={{ fontSize: 11, color: th.txt3, fontWeight: 700 }}>{l}</div>
+                  <div style={{ fontSize: 18, fontWeight: 800, color: "#10b981", marginTop: 4 }}>{v}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
-// ════════════════════════════════════════════════════════════════════════════════
-// FILE MAP — What goes where
-// ════════════════════════════════════════════════════════════════════════════════
+// ============================================================
+// ─── PAGE DETAIL VIEW ─────────────────────────────────────────
+// ============================================================
+function PageDetail({ startup, page, me, profiles, dk, onBack, isFounder }) {
+  const th = T(dk);
+  const [tab, setTab] = useState("chat");
+  const [members, setMembers] = useState([]);
+  const [meetings, setMeetings] = useState([]);
+  const [showMeeting, setShowMeeting] = useState(false);
 
-/*
-NEW BACKEND:
-  models/
-    Startup.js              ← Section A
-    StartupPage.js          ← Section A
-    PageAccess.js           ← Section A
-    PageAccessRequest.js    ← Section A
-    PageTask.js             ← Section A
-    PageMeeting.js          ← Section A
-    PageFile.js             ← Section A
-    PageMessage.js          ← Section A
-    StartupUpdate.js        ← Section A
-    StartupFeedback.js      ← Section A
-    ColabNotification.js    ← Section A
-  middleware/
-    colabAuth.js            ← Section B
-  routes/
-    colab.js                ← Section C
+  const pt = PAGE_TYPES.find(x => x.id === page.page_type) || PAGE_TYPES[6];
 
-EXTEND:
-  server/socket.js (or index.js)  ← Section D — add registerColabSocket()
+  useEffect(() => {
+    (async () => {
+      const [ms, mts] = await Promise.all([
+        db.get("rs_page_access", `page_id=eq.${page.id}&status=eq.approved`),
+        db.get("rs_startup_meetings", `page_id=eq.${page.id}&order=scheduled_at.asc`),
+      ]);
+      setMembers(ms || []);
+      setMeetings(mts || []);
+    })();
+  }, [page.id]);
 
-NEW FRONTEND:
-  src/services/
-    colabService.js                          ← Section E
-  src/components/colab/
-    StackedAvatars.jsx                       ← Section F
-    SocialLinks.jsx                          ← Section F
-    ColabBadge.jsx                           ← Section F
-    UserPreview.jsx                          ← Section F
-    ColabNotificationBell.jsx                ← Section F
-    modals/
-      JoinModal.jsx                          ← Section G
-      CreateStartupModal.jsx                 ← Section G
-      MeetingModal.jsx                       ← Section G
-      TaskModal.jsx                          ← Section G
-  src/pages/colab/
-    ColabListPage.jsx                        ← Section H
-    ColabDetailPage.jsx                      ← Section H
-    ColabDashboardPage.jsx                   ← Section H
-    ColabPageWorkspace.jsx                   ← Section H
+  const tabs = [
+    { id: "chat", label: "Chat", icon: MessageCircle },
+    { id: "tasks", label: "Tasks", icon: CheckCircle2 },
+    { id: "files", label: "Files", icon: File },
+    { id: "meetings", label: "Meetings", icon: Calendar },
+    ...(page.page_type === "investor" ? [{ id: "investor", label: "Investor Info", icon: TrendingUp }] : []),
+    { id: "members", label: "Members", icon: Users },
+  ];
 
-MODIFIED:
-  src/App.jsx (or routes file)  ← Section I — 4 new routes
-  server/app.js                 ← Section I — mount /api/colab
-  your navbar/header            ← add <ColabNotificationBell />
-*/
+  return (
+    <div style={{ animation: "fadeUp .3s ease" }}>
+      {showMeeting && <BookMeetingModal startup={startup} page={page} me={me} profiles={profiles} allPageMembers={members} onClose={() => setShowMeeting(false)} onSave={m => setMeetings(ms => [m, ...ms])} dk={dk} />}
+
+      <button onClick={onBack} style={{ display: "flex", alignItems: "center", gap: 6, background: "transparent", border: "none", cursor: "pointer", color: th.txt2, fontSize: 13, fontWeight: 600, padding: "0 0 14px", fontFamily: "inherit" }}>
+        <ArrowLeft size={15} /> Back to {startup.name}
+      </button>
+
+      {/* Page Header */}
+      <div style={{ background: `linear-gradient(135deg,${pt.c}22,${pt.c}08)`, border: `1px solid ${pt.c}30`, borderRadius: 16, padding: 18, marginBottom: 16 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
+          <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+            <div style={{ width: 46, height: 46, borderRadius: 12, background: pt.c + "25", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22 }}>{pt.e}</div>
+            <div>
+              <div style={{ fontWeight: 800, fontSize: 17, color: th.txt }}>{page.name}</div>
+              <div style={{ fontSize: 12, color: th.txt2 }}>{page.description || pt.desc}</div>
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <StackedAv uids={members.map(m => m.user_id)} profiles={profiles} size={24} />
+            <span style={{ fontSize: 12, color: th.txt3 }}>{members.length} member{members.length !== 1 ? "s" : ""}</span>
+            <Btn onClick={() => setShowMeeting(true)} small color={pt.c}><Calendar size={12} /> Book Meeting</Btn>
+          </div>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div style={{ display: "flex", gap: 2, marginBottom: 16, background: th.surf2, borderRadius: 12, padding: 4, border: `1px solid ${th.bdr}`, overflowX: "auto" }}>
+        {tabs.map(({ id, label, icon: Icon }) => (
+          <button key={id} onClick={() => setTab(id)} style={{ display: "flex", alignItems: "center", gap: 5, flex: "0 0 auto", padding: "7px 12px", borderRadius: 9, border: "none", background: tab === id ? pt.c : "transparent", color: tab === id ? "#fff" : th.txt2, fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", transition: "all .2s" }}>
+            <Icon size={13} /> {label}
+          </button>
+        ))}
+      </div>
+
+      {/* Tab Content */}
+      {tab === "chat" && <PageChat startup={startup} page={page} me={me} profiles={profiles} members={members} dk={dk} />}
+      {tab === "tasks" && <TaskBoard startup={startup} page={page} me={me} profiles={profiles} members={members} dk={dk} />}
+      {tab === "files" && <FileManager startup={startup} page={page} me={me} profiles={profiles} dk={dk} />}
+      {tab === "investor" && <InvestorPanel startup={startup} me={me} dk={dk} isFounder={isFounder} />}
+
+      {tab === "meetings" && (
+        <div>
+          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
+            <Btn onClick={() => setShowMeeting(true)} small><Plus size={13} /> Schedule</Btn>
+          </div>
+          {meetings.length === 0 ? (
+            <div style={{ textAlign: "center", padding: 40, color: th.txt3 }}><Calendar size={36} style={{ marginBottom: 10, opacity: 0.4 }} /><p>No meetings scheduled yet.</p></div>
+          ) : meetings.map(m => (
+            <div key={m.id} style={{ background: th.surf, border: `1px solid ${th.bdr}`, borderRadius: 12, padding: "14px 16px", marginBottom: 8 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 8 }}>
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: 14, color: th.txt }}>{m.title}</div>
+                  <div style={{ fontSize: 12, color: th.txt3, marginTop: 3 }}>📅 {fmtDateTime(m.scheduled_at)} · {m.duration_mins} min · {m.platform === "zoom" ? "🔵 Zoom" : "🟢 Google Meet"}</div>
+                  {m.note && <p style={{ fontSize: 12, color: th.txt2, margin: "6px 0 0", lineHeight: 1.4 }}>{m.note}</p>}
+                </div>
+                <a href={m.meeting_link} target="_blank" rel="noopener noreferrer" style={{ display: "flex", alignItems: "center", gap: 5, background: "#3b82f6", border: "none", borderRadius: 8, padding: "6px 12px", color: "#fff", fontSize: 12, fontWeight: 700 }}>
+                  <Phone size={12} /> Join
+                </a>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10 }}>
+                <StackedAv uids={m.participants || []} profiles={profiles} size={22} />
+                <span style={{ fontSize: 11, color: th.txt3 }}>{(m.participants || []).length} participant{(m.participants || []).length !== 1 ? "s" : ""}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {tab === "members" && (
+        <div>
+          {members.length === 0 ? <div style={{ textAlign: "center", padding: 40, color: th.txt3 }}><Users size={36} style={{ marginBottom: 10, opacity: 0.4 }} /><p>No members yet.</p></div>
+          : members.map(m => {
+            const p = profiles[m.user_id] || { name: "Member" };
+            return (
+              <div key={m.id} style={{ display: "flex", gap: 12, alignItems: "center", background: th.surf, border: `1px solid ${th.bdr}`, borderRadius: 12, padding: "12px 14px", marginBottom: 8 }}>
+                <Av profile={p} size={40} />
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 700, fontSize: 14, color: th.txt }}>{p.name}</div>
+                  <div style={{ fontSize: 12, color: th.txt3 }}>{p.handle ? `@${p.handle}` : ""}</div>
+                </div>
+                <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                  {m.is_admin && <Badge label="Page Admin" color="#f59e0b" />}
+                  <Badge label={m.role_type} color={pt.c} />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ============================================================
+// ─── FEEDBACK SECTION ────────────────────────────────────────
+// ============================================================
+function FeedbackSection({ startup, me, profiles, dk, isFounder }) {
+  const th = T(dk);
+  const [feedbacks, setFeedbacks] = useState([]);
+  const [expanded, setExpanded] = useState(false);
+  const [text, setText] = useState("");
+  const [media, setMedia] = useState([]);
+  const [submitting, setSubmitting] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [recording, setRecording] = useState(false);
+  const [recDur, setRecDur] = useState(0);
+  const recRef = useRef(); const timerRef = useRef(); const fileRef = useRef();
+
+  useEffect(() => {
+    db.get("rs_startup_feedback", `startup_id=eq.${startup.id}&order=created_at.desc&limit=20`).then(d => { setFeedbacks(d || []); setLoading(false); });
+  }, [startup.id]);
+
+  const startRec = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mr = new MediaRecorder(stream);
+      const chunks = [];
+      mr.ondataavailable = e => chunks.push(e.data);
+      mr.onstop = () => {
+        const blob = new Blob(chunks, { type: "audio/webm" });
+        const reader = new FileReader();
+        reader.onload = () => setMedia(m => [...m, { type: "audio", url: reader.result }]);
+        reader.readAsDataURL(blob);
+        stream.getTracks().forEach(t => t.stop());
+      };
+      mr.start(); recRef.current = mr; setRecording(true); setRecDur(0);
+      timerRef.current = setInterval(() => setRecDur(d => d + 1), 1000);
+    } catch {}
+  };
+  const stopRec = () => { recRef.current?.stop(); setRecording(false); clearInterval(timerRef.current); };
+
+  const submit = async () => {
+    if (!text.trim() && !media.length) return;
+    setSubmitting(true);
+    const saved = await db.post("rs_startup_feedback", { startup_id: startup.id, user_id: me, message: text.trim(), media });
+    if (saved) { setFeedbacks(fb => [saved, ...fb]); setText(""); setMedia([]); }
+    setSubmitting(false);
+  };
+
+  const deleteFb = async id => {
+    setFeedbacks(fb => fb.filter(f => f.id !== id));
+    await db.del("rs_startup_feedback", `id=eq.${id}`);
+  };
+
+  return (
+    <div style={{ borderTop: `1px solid ${th.bdr}`, paddingTop: 20, marginTop: 20 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+        <div style={{ fontWeight: 700, fontSize: 15, color: th.txt, display: "flex", alignItems: "center", gap: 6 }}>
+          <MessageCircle size={16} color="#3b82f6" /> Feedback <span style={{ fontSize: 12, color: th.txt3, fontWeight: 400 }}>({feedbacks.length})</span>
+        </div>
+        <button onClick={() => setExpanded(x => !x)} style={{ display: "flex", alignItems: "center", gap: 5, background: "#3b82f618", border: "1px solid #3b82f630", borderRadius: 8, padding: "5px 12px", cursor: "pointer", color: "#3b82f6", fontSize: 12, fontWeight: 700 }}>
+          {expanded ? <><X size={12} /> Close</> : <><Plus size={12} /> Add Feedback</>}
+        </button>
+      </div>
+
+      {expanded && (
+        <div style={{ background: th.surf2, border: `1px solid ${th.bdr}`, borderRadius: 14, padding: 14, marginBottom: 14 }}>
+          <div style={{ display: "flex", gap: 10 }}>
+            <Av profile={profiles[me] || {}} size={32} />
+            <div style={{ flex: 1 }}>
+              <textarea value={text} onChange={e => setText(e.target.value)} placeholder="Share your thoughts on this startup…" rows={3} style={{ ...InpStyle(dk), resize: "none", marginBottom: 8 }} />
+              {media.length > 0 && (
+                <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+                  {media.map((m, i) => (
+                    <div key={i} style={{ position: "relative", width: 48, height: 48, borderRadius: 8, overflow: "hidden", border: `1px solid ${th.bdr}` }}>
+                      {m.type === "image" ? <img src={m.url} style={{ width: "100%", height: "100%", objectFit: "cover" }} alt="" />
+                        : m.type === "audio" ? <div style={{ width: "100%", height: "100%", background: "#8b5cf618", display: "flex", alignItems: "center", justifyContent: "center" }}><Mic size={16} color="#8b5cf6" /></div>
+                        : null}
+                      <button onClick={() => setMedia(m => m.filter((_, j) => j !== i))} style={{ position: "absolute", top: 1, right: 1, background: "rgba(0,0,0,.6)", border: "none", borderRadius: "50%", width: 14, height: 14, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#fff" }}><X size={8} /></button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <button onClick={() => fileRef.current?.click()} style={{ background: "none", border: "none", cursor: "pointer", color: th.txt3, display: "flex" }}><Image size={15} /></button>
+                  <button onClick={recording ? stopRec : startRec} style={{ background: "none", border: "none", cursor: "pointer", color: recording ? "#ef4444" : th.txt3, display: "flex" }}>{recording ? <><MicOff size={15} /><span style={{ fontSize: 11, color: "#ef4444", marginLeft: 4 }}>{recDur}s</span></> : <Mic size={15} />}</button>
+                  <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={async e => { for (const f of e.target.files) { try { const b64 = await fileToB64(f, 3); setMedia(m => [...m, { type: "image", url: b64 }]); } catch {} } }} />
+                </div>
+                <Btn onClick={submit} disabled={submitting || (!text.trim() && !media.length)} small>
+                  {submitting ? "Posting…" : "Post Feedback"}
+                </Btn>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {loading ? <Spin dk={dk} size={20} /> : feedbacks.length === 0 ? (
+        <p style={{ color: th.txt3, fontSize: 13, textAlign: "center", padding: "12px 0" }}>No feedback yet. Be the first!</p>
+      ) : feedbacks.map(fb => {
+        const author = profiles[fb.user_id] || { name: "Member" };
+        const canDel = isFounder || fb.user_id === me;
+        return (
+          <div key={fb.id} style={{ display: "flex", gap: 10, marginBottom: 12 }}>
+            <Av profile={author} size={32} />
+            <div style={{ flex: 1, background: th.surf2, borderRadius: 12, padding: "10px 12px", border: `1px solid ${th.bdr}` }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 5 }}>
+                <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                  <span style={{ fontWeight: 700, fontSize: 12, color: th.txt }}>{author.name}</span>
+                  <span style={{ fontSize: 11, color: th.txt3 }}>{ago(new Date(fb.created_at).getTime())}</span>
+                </div>
+                {canDel && <button onClick={() => deleteFb(fb.id)} style={{ background: "none", border: "none", cursor: "pointer", color: th.txt3, display: "flex" }}><Trash2 size={12} /></button>}
+              </div>
+              {fb.message && <p style={{ margin: 0, fontSize: 13, color: th.txt, lineHeight: 1.5 }}>{fb.message}</p>}
+              {fb.media?.map((m, i) => (
+                <div key={i} style={{ marginTop: 8 }}>
+                  {m.type === "image" && <img src={m.url} style={{ maxWidth: 200, borderRadius: 8 }} alt="" />}
+                  {m.type === "audio" && <audio src={m.url} controls style={{ maxWidth: 200 }} />}
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ============================================================
+// ─── FOUNDER DASHBOARD ────────────────────────────────────────
+// ============================================================
+function FounderDashboard({ startup, me, myProfile, profiles, dk, onBack, onStartupUpdated }) {
+  const th = T(dk);
+  const [tab, setTab] = useState("requests");
+  const [requests, setRequests] = useState([]);
+  const [pages, setPages] = useState([]);
+  const [allMembers, setAllMembers] = useState([]);
+  const [meetings, setMeetings] = useState([]);
+  const [updates, setUpdates] = useState([]);
+  const [activity, setActivity] = useState([]);
+  const [newUpdate, setNewUpdate] = useState("");
+  const [posting, setPosting] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [showEditStartup, setShowEditStartup] = useState(false);
+  const [showAddPage, setShowAddPage] = useState(false);
+  const [newPageName, setNewPageName] = useState("");
+  const [newPageType, setNewPageType] = useState("general");
+  const [showMeeting, setShowMeeting] = useState(false);
+
+  const load = useCallback(async () => {
+    const [rq, pg, acc, mts, us, act] = await Promise.all([
+      db.get("rs_page_access_requests", `startup_id=eq.${startup.id}&order=created_at.desc`),
+      db.get("rs_startup_pages", `startup_id=eq.${startup.id}&order=position.asc`),
+      db.get("rs_page_access", `startup_id=eq.${startup.id}&status=eq.approved`),
+      db.get("rs_startup_meetings", `startup_id=eq.${startup.id}&order=scheduled_at.asc&limit=20`),
+      db.get("rs_startup_updates", `startup_id=eq.${startup.id}&order=created_at.desc&limit=20`),
+      db.get("rs_startup_activity", `startup_id=eq.${startup.id}&order=created_at.desc&limit=30`),
+    ]);
+    setRequests(rq || []); setPages(pg || []); setAllMembers(acc || []);
+    setMeetings(mts || []); setUpdates(us || []); setActivity(act || []);
+    setLoading(false);
+  }, [startup.id]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const handleRequest = async (req, pageId, status) => {
+    const updatedStatuses = { ...(req.page_statuses || {}), [pageId]: status };
+    if (status === "approved") {
+      await db.upsert("rs_page_access", { startup_id: req.startup_id, page_id: pageId, user_id: req.user_id, role_type: req.selected_roles?.[0] || "other", status: "approved" });
+      await pushNotif(req.user_id, startup.id, "request_approved", "Request Approved!", `You've been approved to join ${startup.name}`, { page_id: pageId });
+    }
+    const allDecided = (req.requested_pages || []).every(pid => updatedStatuses[pid]);
+    const overallStatus = allDecided ? (Object.values(updatedStatuses).every(s => s === "approved") ? "approved" : "partial") : "pending";
+    await db.patch("rs_page_access_requests", `id=eq.${req.id}`, { page_statuses: updatedStatuses, status: overallStatus });
+    setRequests(rs => rs.map(r => r.id === req.id ? { ...r, page_statuses: updatedStatuses, status: overallStatus } : r));
+  };
+
+  const addPage = async () => {
+    if (!newPageName.trim()) return;
+    const saved = await db.post("rs_startup_pages", { startup_id: startup.id, name: newPageName.trim(), page_type: newPageType, position: pages.length });
+    if (saved) {
+      setPages(ps => [...ps, saved]);
+      await db.post("rs_page_access", { startup_id: startup.id, page_id: saved.id, user_id: me, role_type: "founder", is_admin: true, status: "approved" });
+      setNewPageName(""); setNewPageType("general"); setShowAddPage(false);
+    }
+  };
+
+  const deletePage = async id => {
+    if (!window.confirm("Delete this page? All content will be lost.")) return;
+    setPages(ps => ps.filter(p => p.id !== id));
+    await db.del("rs_startup_pages", `id=eq.${id}`);
+  };
+
+  const removeMember = async (pageId, userId) => {
+    setAllMembers(ms => ms.filter(m => !(m.page_id === pageId && m.user_id === userId)));
+    await db.del("rs_page_access", `page_id=eq.${pageId}&user_id=eq.${userId}`);
+  };
+
+  const postUpdate = async () => {
+    if (!newUpdate.trim()) return; setPosting(true);
+    const saved = await db.post("rs_startup_updates", { startup_id: startup.id, content: newUpdate.trim(), created_by: me });
+    if (saved) { setUpdates(us => [saved, ...us]); setNewUpdate(""); await logActivity(startup.id, null, me, "update_posted", "Update posted"); }
+    setPosting(false);
+  };
+
+  const deleteUpdate = async id => {
+    setUpdates(us => us.filter(u => u.id !== id));
+    await db.del("rs_startup_updates", `id=eq.${id}`);
+  };
+
+  const pending = requests.filter(r => r.status === "pending");
+  const uniqueMembers = [...new Map(allMembers.map(m => [m.user_id, m])).values()];
+
+  const TABS = [
+    { id: "requests", label: `Requests${pending.length ? ` (${pending.length})` : ""}` },
+    { id: "pages", label: "Pages" },
+    { id: "members", label: "Members" },
+    { id: "meetings", label: "Meetings" },
+    { id: "updates", label: "Updates" },
+    { id: "activity", label: "Activity" },
+  ];
+
+  return (
+    <div style={{ animation: "fadeUp .3s ease" }}>
+      {showEditStartup && <CreateStartupModal me={me} myProfile={myProfile} existing={startup} onClose={() => setShowEditStartup(false)} onSave={onStartupUpdated} dk={dk} />}
+      {showMeeting && <BookMeetingModal startup={startup} page={null} me={me} profiles={profiles} allPageMembers={uniqueMembers.map(m => ({ user_id: m.user_id }))} onClose={() => setShowMeeting(false)} onSave={m => setMeetings(ms => [m, ...ms])} dk={dk} />}
+
+      <button onClick={onBack} style={{ display: "flex", alignItems: "center", gap: 6, background: "transparent", border: "none", cursor: "pointer", color: T(dk).txt2, fontSize: 13, fontWeight: 600, padding: "0 0 14px", fontFamily: "inherit" }}>
+        <ArrowLeft size={15} /> Back to Colab
+      </button>
+
+      {/* Startup Header */}
+      <div style={{ background: "linear-gradient(135deg,#1e3a8a22,#5b21b622)", border: "1px solid #3b82f630", borderRadius: 18, padding: 20, marginBottom: 16 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
+          <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
+            <div style={{ width: 56, height: 56, borderRadius: 16, background: "linear-gradient(135deg,#3b82f6,#8b5cf6)", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              {startup.logo ? <img src={startup.logo} style={{ width: "100%", height: "100%", objectFit: "cover" }} alt="" /> : <span style={{ fontSize: 26 }}>🚀</span>}
+            </div>
+            <div>
+              <div style={{ fontWeight: 900, fontSize: 20, color: T(dk).txt }}>{startup.name}</div>
+              <div style={{ fontSize: 12, color: T(dk).txt3 }}>Founder Dashboard · {pages.length} pages · {uniqueMembers.length} members</div>
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+            <div style={{ background: "#f59e0b18", border: "1px solid #f59e0b40", borderRadius: 10, padding: "6px 14px", textAlign: "center" }}>
+              <div style={{ fontSize: 10, color: "#f59e0b", fontWeight: 700 }}>REFERRAL CODE</div>
+              <div style={{ fontFamily: "monospace", fontSize: 14, fontWeight: 800, color: "#f59e0b", letterSpacing: 1 }}>{startup.referral_code}</div>
+            </div>
+            <button onClick={() => { try { navigator.clipboard.writeText(startup.referral_code); } catch {} }} style={{ background: "#f59e0b18", border: "1px solid #f59e0b40", borderRadius: 8, padding: "6px 10px", cursor: "pointer", color: "#f59e0b", display: "flex", alignItems: "center" }}><Copy size={13} /></button>
+            <Btn onClick={() => setShowMeeting(true)} small outline color="#3b82f6"><Calendar size={12} /> Meeting</Btn>
+            <Btn onClick={() => setShowEditStartup(true)} small outline color="#7a93c0"><Edit3 size={12} /> Edit</Btn>
+          </div>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div style={{ display: "flex", gap: 4, marginBottom: 16, background: T(dk).surf2, borderRadius: 12, padding: 4, border: `1px solid ${T(dk).bdr}`, overflowX: "auto" }}>
+        {TABS.map(({ id, label }) => (
+          <button key={id} onClick={() => setTab(id)} style={{ flex: "0 0 auto", padding: "7px 14px", borderRadius: 9, border: "none", background: tab === id ? "#3b82f6" : "transparent", color: tab === id ? "#fff" : T(dk).txt2, fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>{label}</button>
+        ))}
+      </div>
+
+      {loading ? <Spin dk={dk} /> : (
+        <>
+          {/* ── REQUESTS TAB ── */}
+          {tab === "requests" && (
+            <div>
+              {requests.length === 0 ? (
+                <div style={{ textAlign: "center", padding: 48, color: T(dk).txt3 }}><Users size={36} style={{ marginBottom: 10, opacity: 0.4 }} /><p>No join requests yet.</p></div>
+              ) : requests.map(req => {
+                const p = profiles[req.user_id] || { name: "Applicant" };
+                const requestedPageObjs = (req.requested_pages || []).map(pid => pages.find(pg => pg.id === pid)).filter(Boolean);
+                return (
+                  <div key={req.id} style={{ background: T(dk).surf, border: `1px solid ${T(dk).bdr}`, borderRadius: 14, padding: 16, marginBottom: 10 }}>
+                    <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+                      <Av profile={p} size={44} />
+                      <div style={{ flex: 1 }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
+                          <div>
+                            <div style={{ fontWeight: 700, fontSize: 14, color: T(dk).txt }}>{p.name}</div>
+                            <div style={{ fontSize: 12, color: T(dk).txt3, marginBottom: 6 }}>{p.handle ? `@${p.handle}` : ""}</div>
+                            <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginBottom: 8 }}>
+                              {(req.selected_roles || []).map(r => { const ro = JOIN_ROLES.find(x => x.id === r); return ro ? <Badge key={r} label={`${ro.e} ${ro.label}`} color="#8b5cf6" /> : null; })}
+                            </div>
+                            {req.message && <p style={{ fontSize: 12, color: T(dk).txt2, margin: "0 0 10px", fontStyle: "italic" }}>"{req.message}"</p>}
+                            {/* Per-page approve/reject */}
+                            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                              {requestedPageObjs.map(pg => {
+                                const pt = PAGE_TYPES.find(x => x.id === pg.page_type) || PAGE_TYPES[6];
+                                const ps = req.page_statuses?.[pg.id];
+                                return (
+                                  <div key={pg.id} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                                    <span style={{ fontSize: 13 }}>{pt.e}</span>
+                                    <span style={{ fontSize: 12, color: T(dk).txt, flex: 1 }}>{pg.name}</span>
+                                    {ps ? (
+                                      <Badge label={ps === "approved" ? "✓ Approved" : "✗ Rejected"} color={ps === "approved" ? "#10b981" : "#ef4444"} />
+                                    ) : req.status === "pending" ? (
+                                      <div style={{ display: "flex", gap: 5 }}>
+                                        <button onClick={() => handleRequest(req, pg.id, "approved")} style={{ background: "#10b981", border: "none", borderRadius: 6, padding: "4px 10px", cursor: "pointer", color: "#fff", fontSize: 11, fontWeight: 700, fontFamily: "inherit" }}>✓ Approve</button>
+                                        <button onClick={() => handleRequest(req, pg.id, "rejected")} style={{ background: "#ef4444", border: "none", borderRadius: 6, padding: "4px 10px", cursor: "pointer", color: "#fff", fontSize: 11, fontWeight: 700, fontFamily: "inherit" }}>✗ Reject</button>
+                                      </div>
+                                    ) : null}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                          <Badge label={req.status?.toUpperCase()} color={req.status === "approved" ? "#10b981" : req.status === "rejected" ? "#ef4444" : req.status === "partial" ? "#3b82f6" : "#f59e0b"} />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* ── PAGES TAB ── */}
+          {tab === "pages" && (
+            <div>
+              <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
+                <Btn onClick={() => setShowAddPage(x => !x)} small><Plus size={13} /> Add Page</Btn>
+              </div>
+              {showAddPage && (
+                <div style={{ background: T(dk).surf2, border: `1px solid ${T(dk).bdr}`, borderRadius: 14, padding: 16, marginBottom: 14 }}>
+                  <div style={{ display: "grid", gap: 10 }}>
+                    <input value={newPageName} onChange={e => setNewPageName(e.target.value)} placeholder="Page name e.g. Sales, Design" style={InpStyle(dk)} />
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                      {PAGE_TYPES.map(pt => (
+                        <button key={pt.id} onClick={() => setNewPageType(pt.id)} style={{ display: "flex", alignItems: "center", gap: 5, padding: "6px 12px", borderRadius: 20, border: `1px solid ${newPageType === pt.id ? pt.c : T(dk).bdr}`, background: newPageType === pt.id ? pt.c + "18" : "transparent", color: newPageType === pt.id ? pt.c : T(dk).txt3, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>{pt.e} {pt.label}</button>
+                      ))}
+                    </div>
+                    <div style={{ display: "flex", gap: 8 }}><Btn onClick={addPage} disabled={!newPageName.trim()} small>Create</Btn><Btn onClick={() => setShowAddPage(false)} outline color="#7a93c0" small>Cancel</Btn></div>
+                  </div>
+                </div>
+              )}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                {pages.map(pg => {
+                  const pt = PAGE_TYPES.find(x => x.id === pg.page_type) || PAGE_TYPES[6];
+                  const memberCount = allMembers.filter(m => m.page_id === pg.id).length;
+                  return (
+                    <div key={pg.id} style={{ background: T(dk).surf, border: `1px solid ${T(dk).bdr}`, borderRadius: 14, padding: 14 }}>
+                      <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 10 }}>
+                        <div style={{ width: 36, height: 36, borderRadius: 10, background: pt.c + "20", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>{pt.e}</div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontWeight: 700, fontSize: 13, color: T(dk).txt }}>{pg.name}</div>
+                          <div style={{ fontSize: 11, color: T(dk).txt3 }}>{memberCount} member{memberCount !== 1 ? "s" : ""}</div>
+                        </div>
+                      </div>
+                      <button onClick={() => deletePage(pg.id)} style={{ display: "flex", alignItems: "center", gap: 5, background: "#ef444418", border: "1px solid #ef444430", borderRadius: 8, padding: "4px 10px", cursor: "pointer", color: "#ef4444", fontSize: 11, fontWeight: 700, fontFamily: "inherit" }}><Trash2 size={11} /> Delete</button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* ── MEMBERS TAB ── */}
+          {tab === "members" && (
+            <div>
+              <div style={{ fontSize: 13, color: T(dk).txt3, marginBottom: 12 }}>{uniqueMembers.length} total member{uniqueMembers.length !== 1 ? "s" : ""} across all pages</div>
+              {uniqueMembers.map(m => {
+                const p = profiles[m.user_id] || { name: "Member" };
+                const memberPages = allMembers.filter(acc => acc.user_id === m.user_id);
+                return (
+                  <div key={m.user_id} style={{ background: T(dk).surf, border: `1px solid ${T(dk).bdr}`, borderRadius: 12, padding: "12px 14px", marginBottom: 8 }}>
+                    <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 8 }}>
+                      <Av profile={p} size={42} />
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: 700, fontSize: 14, color: T(dk).txt }}>{p.name}</div>
+                        <div style={{ fontSize: 12, color: T(dk).txt3 }}>{p.handle ? `@${p.handle}` : ""}</div>
+                      </div>
+                    </div>
+                    <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
+                      {memberPages.map(mp => {
+                        const pg = pages.find(x => x.id === mp.page_id);
+                        if (!pg) return null;
+                        const pt = PAGE_TYPES.find(x => x.id === pg.page_type) || PAGE_TYPES[6];
+                        return (
+                          <div key={mp.id} style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                            <span style={{ background: pt.c + "15", color: pt.c, fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 99 }}>{pt.e} {pg.name}</span>
+                            <button onClick={() => removeMember(mp.page_id, m.user_id)} style={{ background: "none", border: "none", cursor: "pointer", color: T(dk).txt3, display: "flex" }}><X size={10} /></button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* ── MEETINGS TAB (GLOBAL) ── */}
+          {tab === "meetings" && (
+            <div>
+              <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
+                <Btn onClick={() => setShowMeeting(true)} small><Plus size={13} /> Schedule</Btn>
+              </div>
+              {meetings.length === 0 ? <div style={{ textAlign: "center", padding: 40, color: T(dk).txt3 }}><Calendar size={36} style={{ marginBottom: 10, opacity: 0.4 }} /><p>No meetings yet.</p></div>
+              : meetings.map(m => {
+                const pg = pages.find(x => x.id === m.page_id);
+                const pt = pg ? (PAGE_TYPES.find(x => x.id === pg.page_type) || PAGE_TYPES[6]) : null;
+                return (
+                  <div key={m.id} style={{ background: T(dk).surf, border: `1px solid ${T(dk).bdr}`, borderRadius: 12, padding: "14px 16px", marginBottom: 8 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 4 }}>
+                          <div style={{ fontWeight: 700, fontSize: 14, color: T(dk).txt }}>{m.title}</div>
+                          {pt && <Badge label={`${pt.e} ${pg.name}`} color={pt.c} />}
+                          <Badge label={m.status} color={m.status === "completed" ? "#10b981" : m.status === "cancelled" ? "#ef4444" : "#3b82f6"} />
+                        </div>
+                        <div style={{ fontSize: 12, color: T(dk).txt3 }}>📅 {fmtDateTime(m.scheduled_at)} · {m.duration_mins} min · {m.platform === "zoom" ? "🔵 Zoom" : "🟢 Meet"}</div>
+                        {m.note && <p style={{ fontSize: 12, color: T(dk).txt2, margin: "6px 0 0" }}>{m.note}</p>}
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8 }}>
+                          <StackedAv uids={m.participants || []} profiles={profiles} size={20} />
+                          <span style={{ fontSize: 11, color: T(dk).txt3 }}>{(m.participants || []).length} participants</span>
+                        </div>
+                      </div>
+                      <a href={m.meeting_link} target="_blank" rel="noopener noreferrer" style={{ display: "flex", alignItems: "center", gap: 5, background: "#3b82f6", border: "none", borderRadius: 8, padding: "7px 14px", color: "#fff", fontSize: 12, fontWeight: 700, height: "fit-content" }}><Phone size={12} /> Join</a>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* ── UPDATES TAB ── */}
+          {tab === "updates" && (
+            <div>
+              <div style={{ background: T(dk).surf2, border: `1px solid ${T(dk).bdr}`, borderRadius: 14, padding: 14, marginBottom: 14 }}>
+                <div style={{ display: "flex", gap: 10 }}>
+                  <Av profile={profiles[me] || {}} size={34} />
+                  <div style={{ flex: 1 }}>
+                    <textarea value={newUpdate} onChange={e => setNewUpdate(e.target.value)} placeholder="Post a startup-wide update…" rows={3} style={{ ...InpStyle(dk), resize: "none" }} />
+                    <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 8 }}>
+                      <Btn onClick={postUpdate} disabled={!newUpdate.trim() || posting} small>{posting ? "Posting…" : "Post Update"}</Btn>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              {updates.map(u => {
+                const author = profiles[u.created_by] || { name: "Founder" };
+                return (
+                  <div key={u.id} style={{ background: T(dk).surf, border: `1px solid ${T(dk).bdr}`, borderRadius: 12, padding: "12px 14px", marginBottom: 8 }}>
+                    <div style={{ display: "flex", gap: 10 }}>
+                      <Av profile={author} size={34} />
+                      <div style={{ flex: 1 }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 5 }}>
+                          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                            <span style={{ fontWeight: 700, fontSize: 13, color: T(dk).txt }}>{author.name}</span>
+                            <span style={{ fontSize: 11, color: T(dk).txt3 }}>{ago(new Date(u.created_at).getTime())}</span>
+                          </div>
+                          <button onClick={() => deleteUpdate(u.id)} style={{ background: "none", border: "none", cursor: "pointer", color: T(dk).txt3, display: "flex" }}><Trash2 size={13} /></button>
+                        </div>
+                        <p style={{ margin: 0, fontSize: 14, color: T(dk).txt, lineHeight: 1.65, whiteSpace: "pre-wrap" }}>{u.content}</p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* ── ACTIVITY TAB ── */}
+          {tab === "activity" && (
+            <div>
+              {activity.length === 0 ? <div style={{ textAlign: "center", padding: 40, color: T(dk).txt3 }}><Zap size={36} style={{ marginBottom: 10, opacity: 0.4 }} /><p>No activity yet.</p></div>
+              : activity.map(a => {
+                const actor = profiles[a.actor_id] || { name: "Member" };
+                const typeIcons = { message: "💬", task_created: "✅", task_completed: "🏆", file_uploaded: "📎", member_joined: "👤", meeting_scheduled: "📅", update_posted: "📢", startup_created: "🚀" };
+                return (
+                  <div key={a.id} style={{ display: "flex", gap: 10, alignItems: "flex-start", padding: "10px 0", borderBottom: `1px solid ${T(dk).bdr}` }}>
+                    <div style={{ width: 32, height: 32, borderRadius: "50%", background: T(dk).surf2, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0 }}>{typeIcons[a.type] || "⚡"}</div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 13, color: T(dk).txt }}>{a.description}</div>
+                      <div style={{ fontSize: 11, color: T(dk).txt3, marginTop: 2 }}>{actor.name} · {ago(new Date(a.created_at).getTime())}</div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+// ============================================================
+// ─── STARTUP DETAIL ───────────────────────────────────────────
+// ============================================================
+function StartupDetail({ startup: initialStartup, me, myProfile, profiles, dk, onBack }) {
+  const th = T(dk);
+  const [startup, setStartup] = useState(initialStartup);
+  const [pages, setPages] = useState([]);
+  const [myAccess, setMyAccess] = useState([]);
+  const [myRequest, setMyRequest] = useState(null);
+  const [updates, setUpdates] = useState([]);
+  const [showJoin, setShowJoin] = useState(false);
+  const [activePage, setActivePage] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [bookmarked, setBookmarked] = useState(false);
+  const [showMeeting, setShowMeeting] = useState(false);
+
+  const isFounder = startup.created_by === me || (startup.founders || []).includes(me);
+
+  useEffect(() => {
+    (async () => {
+      const [pg, acc, rq, us, bk] = await Promise.all([
+        db.get("rs_startup_pages", `startup_id=eq.${startup.id}&order=position.asc`),
+        db.get("rs_page_access", `startup_id=eq.${startup.id}&user_id=eq.${me}&status=eq.approved`),
+        db.get("rs_page_access_requests", `startup_id=eq.${startup.id}&user_id=eq.${me}&order=created_at.desc&limit=1`),
+        db.get("rs_startup_updates", `startup_id=eq.${startup.id}&page_id=is.null&order=created_at.desc&limit=5`),
+        db.get("rs_startup_bookmarks", `startup_id=eq.${startup.id}&user_id=eq.${me}`),
+      ]);
+      setPages(pg || []); setMyAccess((acc || []).map(a => a.page_id));
+      setMyRequest(rq?.[0] || null); setUpdates(us || []);
+      setBookmarked((bk || []).length > 0); setLoading(false);
+    })();
+  }, [startup.id, me]);
+
+  if (isFounder) return <FounderDashboard startup={startup} me={me} myProfile={myProfile} profiles={profiles} dk={dk} onBack={onBack} onStartupUpdated={s => setStartup(s)} />;
+  if (activePage) return <PageDetail startup={startup} page={activePage} me={me} profiles={profiles} dk={dk} onBack={() => setActivePage(null)} isFounder={false} />;
+
+  const handleJoin = async data => {
+    const saved = await db.post("rs_page_access_requests", data);
+    if (saved) {
+      setMyRequest(saved);
+      const founders = startup.founders || [startup.created_by];
+      for (const fid of founders) await pushNotif(fid, startup.id, "request_received", "New Join Request", `${myProfile?.name || "Someone"} wants to join ${startup.name}`);
+    }
+  };
+
+  const toggleBookmark = async () => {
+    if (bookmarked) { await db.del("rs_startup_bookmarks", `startup_id=eq.${startup.id}&user_id=eq.${me}`); setBookmarked(false); }
+    else { await db.upsert("rs_startup_bookmarks", { user_id: me, startup_id: startup.id }); setBookmarked(true); }
+  };
+
+  const founders = (startup.founders || [startup.created_by]).map(id => profiles[id]).filter(Boolean);
+  const accessiblePages = pages.filter(p => myAccess.includes(p.id));
+  const lockedPages = pages.filter(p => !myAccess.includes(p.id));
+  const hasRequestedAll = myRequest && pages.every(p => (myRequest.requested_pages || []).includes(p.id) || myAccess.includes(p.id));
+
+  return (
+    <div style={{ animation: "fadeUp .3s ease" }}>
+      {showJoin && <JoinModal startup={startup} pages={pages} me={me} myProfile={myProfile} existingAccess={myAccess} onClose={() => setShowJoin(false)} onSubmit={handleJoin} dk={dk} />}
+      {showMeeting && <BookMeetingModal startup={startup} page={null} me={me} profiles={profiles} allPageMembers={[]} onClose={() => setShowMeeting(false)} onSave={() => {}} dk={dk} />}
+
+      <button onClick={onBack} style={{ display: "flex", alignItems: "center", gap: 6, background: "transparent", border: "none", cursor: "pointer", color: th.txt2, fontSize: 13, fontWeight: 600, padding: "0 0 14px", fontFamily: "inherit" }}>
+        <ArrowLeft size={15} /> Back to Colab
+      </button>
+
+      {/* Hero */}
+      <div style={{ background: "linear-gradient(135deg,#1e3a8a18,#5b21b618)", border: "1px solid #3b82f628", borderRadius: 20, padding: 22, marginBottom: 16 }}>
+        <div style={{ display: "flex", gap: 16, alignItems: "flex-start", flexWrap: "wrap" }}>
+          <div style={{ width: 64, height: 64, borderRadius: 18, background: "linear-gradient(135deg,#3b82f6,#8b5cf6)", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            {startup.logo ? <img src={startup.logo} style={{ width: "100%", height: "100%", objectFit: "cover" }} alt="logo" /> : <span style={{ fontSize: 30 }}>🚀</span>}
+          </div>
+          <div style={{ flex: 1, minWidth: 200 }}>
+            <h2 style={{ margin: "0 0 6px", fontSize: 22, fontWeight: 900, color: th.txt }}>{startup.name}</h2>
+            <p style={{ margin: "0 0 12px", fontSize: 14, color: th.txt2, lineHeight: 1.6 }}>{startup.description}</p>
+            {founders.length > 0 && (
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+                <StackedAv uids={founders.map(f => f.id)} profiles={profiles} size={26} />
+                <span style={{ fontSize: 13, color: th.txt3 }}>by {founders.slice(0, 2).map(f => f.name?.split(" ")[0]).join(", ")}{founders.length > 2 ? ` +${founders.length - 2}` : ""}</span>
+              </div>
+            )}
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {startup.website && <a href={startup.website} target="_blank" rel="noopener noreferrer" style={{ display: "flex", alignItems: "center", gap: 4, background: th.surf2, border: `1px solid ${th.bdr}`, borderRadius: 8, padding: "4px 10px", fontSize: 12, color: th.txt2, fontWeight: 600 }}><Globe size={11} />Website</a>}
+              {startup.github_link && <a href={startup.github_link} target="_blank" rel="noopener noreferrer" style={{ display: "flex", alignItems: "center", gap: 4, background: th.surf2, border: `1px solid ${th.bdr}`, borderRadius: 8, padding: "4px 10px", fontSize: 12, color: th.txt2, fontWeight: 600 }}><Github size={11} />GitHub</a>}
+              {startup.social_links?.twitter && <a href={startup.social_links.twitter} target="_blank" rel="noopener noreferrer" style={{ display: "flex", alignItems: "center", gap: 4, background: "#1da1f215", border: "1px solid #1da1f230", borderRadius: 8, padding: "4px 10px", fontSize: 12, color: "#1da1f2", fontWeight: 600 }}><Twitter size={11} />Twitter</a>}
+              {startup.social_links?.linkedin && <a href={startup.social_links.linkedin} target="_blank" rel="noopener noreferrer" style={{ display: "flex", alignItems: "center", gap: 4, background: "#0a66c215", border: "1px solid #0a66c230", borderRadius: 8, padding: "4px 10px", fontSize: 12, color: "#0a66c2", fontWeight: 600 }}><Linkedin size={11} />LinkedIn</a>}
+            </div>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, flexShrink: 0 }}>
+            {!hasRequestedAll && !myAccess.length ? (
+              <Btn onClick={() => setShowJoin(true)} style={{ background: "linear-gradient(135deg,#3b82f6,#8b5cf6)", boxShadow: "0 0 20px rgba(59,130,246,.3)" }}>Join Startup →</Btn>
+            ) : myAccess.length > 0 && !hasRequestedAll ? (
+              <Btn onClick={() => setShowJoin(true)} outline color="#3b82f6">Join More Pages</Btn>
+            ) : myRequest?.status === "pending" ? (
+              <span style={{ background: "#f59e0b18", color: "#f59e0b", fontSize: 12, fontWeight: 700, padding: "8px 16px", borderRadius: 10, border: "1px solid #f59e0b40", textAlign: "center" }}>⏳ Request Pending</span>
+            ) : null}
+            <div style={{ display: "flex", gap: 6 }}>
+              <button onClick={toggleBookmark} style={{ display: "flex", alignItems: "center", gap: 5, background: bookmarked ? "#3b82f618" : th.surf2, border: `1px solid ${bookmarked ? "#3b82f640" : th.bdr}`, borderRadius: 8, padding: "7px 12px", cursor: "pointer", color: bookmarked ? "#3b82f6" : th.txt3, fontSize: 12, fontWeight: 600, fontFamily: "inherit" }}>
+                {bookmarked ? <><BookmarkCheck size={13} />Saved</> : <><Bookmark size={13} />Save</>}
+              </button>
+              <button onClick={() => setShowMeeting(true)} style={{ display: "flex", alignItems: "center", gap: 5, background: th.surf2, border: `1px solid ${th.bdr}`, borderRadius: 8, padding: "7px 12px", cursor: "pointer", color: th.txt2, fontSize: 12, fontWeight: 600, fontFamily: "inherit" }}>
+                <Calendar size={13} />Meeting
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {loading ? <Spin dk={dk} /> : (
+        <>
+          {/* Accessible Pages */}
+          {accessiblePages.length > 0 && (
+            <>
+              <div style={{ fontWeight: 700, fontSize: 14, color: th.txt, marginBottom: 10, display: "flex", alignItems: "center", gap: 6 }}>
+                <Check size={14} color="#10b981" /> Your Pages ({accessiblePages.length})
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 20 }}>
+                {accessiblePages.map(pg => {
+                  const pt = PAGE_TYPES.find(x => x.id === pg.page_type) || PAGE_TYPES[6];
+                  return (
+                    <div key={pg.id} onClick={() => setActivePage(pg)} style={{ background: pt.c + "10", border: `1.5px solid ${pt.c}40`, borderRadius: 14, padding: 14, cursor: "pointer", transition: "all .2s" }}
+                      onMouseEnter={e => e.currentTarget.style.transform = "translateY(-2px)"}
+                      onMouseLeave={e => e.currentTarget.style.transform = "translateY(0)"}
+                    >
+                      <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 8 }}>
+                        <div style={{ width: 36, height: 36, borderRadius: 10, background: pt.c + "20", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>{pt.e}</div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontWeight: 700, fontSize: 13, color: pt.c }}>{pg.name}</div>
+                          <div style={{ fontSize: 11, color: th.txt3 }}>{pg.description || pt.desc}</div>
+                        </div>
+                      </div>
+                      <div style={{ background: pt.c, border: "none", borderRadius: 8, padding: "6px 0", color: "#fff", fontSize: 12, fontWeight: 700, textAlign: "center" }}>Enter →</div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
+
+          {/* Locked Pages */}
+          {lockedPages.length > 0 && (
+            <>
+              <div style={{ fontWeight: 700, fontSize: 14, color: th.txt, marginBottom: 10 }}>All Pages ({pages.length})</div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 20 }}>
+                {lockedPages.map(pg => {
+                  const pt = PAGE_TYPES.find(x => x.id === pg.page_type) || PAGE_TYPES[6];
+                  const reqStatus = myRequest?.page_statuses?.[pg.id];
+                  return (
+                    <div key={pg.id} style={{ background: th.surf, border: `1px solid ${th.bdr}`, borderRadius: 14, padding: 14, opacity: 0.65, position: "relative", overflow: "hidden" }}>
+                      <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                        <div style={{ width: 36, height: 36, borderRadius: 10, background: th.surf2, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>{pt.e}</div>
+                        <div>
+                          <div style={{ fontWeight: 700, fontSize: 13, color: th.txt }}>{pg.name}</div>
+                          <div style={{ fontSize: 10, color: reqStatus === "pending" ? "#f59e0b" : reqStatus === "rejected" ? "#ef4444" : th.txt3, fontWeight: reqStatus ? 700 : 400 }}>
+                            {reqStatus === "pending" ? "⏳ Pending" : reqStatus === "rejected" ? "✗ Rejected" : "🔒 Members only"}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
+
+          {/* Latest Updates */}
+          {updates.length > 0 && (
+            <>
+              <div style={{ fontWeight: 700, fontSize: 14, color: th.txt, margin: "0 0 10px" }}>📢 Latest Updates</div>
+              {updates.map(u => {
+                const author = profiles[u.created_by] || { name: "Founder" };
+                return (
+                  <div key={u.id} style={{ background: th.surf, border: `1px solid ${th.bdr}`, borderRadius: 12, padding: "12px 14px", marginBottom: 8 }}>
+                    <div style={{ display: "flex", gap: 10 }}>
+                      <Av profile={author} size={32} />
+                      <div style={{ flex: 1 }}>
+                        <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 5 }}>
+                          <span style={{ fontWeight: 700, fontSize: 13, color: th.txt }}>{author.name}</span>
+                          <span style={{ fontSize: 11, color: th.txt3 }}>{ago(new Date(u.created_at).getTime())}</span>
+                        </div>
+                        <p style={{ margin: 0, fontSize: 14, color: th.txt, lineHeight: 1.65 }}>{u.content}</p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </>
+          )}
+
+          {/* Feedback */}
+          <FeedbackSection startup={startup} me={me} profiles={profiles} dk={dk} isFounder={false} />
+        </>
+      )}
+    </div>
+  );
+}
+
+// ============================================================
+// ─── STARTUP CARD ─────────────────────────────────────────────
+// ============================================================
+function StartupCard({ startup, me, profiles, dk, onClick, isOwner }) {
+  const th = T(dk);
+  const founders = (startup.founders || [startup.created_by]).map(id => profiles[id]).filter(Boolean);
+  return (
+    <div onClick={onClick} style={{ background: th.surf, border: `1px solid ${th.bdr}`, borderRadius: 16, padding: 16, marginBottom: 10, cursor: "pointer", transition: "all .2s", animation: "fadeUp .3s ease" }}
+      onMouseEnter={e => { e.currentTarget.style.borderColor = "#3b82f640"; e.currentTarget.style.transform = "translateY(-1px)"; }}
+      onMouseLeave={e => { e.currentTarget.style.borderColor = th.bdr; e.currentTarget.style.transform = "translateY(0)"; }}
+    >
+      <div style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
+        <div style={{ width: 54, height: 54, borderRadius: 14, background: "linear-gradient(135deg,#3b82f6,#8b5cf6)", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+          {startup.logo ? <img src={startup.logo} style={{ width: "100%", height: "100%", objectFit: "cover" }} alt="" /> : <span style={{ fontSize: 26 }}>🚀</span>}
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
+            <div style={{ fontWeight: 800, fontSize: 15, color: th.txt }}>{startup.name}</div>
+            {isOwner && <Badge label="FOUNDER" color="#3b82f6" />}
+          </div>
+          <p style={{ fontSize: 13, color: th.txt2, margin: "4px 0 10px", lineHeight: 1.5 }}>{(startup.description || "").slice(0, 100)}{startup.description?.length > 100 ? "…" : ""}</p>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            {founders.length > 0 && <>
+              <StackedAv uids={founders.map(f => f.id)} profiles={profiles} size={22} />
+              <span style={{ fontSize: 12, color: th.txt3 }}>{founders.slice(0, 2).map(f => f.name?.split(" ")[0]).join(", ")}{founders.length > 2 ? ` +${founders.length - 2}` : ""}</span>
+            </>}
+            <span style={{ fontSize: 11, color: th.txt3, marginLeft: "auto" }}>View →</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// ─── MAIN COLAB VIEW (exported default) ──────────────────────
+// ============================================================
+export default function ColabView({ me, dk, profiles, onProfile, addNotif, myProfile }) {
+  const th = T(dk);
+  const [startups, setStartups] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [activeStartup, setActiveStartup] = useState(null);
+  const [showCreate, setShowCreate] = useState(false);
+  const [showReferral, setShowReferral] = useState(false);
+  const [search, setSearch] = useState("");
+  const [bookmarkedIds, setBookmarkedIds] = useState([]);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    const [data, bk] = await Promise.all([
+      db.get("rs_startups", "order=created_at.desc&limit=50"),
+      db.get("rs_startup_bookmarks", `user_id=eq.${me}&select=startup_id`),
+    ]);
+    setStartups(data || []);
+    setBookmarkedIds((bk || []).map(b => b.startup_id));
+    setLoading(false);
+  }, [me]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const handleCreated = s => {
+    if (!s) return;
+    setStartups(ss => [s, ...ss.filter(x => x.id !== s.id)]);
+    setActiveStartup(s);
+  };
+
+  const handleJoinSuccess = s => addNotif?.({ type: "sandbox", msg: `🚀 Join request sent to ${s.name}!` });
+
+  if (activeStartup) return (
+    <StartupDetail startup={activeStartup} me={me} myProfile={myProfile} profiles={profiles} dk={dk} onBack={() => { setActiveStartup(null); load(); }} />
+  );
+
+  const myStartups = startups.filter(s => s.created_by === me || (s.founders || []).includes(me));
+  const otherStartups = startups.filter(s => s.created_by !== me && !(s.founders || []).includes(me));
+  const saved = startups.filter(s => bookmarkedIds.includes(s.id) && !myStartups.find(x => x.id === s.id));
+
+  const searchFilter = s => !search.trim() || s.name?.toLowerCase().includes(search.toLowerCase()) || s.description?.toLowerCase().includes(search.toLowerCase());
+
+  return (
+    <div>
+      {showCreate && <CreateStartupModal me={me} myProfile={myProfile} existing={null} onClose={() => setShowCreate(false)} onSave={handleCreated} dk={dk} />}
+      {showReferral && <ReferralModal me={me} myProfile={myProfile} onClose={() => setShowReferral(false)} onSuccess={handleJoinSuccess} dk={dk} />}
+
+      {/* Header */}
+      <div style={{ background: "linear-gradient(135deg,#1e3a8a,#5b21b6)", borderRadius: 20, padding: 24, marginBottom: 18 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 14 }}>
+          <div>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
+              <div style={{ fontSize: 28 }}>🚀</div>
+              <h2 style={{ margin: 0, fontSize: 24, fontWeight: 900, color: "#fff" }}>Colab</h2>
+            </div>
+            <p style={{ color: "rgba(255,255,255,.6)", fontSize: 13, margin: 0 }}>Build startups together · collaborate · grow</p>
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button onClick={() => setShowReferral(true)} style={{ display: "flex", alignItems: "center", gap: 6, background: "rgba(255,255,255,.12)", border: "1px solid rgba(255,255,255,.2)", borderRadius: 11, padding: "9px 16px", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+              <Link size={14} /> Join via Code
+            </button>
+            <button onClick={() => setShowCreate(true)} style={{ display: "flex", alignItems: "center", gap: 6, background: "#fff", border: "none", borderRadius: 11, padding: "9px 18px", color: "#1e3a8a", fontSize: 13, fontWeight: 800, cursor: "pointer", fontFamily: "inherit" }}>
+              <Plus size={14} /> Create Startup
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Search */}
+      <div style={{ position: "relative", marginBottom: 16 }}>
+        <Search size={14} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: th.txt3 }} />
+        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search startups…" style={{ ...InpStyle(dk), paddingLeft: 36, borderRadius: 12 }} />
+      </div>
+
+      {loading ? <Spin dk={dk} /> : (
+        <>
+          {/* My Startups */}
+          {myStartups.filter(searchFilter).length > 0 && (
+            <>
+              <div style={{ fontSize: 11, fontWeight: 700, color: th.txt3, letterSpacing: 0.5, marginBottom: 8 }}>YOUR STARTUPS</div>
+              {myStartups.filter(searchFilter).map(s => <StartupCard key={s.id} startup={s} me={me} profiles={profiles} dk={dk} onClick={() => setActiveStartup(s)} isOwner />)}
+            </>
+          )}
+
+          {/* Saved */}
+          {!search && saved.length > 0 && (
+            <>
+              <div style={{ fontSize: 11, fontWeight: 700, color: th.txt3, letterSpacing: 0.5, margin: "16px 0 8px" }}>SAVED</div>
+              {saved.map(s => <StartupCard key={s.id} startup={s} me={me} profiles={profiles} dk={dk} onClick={() => setActiveStartup(s)} />)}
+            </>
+          )}
+
+          {/* Discover */}
+          {otherStartups.filter(searchFilter).length > 0 && (
+            <>
+              <div style={{ fontSize: 11, fontWeight: 700, color: th.txt3, letterSpacing: 0.5, margin: `${myStartups.length || saved.length ? "16px" : "0"} 0 8px` }}>DISCOVER</div>
+              {otherStartups.filter(searchFilter).map(s => <StartupCard key={s.id} startup={s} me={me} profiles={profiles} dk={dk} onClick={() => setActiveStartup(s)} />)}
+            </>
+          )}
+
+          {/* Empty */}
+          {startups.filter(searchFilter).length === 0 && (
+            <div style={{ textAlign: "center", padding: 56, color: th.txt3 }}>
+              <div style={{ fontSize: 52, marginBottom: 14 }}>🚀</div>
+              <h3 style={{ fontWeight: 700, color: th.txt, margin: "0 0 8px" }}>No startups yet</h3>
+              <p style={{ fontSize: 14, margin: "0 0 20px" }}>Create one or join with a referral code.</p>
+              <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
+                <Btn onClick={() => setShowCreate(true)}>Create Startup</Btn>
+                <Btn onClick={() => setShowReferral(true)} outline color="#3b82f6">Join via Code</Btn>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 // ═══════════════════════════════════════════════════════════════
 // ─── ADMIN PORTAL ────────────────────────────────────────────────
 // ═══════════════════════════════════════════════════════════════
