@@ -1983,65 +1983,62 @@ function Onboarding({ user, onComplete }) {
   );
 }
 // ═══════════════════════════════════════════════════════════════
-// COLAB v3 — STARTUP OPERATING SYSTEM
+// COLAB v3 — STARTUP OPERATING SYSTEM (Production Ready)
 // ═══════════════════════════════════════════════════════════════
 
 const genStartupCode = name =>
-  name.toUpperCase().replace(/\s+/g,"").slice(0,5) +
+  name.toUpperCase().replace(/\s+/g,"").replace(/[^A-Z0-9]/g,"").slice(0,5).padEnd(3,"X") +
   "-" + Math.random().toString(36).slice(2,6).toUpperCase();
 
-// ─── PAGE DEFINITIONS ────────────────────────────────────────────
-const PAGE_TYPES = [
-  { id:"investor",  label:"Investor",  e:"💰", c:"#10b981", desc:"Investors & advisors — pitch decks, funding updates" },
-  { id:"tech",      label:"Tech",      e:"👾", c:"#3b82f6", desc:"Engineers — dev logs, code, technical discussions" },
-  { id:"marketing", label:"Marketing", e:"📣", c:"#f97316", desc:"Growth team — campaigns, content calendar" },
-  { id:"community", label:"Community", e:"🌐", c:"#8b5cf6", desc:"Public audience — announcements, engagement" },
+// ─── PAGE TYPES ───────────────────────────────────────────────────
+const CPAGE_TYPES = [
+  { id:"investor",    label:"Investor",    e:"💰", c:"#10b981", desc:"Investors & advisors — pitch decks, funding updates, traction" },
+  { id:"tech",        label:"Tech",        e:"👾", c:"#3b82f6", desc:"Engineers — dev logs, architecture, code discussions" },
+  { id:"marketing",   label:"Marketing",   e:"📣", c:"#f97316", desc:"Growth team — campaigns, content strategy, analytics" },
+  { id:"community",   label:"Community",   e:"🌐", c:"#8b5cf6", desc:"Public audience — announcements, community engagement" },
+  { id:"operations",  label:"Operations",  e:"⚙️", c:"#06b6d4", desc:"Ops & bizdev — processes, partnerships, logistics" },
+  { id:"design",      label:"Design",      e:"🎨", c:"#ec4899", desc:"Designers — UI/UX, brand, creatives" },
 ];
 
-const DEFAULT_PAGES = PAGE_TYPES.map(p=>({ name:p.label, description:p.desc, type_id:p.id }));
-
-const ROLE_MAP = {
-  investor:  ["investor"],
-  tech:      ["tech"],
-  marketing: ["marketing"],
-  intern:    ["tech","marketing"],
-  general:   ["community"],
-};
+const DEFAULT_CPAGE_TYPES = ["investor","tech","marketing","community"];
 
 const JOIN_ROLES = [
-  { id:"investor",  label:"Investor",        e:"💰", desc:"Looking to invest or advise" },
-  { id:"tech",      label:"Tech / Developer", e:"👾", desc:"Engineering, product, design" },
-  { id:"marketing", label:"Marketing",        e:"📣", desc:"Growth, content, community" },
-  { id:"intern",    label:"Student / Intern", e:"🎓", desc:"Learning and contributing" },
-  { id:"general",   label:"General Audience", e:"🌐", desc:"Following the journey" },
+  { id:"investor",  label:"Investor",        e:"💰", desc:"Looking to invest or advise", maps:["investor"] },
+  { id:"tech",      label:"Tech / Developer", e:"👾", desc:"Engineering, product, design", maps:["tech"] },
+  { id:"marketing", label:"Marketing",        e:"📣", desc:"Growth, content, community",  maps:["marketing","community"] },
+  { id:"design",    label:"Designer",         e:"🎨", desc:"UI/UX, brand, visual",        maps:["design"] },
+  { id:"intern",    label:"Student / Intern", e:"🎓", desc:"Learning and contributing",   maps:["community"] },
+  { id:"general",   label:"General Audience", e:"🌐", desc:"Following the journey",       maps:["community"] },
 ];
 
-// ─── TASK STATUS ─────────────────────────────────────────────────
-const TASK_STATUS = [
-  { id:"pending",     label:"Pending",     c:"#f59e0b" },
-  { id:"inprogress",  label:"In Progress", c:"#3b82f6" },
-  { id:"completed",   label:"Completed",   c:"#10b981" },
+const CTASK_STATUS = [
+  { id:"pending",    label:"Pending",     c:"#f59e0b" },
+  { id:"inprogress", label:"In Progress", c:"#3b82f6" },
+  { id:"completed",  label:"Completed",   c:"#10b981" },
 ];
+
+// ─── UTILITY: page type lookup ────────────────────────────────────
+const cpt = pg => CPAGE_TYPES.find(x =>
+  pg?.type_id === x.id ||
+  pg?.name?.toLowerCase().includes(x.id)
+) || CPAGE_TYPES[3];
 
 // ─── STACKED AVATARS ─────────────────────────────────────────────
-function StackedAvatars({ userIds=[], profiles={}, onProfile, max=5, size=26 }) {
-  const shown = userIds.slice(0,max);
+function StackedAvatars({ userIds = [], profiles = {}, onProfile, max = 5, size = 26 }) {
+  const shown = userIds.slice(0, max);
   const extra = userIds.length - max;
   return (
-    <div style={{display:"flex",alignItems:"center",gap:6}}>
-      <div style={{display:"flex"}}>
-        {shown.map((id,i) => {
-          const p = profiles[id] || {name:"?"};
-          return (
-            <div key={id} onClick={e=>{e.stopPropagation();onProfile?.(id);}}
-              title={p.name}
-              style={{marginLeft:i>0?-8:0,zIndex:shown.length-i,border:"2px solid transparent",borderRadius:"50%",cursor:"pointer"}}>
-              <Av profile={p} size={size} />
-            </div>
-          );
-        })}
-        {extra>0 && (
-          <div style={{marginLeft:-8,width:size,height:size,borderRadius:"50%",background:"#3b82f6",border:"2px solid transparent",display:"flex",alignItems:"center",justifyContent:"center",fontSize:size*0.38,fontWeight:700,color:"#fff",zIndex:0}}>
+    <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+      <div style={{ display:"flex" }}>
+        {shown.map((id, i) => (
+          <div key={id} onClick={e => { e.stopPropagation(); onProfile?.(id); }}
+            title={(profiles[id]||{}).name}
+            style={{ marginLeft:i>0?-8:0, zIndex:shown.length-i, border:"2px solid transparent", borderRadius:"50%", cursor:"pointer" }}>
+            <Av profile={profiles[id]||{name:"?"}} size={size} />
+          </div>
+        ))}
+        {extra > 0 && (
+          <div style={{ marginLeft:-8, width:size, height:size, borderRadius:"50%", background:"#3b82f6", border:"2px solid transparent", display:"flex", alignItems:"center", justifyContent:"center", fontSize:size*0.38, fontWeight:700, color:"#fff" }}>
             +{extra}
           </div>
         )}
@@ -2050,279 +2047,312 @@ function StackedAvatars({ userIds=[], profiles={}, onProfile, max=5, size=26 }) 
   );
 }
 
-// ─── PROFILE HOVER CARD ───────────────────────────────────────────
-function ProfileCard({ uid, profiles, bals, dk, onProfile, children }) {
+// ─── PROFILE HOVER CARD ──────────────────────────────────────────
+function ProfileHoverCard({ uid, profiles, bals, dk, onProfile, children }) {
   const th = T(dk);
   const [show, setShow] = useState(false);
-  const p = profiles[uid] || {name:"User"};
+  const p = profiles[uid] || { name:"User" };
   const bal = bals?.[uid] ?? 0;
   return (
-    <div style={{position:"relative",display:"inline-block"}}
-      onMouseEnter={()=>setShow(true)} onMouseLeave={()=>setShow(false)}>
+    <div style={{ position:"relative", display:"inline-block" }}
+      onMouseEnter={() => setShow(true)} onMouseLeave={() => setShow(false)}>
       {children}
       {show && (
-        <div style={{position:"absolute",top:"100%",left:0,zIndex:500,background:th.surf,border:`1px solid ${th.bdr}`,borderRadius:14,padding:14,width:220,boxShadow:`0 10px 40px rgba(0,0,0,${dk?.5:.15})`,animation:"fadeUp .15s ease"}}>
-          <div style={{display:"flex",gap:10,marginBottom:8}}>
-            <Av profile={p} size={36} bal={bal} />
+        <div style={{ position:"absolute", top:"100%", left:0, zIndex:600, background:th.surf, border:`1px solid ${th.bdr}`, borderRadius:14, padding:14, width:220, boxShadow:`0 12px 40px rgba(0,0,0,${dk?.5:.15})`, animation:"fadeUp .15s ease", marginTop:4 }}>
+          <div style={{ display:"flex", gap:10, marginBottom:8 }}>
+            <Av profile={p} size={38} bal={bal} />
             <div>
-              <div style={{fontWeight:700,fontSize:13,color:th.txt}}>{p.name}</div>
-              <div style={{fontSize:11,color:th.txt3}}>{p.handle?`@${p.handle}`:""}</div>
+              <div style={{ fontWeight:700, fontSize:13, color:th.txt }}>{p.name}</div>
+              <div style={{ fontSize:11, color:th.txt3 }}>{p.handle?`@${p.handle}`:""}</div>
+              {p.role && <div style={{ fontSize:11, color:th.txt2 }}>{p.role}</div>}
             </div>
           </div>
-          {p.bio && <div style={{fontSize:12,color:th.txt2,lineHeight:1.5,marginBottom:8}}>{p.bio?.slice(0,80)}</div>}
-          {bal>0 && <div style={{marginBottom:8}}><SGN n={bal} size="sm"/></div>}
-          <button onClick={()=>onProfile?.(uid)} style={{width:"100%",background:"#3b82f6",border:"none",borderRadius:8,padding:"6px",color:"#fff",fontSize:12,fontWeight:700,cursor:"pointer"}}>View Profile</button>
+          {p.bio && <div style={{ fontSize:12, color:th.txt2, lineHeight:1.5, marginBottom:8 }}>{p.bio.slice(0,80)}{p.bio.length>80?"…":""}</div>}
+          {bal > 0 && <div style={{ marginBottom:8 }}><SGN n={bal} size="sm" /></div>}
+          <button onClick={() => onProfile?.(uid)} style={{ width:"100%", background:"#3b82f6", border:"none", borderRadius:8, padding:"6px", color:"#fff", fontSize:12, fontWeight:700, cursor:"pointer" }}>View Profile</button>
         </div>
       )}
     </div>
   );
 }
 
-// ─── TASK PANEL ───────────────────────────────────────────────────
-function TaskPanel({ pageId, me, profiles, members, dk }) {
-  const th = T(dk);
-  const [tasks, setTasks] = useState([]);
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({title:"",assignee:"",status:"pending"});
-  const [saving, setSaving] = useState(false);
-  const setF = (k,v) => setForm(p=>({...p,[k]:v}));
-
-  useEffect(()=>{
-    db.get("rs_page_tasks",`page_id=eq.${pageId}&order=created_at.desc`).then(d=>setTasks(d||[]));
-  },[pageId]);
-
-  const save = async () => {
-    if(!form.title.trim()) return;
-    setSaving(true);
-    const saved = await db.post("rs_page_tasks",{page_id:pageId,title:form.title.trim(),assignee_id:form.assignee||null,status:form.status,created_by:me});
-    if(saved) setTasks(t=>[saved,...t]);
-    setForm({title:"",assignee:"",status:"pending"}); setShowForm(false); setSaving(false);
-  };
-
-  const updateStatus = async (id, status) => {
-    await db.patch("rs_page_tasks",`id=eq.${id}`,{status});
-    setTasks(ts=>ts.map(t=>t.id===id?{...t,status}:t));
-  };
-
-  const del = async id => {
-    await db.del("rs_page_tasks",`id=eq.${id}`);
-    setTasks(ts=>ts.filter(t=>t.id!==id));
-  };
-
-  return (
-    <div>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-        <span style={{fontWeight:700,fontSize:14,color:th.txt}}>📋 Tasks ({tasks.length})</span>
-        <button onClick={()=>setShowForm(x=>!x)} style={{display:"flex",alignItems:"center",gap:5,background:"#3b82f6",border:"none",borderRadius:8,padding:"6px 12px",color:"#fff",fontSize:12,fontWeight:700,cursor:"pointer"}}><Plus size={12}/>Add Task</button>
-      </div>
-      {showForm && (
-        <div style={{background:th.surf2,border:`1px solid ${th.bdr}`,borderRadius:12,padding:14,marginBottom:12}}>
-          <input value={form.title} onChange={e=>setF("title",e.target.value)} placeholder="Task title…" style={{width:"100%",background:th.inp,border:`1px solid ${th.inpB}`,borderRadius:8,padding:"7px 10px",fontSize:13,outline:"none",color:th.txt,boxSizing:"border-box",marginBottom:8}}/>
-          <div style={{display:"flex",gap:8,marginBottom:8}}>
-            <select value={form.assignee} onChange={e=>setF("assignee",e.target.value)} style={{flex:1,background:th.inp,border:`1px solid ${th.inpB}`,borderRadius:8,padding:"7px 10px",fontSize:12,color:th.txt,outline:"none"}}>
-              <option value="">Assign to…</option>
-              {members.map(m=>{const p=profiles[m.user_id]||{name:"Member"};return <option key={m.user_id} value={m.user_id}>{p.name}</option>;})}
-            </select>
-            <select value={form.status} onChange={e=>setF("status",e.target.value)} style={{flex:1,background:th.inp,border:`1px solid ${th.inpB}`,borderRadius:8,padding:"7px 10px",fontSize:12,color:th.txt,outline:"none"}}>
-              {TASK_STATUS.map(s=><option key={s.id} value={s.id}>{s.label}</option>)}
-            </select>
-          </div>
-          <div style={{display:"flex",gap:8}}>
-            <button onClick={()=>setShowForm(false)} style={{flex:1,padding:"7px",background:"transparent",border:`1px solid ${th.bdr}`,borderRadius:8,cursor:"pointer",color:th.txt2,fontSize:12}}>Cancel</button>
-            <button onClick={save} disabled={saving||!form.title.trim()} style={{flex:2,padding:"7px",background:"#3b82f6",border:"none",borderRadius:8,cursor:"pointer",color:"#fff",fontWeight:700,fontSize:12}}>{saving?"Saving…":"Create Task"}</button>
-          </div>
-        </div>
-      )}
-      {tasks.length===0
-        ? <p style={{fontSize:13,color:th.txt3,textAlign:"center",padding:"16px 0"}}>No tasks yet.</p>
-        : tasks.map(task=>{
-          const st = TASK_STATUS.find(s=>s.id===task.status)||TASK_STATUS[0];
-          const assignee = profiles[task.assignee_id]||null;
-          return (
-            <div key={task.id} style={{display:"flex",gap:10,alignItems:"center",padding:"9px 0",borderBottom:`1px solid ${th.bdr}`}}>
-              <div style={{flex:1}}>
-                <div style={{fontSize:13,color:task.status==="completed"?th.txt3:th.txt,fontWeight:600,textDecoration:task.status==="completed"?"line-through":"none"}}>{task.title}</div>
-                {assignee && <div style={{fontSize:11,color:th.txt3}}>→ {assignee.name}</div>}
-              </div>
-              <select value={task.status} onChange={e=>updateStatus(task.id,e.target.value)} style={{background:`${st.c}18`,border:`1px solid ${st.c}40`,borderRadius:6,padding:"3px 8px",fontSize:11,color:st.c,fontWeight:700,cursor:"pointer",outline:"none"}}>
-                {TASK_STATUS.map(s=><option key={s.id} value={s.id}>{s.label}</option>)}
-              </select>
-              <button onClick={()=>del(task.id)} style={{background:"none",border:"none",cursor:"pointer",color:th.txt3,display:"flex",padding:2}}><Trash2 size={13}/></button>
-            </div>
-          );
-        })
-      }
-    </div>
-  );
-}
-
-// ─── PAGE CHAT (Advanced) ────────────────────────────────────────
-function PageChat({ pageId, me, profiles, bals, dk, onProfile }) {
+// ─── PAGE CHAT ───────────────────────────────────────────────────
+function CPageChat({ pageId, me, profiles, bals, dk, onProfile }) {
   const th = T(dk);
   const [msgs, setMsgs] = useState([]);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const [replyTo, setReplyTo] = useState(null);
+  const [attach, setAttach] = useState(null);
   const bottomRef = useRef();
   const fileRef = useRef();
   const pollRef = useRef();
-  const [mediaAttach, setMediaAttach] = useState(null);
 
-  const load = useCallback(async()=>{
-    const d = await db.get("rs_page_chat",`page_id=eq.${pageId}&order=created_at.asc&limit=100`);
-    setMsgs(d||[]);
-    setTimeout(()=>bottomRef.current?.scrollIntoView({behavior:"smooth"}),60);
-  },[pageId]);
+  const load = useCallback(async () => {
+    const d = await db.get("rs_page_chat", `page_id=eq.${pageId}&order=created_at.asc&limit=100`);
+    setMsgs(d || []);
+    setTimeout(() => bottomRef.current?.scrollIntoView({ behavior:"smooth" }), 60);
+  }, [pageId]);
 
-  useEffect(()=>{
+  useEffect(() => {
     load();
-    pollRef.current = setInterval(load,5000);
-    return ()=>clearInterval(pollRef.current);
-  },[load]);
+    pollRef.current = setInterval(load, 5000);
+    return () => clearInterval(pollRef.current);
+  }, [load]);
 
-  const attachMedia = async files => {
-    if(!files[0]) return;
-    try { const b64 = await fileToB64(files[0],3); setMediaAttach({url:b64,type:files[0].type}); } catch(e){alert(e.message);}
+  const attachFile = async files => {
+    if (!files[0]) return;
+    try { const b64 = await fileToB64(files[0], 3); setAttach({ url:b64, type:files[0].type, name:files[0].name }); }
+    catch(e) { alert(e.message); }
   };
 
   const send = async () => {
-    if(!text.trim()&&!mediaAttach) return;
+    if (!text.trim() && !attach) return;
     setSending(true);
-    const saved = await db.post("rs_page_chat",{
-      page_id:pageId, sender_uid:me, text:text.trim(),
-      media:mediaAttach||null,
-      reply_to:replyTo?.id||null,
-      reply_preview:replyTo?.text?.slice(0,60)||null,
+    const saved = await db.post("rs_page_chat", {
+      page_id:pageId, sender_uid:me,
+      text: text.trim() || null,
+      media: attach || null,
+      reply_to: replyTo?.id || null,
+      reply_preview: replyTo?.text?.slice(0,60) || null,
     });
-    if(saved) { setMsgs(m=>[...m,saved]); setTimeout(()=>bottomRef.current?.scrollIntoView({behavior:"smooth"}),50); }
-    setText(""); setMediaAttach(null); setReplyTo(null); setSending(false);
+    if (saved) { setMsgs(m => [...m, saved]); setTimeout(() => bottomRef.current?.scrollIntoView({ behavior:"smooth" }), 50); }
+    setText(""); setAttach(null); setReplyTo(null); setSending(false);
   };
 
   return (
-    <div style={{display:"flex",flexDirection:"column",height:480,background:th.surf2,borderRadius:14,border:`1px solid ${th.bdr}`,overflow:"hidden"}}>
-      {/* Messages */}
-      <div style={{flex:1,overflowY:"auto",padding:14,display:"flex",flexDirection:"column",gap:8}}>
-        {msgs.length===0 && <p style={{color:th.txt3,fontSize:13,textAlign:"center",margin:"auto"}}>No messages yet. Say hello!</p>}
-        {msgs.map(m=>{
-          const isMe = m.sender_uid===me;
-          const author = profiles[m.sender_uid]||{name:"Member"};
+    <div style={{ display:"flex", flexDirection:"column", height:460, background:th.surf2, borderRadius:14, border:`1px solid ${th.bdr}`, overflow:"hidden" }}>
+      <div style={{ flex:1, overflowY:"auto", padding:14, display:"flex", flexDirection:"column", gap:8 }}>
+        {msgs.length === 0 && <p style={{ color:th.txt3, fontSize:13, textAlign:"center", margin:"auto" }}>No messages yet. Start the conversation!</p>}
+        {msgs.map(m => {
+          const isMe = m.sender_uid === me;
+          const author = profiles[m.sender_uid] || { name:"Member" };
           return (
-            <div key={m.id} style={{display:"flex",gap:8,flexDirection:isMe?"row-reverse":"row",alignItems:"flex-end"}}>
+            <div key={m.id} style={{ display:"flex", gap:8, flexDirection:isMe?"row-reverse":"row", alignItems:"flex-end" }}>
               {!isMe && (
-                <ProfileCard uid={m.sender_uid} profiles={profiles} bals={bals} dk={dk} onProfile={onProfile}>
-                  <div style={{cursor:"pointer"}}><Av profile={author} size={28}/></div>
-                </ProfileCard>
+                <ProfileHoverCard uid={m.sender_uid} profiles={profiles} bals={bals} dk={dk} onProfile={onProfile}>
+                  <div style={{ cursor:"pointer", flexShrink:0 }}><Av profile={author} size={28} /></div>
+                </ProfileHoverCard>
               )}
-              <div style={{maxWidth:"72%"}}>
-                {!isMe && <div style={{fontSize:11,color:th.txt3,marginBottom:3,marginLeft:2}}>{author.name}</div>}
+              <div style={{ maxWidth:"72%" }}>
+                {!isMe && <div style={{ fontSize:11, color:th.txt3, marginBottom:3, marginLeft:2 }}>{author.name}</div>}
                 {m.reply_preview && (
-                  <div style={{background:isMe?"rgba(255,255,255,.15)":th.surf,borderLeft:`3px solid ${isMe?"rgba(255,255,255,.5)":"#3b82f6"}`,borderRadius:6,padding:"4px 8px",fontSize:11,color:isMe?"rgba(255,255,255,.8)":th.txt3,marginBottom:4}}>
+                  <div style={{ background:isMe?"rgba(255,255,255,.15)":th.surf, borderLeft:`3px solid ${isMe?"rgba(255,255,255,.5)":"#3b82f6"}`, borderRadius:6, padding:"4px 8px", fontSize:11, color:isMe?"rgba(255,255,255,.8)":th.txt3, marginBottom:4 }}>
                     ↩ {m.reply_preview}
                   </div>
                 )}
-                <div style={{background:isMe?"#3b82f6":th.surf,borderRadius:isMe?"14px 14px 4px 14px":"14px 14px 14px 4px",padding:"9px 13px",position:"relative"}}>
-                  {m.text && <div style={{fontSize:13,color:isMe?"#fff":th.txt,lineHeight:1.5,wordBreak:"break-word"}}>{m.text}</div>}
+                <div style={{ background:isMe?"#3b82f6":th.surf, borderRadius:isMe?"14px 14px 4px 14px":"14px 14px 14px 4px", padding:"9px 13px" }}>
+                  {m.text && <div style={{ fontSize:13, color:isMe?"#fff":th.txt, lineHeight:1.55, wordBreak:"break-word" }}>{m.text}</div>}
                   {m.media?.url && (
-                    m.media.type?.startsWith("image")
-                      ? <img src={m.media.url} alt="media" style={{maxWidth:200,maxHeight:200,borderRadius:8,marginTop:m.text?6:0,display:"block"}}/>
-                      : m.media.type?.startsWith("audio")
-                        ? <audio src={m.media.url} controls style={{marginTop:m.text?6:0,width:160,height:32}}/>
-                        : <video src={m.media.url} controls style={{maxWidth:200,borderRadius:8,marginTop:m.text?6:0}}/>
+                    m.media.type?.startsWith("image") ? <img src={m.media.url} alt="media" style={{ maxWidth:200, maxHeight:200, borderRadius:8, marginTop:m.text?6:0, display:"block" }} /> :
+                    m.media.type?.startsWith("audio") ? <audio src={m.media.url} controls style={{ marginTop:m.text?6:0, width:160, height:32 }} /> :
+                    <video src={m.media.url} controls style={{ maxWidth:200, borderRadius:8, marginTop:m.text?6:0 }} />
                   )}
-                  <div style={{fontSize:10,color:isMe?"rgba(255,255,255,.55)":th.txt3,marginTop:4,textAlign:"right"}}>{m.created_at?ago(new Date(m.created_at).getTime()):""}</div>
+                  <div style={{ fontSize:10, color:isMe?"rgba(255,255,255,.55)":th.txt3, marginTop:4, textAlign:"right" }}>{m.created_at ? ago(new Date(m.created_at).getTime()) : ""}</div>
                 </div>
-                <button onClick={()=>setReplyTo(m)} style={{background:"none",border:"none",cursor:"pointer",fontSize:11,color:th.txt3,padding:"2px 4px",marginTop:2}}>↩ Reply</button>
+                <button onClick={() => setReplyTo(m)} style={{ background:"none", border:"none", cursor:"pointer", fontSize:11, color:th.txt3, padding:"2px 0", marginTop:1 }}>↩ Reply</button>
               </div>
             </div>
           );
         })}
-        <div ref={bottomRef}/>
+        <div ref={bottomRef} />
       </div>
-      {/* Reply banner */}
       {replyTo && (
-        <div style={{padding:"6px 14px",background:dk?"rgba(59,130,246,.1)":"#eff6ff",borderTop:`1px solid ${th.bdr}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-          <span style={{fontSize:12,color:"#3b82f6"}}>↩ Replying to: "{replyTo.text?.slice(0,50)}"</span>
-          <button onClick={()=>setReplyTo(null)} style={{background:"none",border:"none",cursor:"pointer",color:th.txt3}}><X size={12}/></button>
+        <div style={{ padding:"6px 14px", background:dk?"rgba(59,130,246,.1)":"#eff6ff", borderTop:`1px solid ${th.bdr}`, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+          <span style={{ fontSize:12, color:"#3b82f6" }}>↩ Replying: "{replyTo.text?.slice(0,50)}"</span>
+          <button onClick={() => setReplyTo(null)} style={{ background:"none", border:"none", cursor:"pointer", color:th.txt3 }}><X size={12} /></button>
         </div>
       )}
-      {/* Media preview */}
-      {mediaAttach && (
-        <div style={{padding:"6px 14px",background:th.surf,borderTop:`1px solid ${th.bdr}`,display:"flex",alignItems:"center",gap:8}}>
-          {mediaAttach.type.startsWith("image") ? <img src={mediaAttach.url} style={{height:40,borderRadius:6,objectFit:"cover"}}/> : <div style={{fontSize:11,color:th.txt2}}>📎 Media attached</div>}
-          <button onClick={()=>setMediaAttach(null)} style={{background:"none",border:"none",cursor:"pointer",color:th.txt3}}><X size={12}/></button>
+      {attach && (
+        <div style={{ padding:"6px 14px", background:th.surf, borderTop:`1px solid ${th.bdr}`, display:"flex", alignItems:"center", gap:8 }}>
+          {attach.type?.startsWith("image") ? <img src={attach.url} style={{ height:36, borderRadius:6, objectFit:"cover" }} alt="preview" /> : <div style={{ fontSize:12, color:th.txt2 }}>📎 {attach.name}</div>}
+          <button onClick={() => setAttach(null)} style={{ background:"none", border:"none", cursor:"pointer", color:th.txt3 }}><X size={12} /></button>
         </div>
       )}
-      {/* Input */}
-      <div style={{padding:"10px 14px",borderTop:`1px solid ${th.bdr}`,background:th.surf,display:"flex",gap:8,alignItems:"flex-end"}}>
-        <div style={{display:"flex",gap:6,flexShrink:0}}>
-          <button onClick={()=>fileRef.current?.click()} title="Attach" style={{background:"none",border:"none",cursor:"pointer",color:th.txt3,display:"flex",padding:4}}><Image size={16}/></button>
-          <button onClick={()=>fileRef.current?.click()} title="Voice" style={{background:"none",border:"none",cursor:"pointer",color:th.txt3,display:"flex",padding:4}}><Mic size={16}/></button>
-          <input ref={fileRef} type="file" accept="image/*,audio/*,video/*" style={{display:"none"}} onChange={e=>attachMedia(e.target.files)}/>
+      <div style={{ padding:"10px 14px", borderTop:`1px solid ${th.bdr}`, background:th.surf, display:"flex", gap:8, alignItems:"flex-end" }}>
+        <div style={{ display:"flex", gap:4, flexShrink:0 }}>
+          <button onClick={() => fileRef.current?.click()} title="Attach image/audio/video" style={{ background:"none", border:"none", cursor:"pointer", color:th.txt3, display:"flex", padding:4 }}><Image size={15} /></button>
+          <button onClick={() => fileRef.current?.click()} title="Voice note" style={{ background:"none", border:"none", cursor:"pointer", color:th.txt3, display:"flex", padding:4 }}><Mic size={15} /></button>
+          <input ref={fileRef} type="file" accept="image/*,audio/*,video/*" style={{ display:"none" }} onChange={e => attachFile(e.target.files)} />
         </div>
-        <textarea value={text} onChange={e=>setText(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send();}}} placeholder="Type a message… (Enter to send)" rows={1} style={{flex:1,background:th.inp,border:`1px solid ${th.inpB}`,borderRadius:10,padding:"8px 12px",fontSize:13,outline:"none",resize:"none",fontFamily:"inherit",color:th.txt,maxHeight:100}}/>
-        <button onClick={send} disabled={(!text.trim()&&!mediaAttach)||sending} style={{background:(text.trim()||mediaAttach)?"#3b82f6":th.surf2,border:"none",borderRadius:10,padding:"8px 14px",cursor:(text.trim()||mediaAttach)?"pointer":"default",color:(text.trim()||mediaAttach)?"#fff":th.txt3,display:"flex",alignItems:"center",flexShrink:0}}>
-          <Send size={16}/>
+        <textarea value={text} onChange={e => setText(e.target.value)}
+          onKeyDown={e => { if (e.key==="Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
+          placeholder="Message… (Enter to send, Shift+Enter for newline)"
+          rows={1} style={{ flex:1, background:th.inp, border:`1px solid ${th.inpB}`, borderRadius:10, padding:"8px 12px", fontSize:13, outline:"none", resize:"none", fontFamily:"inherit", color:th.txt, maxHeight:80 }} />
+        <button onClick={send} disabled={(!text.trim() && !attach) || sending}
+          style={{ background:(text.trim()||attach)&&!sending?"#3b82f6":th.surf2, border:"none", borderRadius:10, padding:"8px 14px", cursor:(text.trim()||attach)&&!sending?"pointer":"default", color:(text.trim()||attach)&&!sending?"#fff":th.txt3, display:"flex", alignItems:"center", flexShrink:0 }}>
+          <Send size={16} />
         </button>
       </div>
     </div>
   );
 }
 
+// ─── TASK PANEL ───────────────────────────────────────────────────
+function CTaskPanel({ pageId, me, profiles, members, dk }) {
+  const th = T(dk);
+  const [tasks, setTasks] = useState([]);
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({ title:"", assignee:"", status:"pending", priority:"medium" });
+  const [saving, setSaving] = useState(false);
+  const setF = (k,v) => setForm(p => ({...p,[k]:v}));
+
+  useEffect(() => {
+    db.get("rs_page_tasks", `page_id=eq.${pageId}&order=created_at.desc`)
+      .then(d => setTasks(d||[]));
+  }, [pageId]);
+
+  const save = async () => {
+    if (!form.title.trim()) return;
+    setSaving(true);
+    const saved = await db.post("rs_page_tasks", {
+      page_id:pageId, title:form.title.trim(),
+      assignee_id:form.assignee||null, status:form.status,
+      priority:form.priority, created_by:me,
+    });
+    if (saved) setTasks(t => [saved,...t]);
+    setForm({ title:"", assignee:"", status:"pending", priority:"medium" });
+    setShowForm(false); setSaving(false);
+  };
+
+  const updateStatus = async (id, status) => {
+    await db.patch("rs_page_tasks", `id=eq.${id}`, { status });
+    setTasks(ts => ts.map(t => t.id===id ? {...t,status} : t));
+  };
+
+  const del = async id => {
+    await db.del("rs_page_tasks", `id=eq.${id}`);
+    setTasks(ts => ts.filter(t => t.id!==id));
+  };
+
+  const priorities = { high:"🔴", medium:"🟡", low:"🟢" };
+  const grouped = { pending:[], inprogress:[], completed:[] };
+  tasks.forEach(t => { if (grouped[t.status]) grouped[t.status].push(t); else grouped.pending.push(t); });
+
+  return (
+    <div>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
+        <span style={{ fontWeight:700, fontSize:14, color:th.txt }}>📋 Tasks ({tasks.length})</span>
+        <button onClick={() => setShowForm(x=>!x)} style={{ display:"flex", alignItems:"center", gap:5, background:"#3b82f6", border:"none", borderRadius:8, padding:"6px 12px", color:"#fff", fontSize:12, fontWeight:700, cursor:"pointer" }}>
+          <Plus size={12} />New Task
+        </button>
+      </div>
+      {showForm && (
+        <div style={{ background:th.surf2, border:`1px solid ${th.bdr}`, borderRadius:12, padding:14, marginBottom:14 }}>
+          <input value={form.title} onChange={e => setF("title",e.target.value)} placeholder="Task title *"
+            style={{ width:"100%", background:th.inp, border:`1px solid ${th.inpB}`, borderRadius:8, padding:"8px 10px", fontSize:13, outline:"none", color:th.txt, boxSizing:"border-box", marginBottom:8 }} />
+          <div style={{ display:"flex", gap:8, marginBottom:8 }}>
+            <select value={form.assignee} onChange={e => setF("assignee",e.target.value)}
+              style={{ flex:1, background:th.inp, border:`1px solid ${th.inpB}`, borderRadius:8, padding:"7px 10px", fontSize:12, color:th.txt, outline:"none" }}>
+              <option value="">Assign to…</option>
+              {members.map(m => { const p=profiles[m.user_id]||{name:"Member"}; return <option key={m.user_id} value={m.user_id}>{p.name}</option>; })}
+            </select>
+            <select value={form.priority} onChange={e => setF("priority",e.target.value)}
+              style={{ flex:1, background:th.inp, border:`1px solid ${th.inpB}`, borderRadius:8, padding:"7px 10px", fontSize:12, color:th.txt, outline:"none" }}>
+              <option value="high">🔴 High</option>
+              <option value="medium">🟡 Medium</option>
+              <option value="low">🟢 Low</option>
+            </select>
+          </div>
+          <div style={{ display:"flex", gap:8 }}>
+            <button onClick={() => setShowForm(false)} style={{ flex:1, padding:"7px", background:"transparent", border:`1px solid ${th.bdr}`, borderRadius:8, cursor:"pointer", color:th.txt2, fontSize:12 }}>Cancel</button>
+            <button onClick={save} disabled={saving||!form.title.trim()} style={{ flex:2, padding:"7px", background:form.title.trim()?"#3b82f6":th.surf2, border:"none", borderRadius:8, cursor:form.title.trim()?"pointer":"default", color:form.title.trim()?"#fff":th.txt3, fontWeight:700, fontSize:12 }}>
+              {saving?"Creating…":"Create Task"}
+            </button>
+          </div>
+        </div>
+      )}
+      {CTASK_STATUS.map(s => {
+        const group = grouped[s.id] || [];
+        if (group.length === 0) return null;
+        return (
+          <div key={s.id} style={{ marginBottom:16 }}>
+            <div style={{ fontSize:12, fontWeight:700, color:s.c, marginBottom:6, display:"flex", alignItems:"center", gap:6 }}>
+              <div style={{ width:8, height:8, borderRadius:"50%", background:s.c }} />
+              {s.label} ({group.length})
+            </div>
+            {group.map(task => {
+              const assignee = profiles[task.assignee_id] || null;
+              return (
+                <div key={task.id} style={{ display:"flex", gap:10, alignItems:"center", padding:"9px 12px", background:th.surf, border:`1px solid ${th.bdr}`, borderRadius:10, marginBottom:6 }}>
+                  <span style={{ fontSize:12 }}>{priorities[task.priority]||"🟡"}</span>
+                  <div style={{ flex:1 }}>
+                    <div style={{ fontSize:13, color:task.status==="completed"?th.txt3:th.txt, fontWeight:600, textDecoration:task.status==="completed"?"line-through":"none" }}>{task.title}</div>
+                    {assignee && <div style={{ fontSize:11, color:th.txt3, marginTop:1 }}>→ {assignee.name}</div>}
+                  </div>
+                  <select value={task.status} onChange={e => updateStatus(task.id,e.target.value)}
+                    style={{ background:`${s.c}18`, border:`1px solid ${s.c}40`, borderRadius:6, padding:"3px 7px", fontSize:11, color:s.c, fontWeight:700, cursor:"pointer", outline:"none" }}>
+                    {CTASK_STATUS.map(st => <option key={st.id} value={st.id}>{st.label}</option>)}
+                  </select>
+                  <button onClick={() => del(task.id)} style={{ background:"none", border:"none", cursor:"pointer", color:th.txt3, display:"flex", padding:2 }}><Trash2 size={13} /></button>
+                </div>
+              );
+            })}
+          </div>
+        );
+      })}
+      {tasks.length === 0 && <p style={{ fontSize:13, color:th.txt3, textAlign:"center", padding:"20px 0" }}>No tasks yet. Create the first one!</p>}
+    </div>
+  );
+}
+
 // ─── FILE MANAGER ────────────────────────────────────────────────
-function FileManager({ pageId, me, profiles, dk }) {
+function CFileManager({ pageId, me, profiles, dk }) {
   const th = T(dk);
   const [files, setFiles] = useState([]);
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef();
 
-  useEffect(()=>{
-    db.get("rs_page_files",`page_id=eq.${pageId}&order=created_at.desc`).then(d=>setFiles(d||[]));
-  },[pageId]);
+  useEffect(() => {
+    db.get("rs_page_files", `page_id=eq.${pageId}&order=created_at.desc`).then(d => setFiles(d||[]));
+  }, [pageId]);
 
   const upload = async fileList => {
     setUploading(true);
-    for(const f of fileList){
+    for (const f of fileList) {
       try {
-        const b64 = await fileToB64(f,5);
-        const saved = await db.post("rs_page_files",{page_id:pageId,uploaded_by:me,name:f.name,type:f.type,size:f.size,data_url:b64});
-        if(saved) setFiles(fs=>[saved,...fs]);
-      } catch(e){alert(e.message);}
+        const b64 = await fileToB64(f, 5);
+        const saved = await db.post("rs_page_files", { page_id:pageId, uploaded_by:me, name:f.name, type:f.type, size:f.size, data_url:b64 });
+        if (saved) setFiles(fs => [saved,...fs]);
+      } catch(e) { alert(e.message); }
     }
     setUploading(false);
   };
 
   const del = async id => {
-    await db.del("rs_page_files",`id=eq.${id}`);
-    setFiles(fs=>fs.filter(f=>f.id!==id));
+    await db.del("rs_page_files", `id=eq.${id}`);
+    setFiles(fs => fs.filter(f => f.id!==id));
   };
 
-  const formatSize = b => b>1024*1024?`${(b/1024/1024).toFixed(1)}MB`:b>1024?`${(b/1024).toFixed(0)}KB`:`${b}B`;
+  const fmt = b => b>1048576?`${(b/1048576).toFixed(1)}MB`:b>1024?`${(b/1024).toFixed(0)}KB`:`${b}B`;
+  const icon = t => t?.startsWith("image")?"🖼️":t?.startsWith("video")?"🎥":t?.startsWith("audio")?"🎵":t?.includes("pdf")?"📄":"📁";
 
   return (
     <div>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-        <span style={{fontWeight:700,fontSize:14,color:th.txt}}>📁 Files ({files.length})</span>
-        <button onClick={()=>fileRef.current?.click()} disabled={uploading} style={{display:"flex",alignItems:"center",gap:5,background:"#3b82f6",border:"none",borderRadius:8,padding:"6px 12px",color:"#fff",fontSize:12,fontWeight:700,cursor:"pointer"}}>
-          <Plus size={12}/>{uploading?"Uploading…":"Upload File"}
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
+        <span style={{ fontWeight:700, fontSize:14, color:th.txt }}>📁 Files ({files.length})</span>
+        <button onClick={() => fileRef.current?.click()} disabled={uploading}
+          style={{ display:"flex", alignItems:"center", gap:5, background:"#3b82f6", border:"none", borderRadius:8, padding:"6px 12px", color:"#fff", fontSize:12, fontWeight:700, cursor:uploading?"default":"pointer" }}>
+          <Plus size={12} />{uploading?"Uploading…":"Upload File"}
         </button>
-        <input ref={fileRef} type="file" multiple style={{display:"none"}} onChange={e=>upload([...e.target.files])}/>
+        <input ref={fileRef} type="file" multiple style={{ display:"none" }} onChange={e => upload([...e.target.files])} />
       </div>
-      {files.length===0
-        ? <p style={{fontSize:13,color:th.txt3,textAlign:"center",padding:"16px 0"}}>No files yet.</p>
-        : files.map(f=>{
-          const uploader = profiles[f.uploaded_by]||{name:"Member"};
+      {files.length === 0
+        ? <p style={{ fontSize:13, color:th.txt3, textAlign:"center", padding:"20px 0" }}>No files yet.</p>
+        : files.map(f => {
+          const uploader = profiles[f.uploaded_by] || { name:"Member" };
           const isImg = f.type?.startsWith("image");
           return (
-            <div key={f.id} style={{display:"flex",gap:10,alignItems:"center",padding:"9px 0",borderBottom:`1px solid ${th.bdr}`}}>
-              <div style={{width:36,height:36,borderRadius:8,background:th.surf2,border:`1px solid ${th.bdr}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0,overflow:"hidden"}}>
-                {isImg ? <img src={f.data_url} style={{width:"100%",height:"100%",objectFit:"cover"}}/> : "📄"}
+            <div key={f.id} style={{ display:"flex", gap:10, alignItems:"center", padding:"10px 12px", background:th.surf, border:`1px solid ${th.bdr}`, borderRadius:10, marginBottom:8 }}>
+              <div style={{ width:40, height:40, borderRadius:8, background:th.surf2, border:`1px solid ${th.bdr}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:20, flexShrink:0, overflow:"hidden" }}>
+                {isImg ? <img src={f.data_url} style={{ width:"100%", height:"100%", objectFit:"cover" }} alt="thumb" /> : icon(f.type)}
               </div>
-              <div style={{flex:1,minWidth:0}}>
-                <div style={{fontSize:13,fontWeight:600,color:th.txt,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{f.name}</div>
-                <div style={{fontSize:11,color:th.txt3}}>{formatSize(f.size||0)} · {uploader.name} · {ago(new Date(f.created_at).getTime())}</div>
+              <div style={{ flex:1, minWidth:0 }}>
+                <div style={{ fontSize:13, fontWeight:600, color:th.txt, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{f.name}</div>
+                <div style={{ fontSize:11, color:th.txt3 }}>{fmt(f.size||0)} · {uploader.name} · {ago(new Date(f.created_at).getTime())}</div>
               </div>
-              {f.data_url && <a href={f.data_url} download={f.name} style={{background:th.surf2,border:`1px solid ${th.bdr}`,borderRadius:7,padding:"4px 8px",fontSize:11,color:th.txt2,fontWeight:600,textDecoration:"none"}}>↓</a>}
-              <button onClick={()=>del(f.id)} style={{background:"none",border:"none",cursor:"pointer",color:th.txt3,display:"flex",padding:2}}><Trash2 size={13}/></button>
+              {f.data_url && <a href={f.data_url} download={f.name} style={{ background:th.surf2, border:`1px solid ${th.bdr}`, borderRadius:7, padding:"5px 10px", fontSize:11, color:th.txt2, fontWeight:600, textDecoration:"none", flexShrink:0 }}>↓ Download</a>}
+              <button onClick={() => del(f.id)} style={{ background:"none", border:"none", cursor:"pointer", color:th.txt3, display:"flex", padding:2, flexShrink:0 }}><Trash2 size={13} /></button>
             </div>
           );
         })
@@ -2332,79 +2362,91 @@ function FileManager({ pageId, me, profiles, dk }) {
 }
 
 // ─── MEETING PANEL ────────────────────────────────────────────────
-function MeetingPanel({ pageId, startupId, me, profiles, members, dk, compact=false }) {
+function CMeetingPanel({ pageId, startupId, me, profiles, members, dk, compact=false }) {
   const th = T(dk);
   const [meetings, setMeetings] = useState([]);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({title:"",date:"",time:"",platform:"google_meet",link:"",note:""});
+  const [form, setForm] = useState({ title:"", date:"", time:"", platform:"google_meet", link:"", note:"" });
   const [saving, setSaving] = useState(false);
-  const setF = (k,v)=>setForm(p=>({...p,[k]:v}));
+  const setF = (k,v) => setForm(p => ({...p,[k]:v}));
 
-  useEffect(()=>{
-    const q = pageId?`page_id=eq.${pageId}&order=scheduled_at.asc`:`startup_id=eq.${startupId}&order=scheduled_at.asc`;
-    db.get("rs_page_meetings",q).then(d=>setMeetings(d||[]));
-  },[pageId,startupId]);
+  useEffect(() => {
+    const q = pageId
+      ? `page_id=eq.${pageId}&order=scheduled_at.asc`
+      : `startup_id=eq.${startupId}&room_id=is.null&order=scheduled_at.asc`;
+    db.get("rs_page_meetings", q).then(d => setMeetings(d||[]));
+  }, [pageId, startupId]);
 
-  const save = async()=>{
-    if(!form.title||!form.date||!form.time) return;
+  const save = async () => {
+    if (!form.title || !form.date || !form.time) return;
     setSaving(true);
-    const saved = await db.post("rs_page_meetings",{
-      page_id:pageId||null,startup_id:startupId,created_by:me,
-      title:form.title,scheduled_at:`${form.date}T${form.time}:00`,
-      platform:form.platform,link:form.link,note:form.note,
+    const saved = await db.post("rs_page_meetings", {
+      page_id:pageId||null, startup_id:startupId, created_by:me,
+      title:form.title, scheduled_at:`${form.date}T${form.time}:00`,
+      platform:form.platform, link:form.link, note:form.note,
     });
-    if(saved) setMeetings(m=>[...m,saved]);
-    setForm({title:"",date:"",time:"",platform:"google_meet",link:"",note:""});
+    if (saved) setMeetings(m => [...m, saved]);
+    setForm({ title:"", date:"", time:"", platform:"google_meet", link:"", note:"" });
     setShowForm(false); setSaving(false);
   };
 
-  const del = async id=>{
-    await db.del("rs_page_meetings",`id=eq.${id}`);
-    setMeetings(ms=>ms.filter(m=>m.id!==id));
+  const del = async id => {
+    await db.del("rs_page_meetings", `id=eq.${id}`);
+    setMeetings(ms => ms.filter(m => m.id!==id));
   };
 
-  const inp = {width:"100%",background:th.inp,border:`1px solid ${th.inpB}`,borderRadius:8,padding:"7px 10px",fontSize:12,outline:"none",color:th.txt,boxSizing:"border-box"};
+  const inp = { width:"100%", background:th.inp, border:`1px solid ${th.inpB}`, borderRadius:8, padding:"7px 10px", fontSize:compact?11:12, outline:"none", color:th.txt, boxSizing:"border-box" };
 
   return (
     <div>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:compact?8:12}}>
-        <span style={{fontWeight:700,fontSize:compact?12:14,color:th.txt}}>📅 Meetings ({meetings.length})</span>
-        <button onClick={()=>setShowForm(x=>!x)} style={{display:"flex",alignItems:"center",gap:4,background:"#3b82f6",border:"none",borderRadius:8,padding:"5px 10px",color:"#fff",fontSize:11,fontWeight:700,cursor:"pointer"}}><Plus size={11}/>Book</button>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:compact?8:12 }}>
+        <span style={{ fontWeight:700, fontSize:compact?12:14, color:th.txt }}>📅 Meetings ({meetings.length})</span>
+        <button onClick={() => setShowForm(x=>!x)}
+          style={{ display:"flex", alignItems:"center", gap:4, background:"#3b82f6", border:"none", borderRadius:8, padding:compact?"4px 8px":"6px 12px", color:"#fff", fontSize:compact?11:12, fontWeight:700, cursor:"pointer" }}>
+          <Plus size={compact?10:12} />Book
+        </button>
       </div>
       {showForm && (
-        <div style={{background:th.surf2,border:`1px solid ${th.bdr}`,borderRadius:12,padding:14,marginBottom:12}}>
-          <input value={form.title} onChange={e=>setF("title",e.target.value)} placeholder="Meeting title *" style={{...inp,marginBottom:8}}/>
-          <div style={{display:"flex",gap:8,marginBottom:8}}>
-            <input type="date" value={form.date} onChange={e=>setF("date",e.target.value)} style={{...inp,flex:1}}/>
-            <input type="time" value={form.time} onChange={e=>setF("time",e.target.value)} style={{...inp,flex:1}}/>
+        <div style={{ background:th.surf2, border:`1px solid ${th.bdr}`, borderRadius:12, padding:14, marginBottom:12 }}>
+          <input value={form.title} onChange={e => setF("title",e.target.value)} placeholder="Meeting title *" style={{...inp,marginBottom:8}} />
+          <div style={{ display:"flex", gap:8, marginBottom:8 }}>
+            <input type="date" value={form.date} onChange={e => setF("date",e.target.value)} style={{...inp,flex:1}} />
+            <input type="time" value={form.time} onChange={e => setF("time",e.target.value)} style={{...inp,flex:1}} />
           </div>
-          <div style={{display:"flex",gap:8,marginBottom:8}}>
-            {[{id:"google_meet",e:"🎥",l:"Google Meet"},{id:"zoom",e:"💻",l:"Zoom"}].map(p=>(
-              <button key={p.id} onClick={()=>setF("platform",p.id)} style={{flex:1,padding:"6px",borderRadius:8,border:`1.5px solid ${form.platform===p.id?"#3b82f6":th.bdr}`,background:form.platform===p.id?"#3b82f615":"transparent",cursor:"pointer",fontSize:12,color:form.platform===p.id?"#3b82f6":th.txt2,fontWeight:600}}>
+          <div style={{ display:"flex", gap:8, marginBottom:8 }}>
+            {[{id:"google_meet",e:"🎥",l:"Google Meet"},{id:"zoom",e:"💻",l:"Zoom"}].map(p => (
+              <button key={p.id} onClick={() => setF("platform",p.id)}
+                style={{ flex:1, padding:"6px", borderRadius:8, border:`1.5px solid ${form.platform===p.id?"#3b82f6":th.bdr}`, background:form.platform===p.id?"#3b82f615":"transparent", cursor:"pointer", fontSize:12, color:form.platform===p.id?"#3b82f6":th.txt2, fontWeight:600 }}>
                 {p.e} {p.l}
               </button>
             ))}
           </div>
-          <input value={form.link} onChange={e=>setF("link",e.target.value)} placeholder="Meeting link (optional)" style={{...inp,marginBottom:8}}/>
-          <textarea value={form.note} onChange={e=>setF("note",e.target.value)} placeholder="Agenda (optional)" rows={2} style={{...inp,resize:"none",fontFamily:"inherit",marginBottom:8}}/>
-          <div style={{display:"flex",gap:8}}>
-            <button onClick={()=>setShowForm(false)} style={{flex:1,padding:"7px",background:"transparent",border:`1px solid ${th.bdr}`,borderRadius:8,cursor:"pointer",color:th.txt2,fontSize:12}}>Cancel</button>
-            <button onClick={save} disabled={saving||!form.title||!form.date||!form.time} style={{flex:2,padding:"7px",background:"#3b82f6",border:"none",borderRadius:8,cursor:"pointer",color:"#fff",fontWeight:700,fontSize:12}}>{saving?"Scheduling…":"Schedule"}</button>
+          <input value={form.link} onChange={e => setF("link",e.target.value)} placeholder="Meeting link (optional)" style={{...inp,marginBottom:8}} />
+          <textarea value={form.note} onChange={e => setF("note",e.target.value)} placeholder="Agenda (optional)" rows={2}
+            style={{...inp,resize:"none",fontFamily:"inherit",marginBottom:8}} />
+          <div style={{ display:"flex", gap:8 }}>
+            <button onClick={() => setShowForm(false)} style={{ flex:1, padding:"7px", background:"transparent", border:`1px solid ${th.bdr}`, borderRadius:8, cursor:"pointer", color:th.txt2, fontSize:12 }}>Cancel</button>
+            <button onClick={save} disabled={saving||!form.title||!form.date||!form.time}
+              style={{ flex:2, padding:"7px", background:form.title&&form.date&&form.time?"#3b82f6":th.surf2, border:"none", borderRadius:8, cursor:"pointer", color:form.title&&form.date&&form.time?"#fff":th.txt3, fontWeight:700, fontSize:12 }}>
+              {saving?"Scheduling…":"Schedule"}
+            </button>
           </div>
         </div>
       )}
-      {meetings.length===0
-        ? <p style={{fontSize:12,color:th.txt3,textAlign:"center",padding:"10px 0"}}>No meetings scheduled.</p>
-        : meetings.map(m=>(
-          <div key={m.id} style={{background:th.surf,border:`1px solid ${th.bdr}`,borderRadius:10,padding:compact?"8px 10px":"10px 14px",marginBottom:8}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
-              <div style={{flex:1}}>
-                <div style={{fontSize:compact?11:13,fontWeight:700,color:th.txt}}>{m.title}</div>
-                <div style={{fontSize:11,color:th.txt3,marginTop:2}}>{m.platform==="zoom"?"💻 Zoom":"🎥 Google Meet"} · {m.scheduled_at?new Date(m.scheduled_at).toLocaleString("en-US",{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"}):""}</div>
-                {m.link && <a href={m.link} target="_blank" rel="noopener noreferrer" style={{fontSize:11,color:"#3b82f6",fontWeight:600,marginTop:2,display:"block"}}>Join Meeting →</a>}
-                {m.note && <div style={{fontSize:11,color:th.txt3,marginTop:2,fontStyle:"italic"}}>{m.note}</div>}
+      {meetings.length === 0
+        ? <p style={{ fontSize:12, color:th.txt3, textAlign:"center", padding:"10px 0" }}>No meetings scheduled.</p>
+        : meetings.map(m => (
+          <div key={m.id} style={{ background:th.surf, border:`1px solid ${th.bdr}`, borderRadius:10, padding:compact?"8px 10px":"10px 14px", marginBottom:8 }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
+              <div style={{ flex:1 }}>
+                <div style={{ fontSize:compact?11:13, fontWeight:700, color:th.txt }}>{m.title}</div>
+                <div style={{ fontSize:11, color:th.txt3, marginTop:2 }}>
+                  {m.platform==="zoom"?"💻 Zoom":"🎥 Google Meet"} · {m.scheduled_at ? new Date(m.scheduled_at).toLocaleString("en-US",{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"}) : ""}
+                </div>
+                {m.link && <a href={m.link} target="_blank" rel="noopener noreferrer" style={{ fontSize:11, color:"#3b82f6", fontWeight:600, marginTop:2, display:"block" }}>Join Meeting →</a>}
+                {m.note && <div style={{ fontSize:11, color:th.txt3, marginTop:2, fontStyle:"italic" }}>{m.note}</div>}
               </div>
-              <button onClick={()=>del(m.id)} style={{background:"none",border:"none",cursor:"pointer",color:th.txt3,padding:2}}><Trash2 size={12}/></button>
+              <button onClick={() => del(m.id)} style={{ background:"none", border:"none", cursor:"pointer", color:th.txt3, padding:2 }}><Trash2 size={12} /></button>
             </div>
           </div>
         ))
@@ -2413,8 +2455,63 @@ function MeetingPanel({ pageId, startupId, me, profiles, members, dk, compact=fa
   );
 }
 
+// ─── ACTIVITY FEED ────────────────────────────────────────────────
+function CActivityFeed({ pageId, startupId, me, profiles, dk }) {
+  const th = T(dk);
+  const [items, setItems] = useState([]);
+
+  useEffect(() => {
+    (async () => {
+      const [updates, tasks, files, meetings] = await Promise.all([
+        db.get("rs_startup_updates", `${pageId?`room_id=eq.${pageId}`:`startup_id=eq.${startupId}&room_id=is.null`}&order=created_at.desc&limit=10`),
+        db.get("rs_page_tasks", pageId?`page_id=eq.${pageId}&order=created_at.desc&limit=5`:`startup_id=eq.${startupId}&order=created_at.desc&limit=5`),
+        db.get("rs_page_files", pageId?`page_id=eq.${pageId}&order=created_at.desc&limit=5`:"rs_page_files?startup_id=eq."+startupId+"&limit=5"),
+        db.get("rs_page_meetings", pageId?`page_id=eq.${pageId}&order=created_at.desc&limit=5`:`startup_id=eq.${startupId}&order=created_at.desc&limit=5`),
+      ]);
+      const all = [
+        ...(updates||[]).map(x=>({...x,_type:"update",_ts:x.created_at})),
+        ...(tasks||[]).map(x=>({...x,_type:"task",_ts:x.created_at})),
+        ...(files||[]).map(x=>({...x,_type:"file",_ts:x.created_at})),
+        ...(meetings||[]).map(x=>({...x,_type:"meeting",_ts:x.created_at})),
+      ].sort((a,b) => new Date(b._ts)-new Date(a._ts)).slice(0,20);
+      setItems(all);
+    })();
+  }, [pageId, startupId]);
+
+  const icons = { update:"📢", task:"📋", file:"📁", meeting:"📅" };
+  const labels = {
+    update: x => `posted an update`,
+    task:   x => `created task: "${x.title?.slice(0,40)}"`,
+    file:   x => `uploaded "${x.name?.slice(0,40)}"`,
+    meeting:x => `scheduled meeting: "${x.title?.slice(0,40)}"`,
+  };
+  const uid = x => x.created_by||x.uploaded_by||me;
+
+  return (
+    <div>
+      <div style={{ fontWeight:700, fontSize:14, color:th.txt, marginBottom:12 }}>⚡ Activity</div>
+      {items.length === 0
+        ? <p style={{ fontSize:13, color:th.txt3, textAlign:"center", padding:"20px 0" }}>No activity yet.</p>
+        : items.map((item,i) => {
+          const author = profiles[uid(item)] || { name:"Member" };
+          return (
+            <div key={item.id||i} style={{ display:"flex", gap:10, alignItems:"flex-start", padding:"8px 0", borderBottom:`1px solid ${th.bdr}` }}>
+              <div style={{ width:30, height:30, borderRadius:"50%", background:th.surf2, border:`1px solid ${th.bdr}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:14, flexShrink:0 }}>{icons[item._type]}</div>
+              <div style={{ flex:1 }}>
+                <span style={{ fontWeight:600, fontSize:12, color:th.txt }}>{author.name} </span>
+                <span style={{ fontSize:12, color:th.txt2 }}>{labels[item._type]?.(item)}</span>
+                <div style={{ fontSize:11, color:th.txt3, marginTop:1 }}>{ago(new Date(item._ts).getTime())}</div>
+              </div>
+            </div>
+          );
+        })
+      }
+    </div>
+  );
+}
+
 // ─── FEEDBACK SECTION ─────────────────────────────────────────────
-function FeedbackSection({ startupId, me, profiles, isFounder, dk }) {
+function CColabFeedback({ startupId, me, profiles, isFounder, dk }) {
   const th = T(dk);
   const [feedbacks, setFeedbacks] = useState([]);
   const [msg, setMsg] = useState("");
@@ -2422,94 +2519,102 @@ function FeedbackSection({ startupId, me, profiles, isFounder, dk }) {
   const [posting, setPosting] = useState(false);
   const [editId, setEditId] = useState(null);
   const [editMsg, setEditMsg] = useState("");
-  const fileRef = useRef();
   const [attach, setAttach] = useState(null);
+  const fileRef = useRef();
 
-  useEffect(()=>{
-    db.get("rs_startup_feedback",`startup_id=eq.${startupId}&order=created_at.desc&limit=30`).then(d=>setFeedbacks(d||[]));
-  },[startupId]);
+  useEffect(() => {
+    db.get("rs_startup_feedback", `startup_id=eq.${startupId}&order=created_at.desc&limit=50`)
+      .then(d => setFeedbacks(d||[]));
+  }, [startupId]);
 
-  const post = async()=>{
-    if(!msg.trim()&&!attach) return;
+  const attachMedia = async files => {
+    if (!files[0]) return;
+    try { const b64 = await fileToB64(files[0],3); setAttach({ url:b64, type:files[0].type }); }
+    catch(e) { alert(e.message); }
+  };
+
+  const post = async () => {
+    if (!msg.trim() && !attach) return;
     setPosting(true);
-    const saved = await db.post("rs_startup_feedback",{startup_id:startupId,user_id:me,message:msg.trim(),media:attach||null});
-    if(saved) setFeedbacks(f=>[saved,...f]);
+    const saved = await db.post("rs_startup_feedback", { startup_id:startupId, user_id:me, message:msg.trim(), media:attach||null });
+    if (saved) setFeedbacks(f => [saved,...f]);
     setMsg(""); setAttach(null); setPosting(false);
   };
 
-  const del = async id=>{
-    await db.del("rs_startup_feedback",`id=eq.${id}`);
-    setFeedbacks(f=>f.filter(x=>x.id!==id));
+  const del = async id => {
+    await db.del("rs_startup_feedback", `id=eq.${id}`);
+    setFeedbacks(f => f.filter(x => x.id!==id));
   };
 
-  const saveEdit = async id=>{
-    await db.patch("rs_startup_feedback",`id=eq.${id}`,{message:editMsg});
-    setFeedbacks(f=>f.map(x=>x.id===id?{...x,message:editMsg}:x));
+  const saveEdit = async id => {
+    await db.patch("rs_startup_feedback", `id=eq.${id}`, { message:editMsg });
+    setFeedbacks(f => f.map(x => x.id===id ? {...x,message:editMsg} : x));
     setEditId(null);
   };
 
-  const attachMedia = async files=>{
-    if(!files[0]) return;
-    try{const b64=await fileToB64(files[0],3);setAttach({url:b64,type:files[0].type});}catch(e){alert(e.message);}
-  };
-
   return (
-    <div style={{background:th.surf,border:`1px solid ${th.bdr}`,borderRadius:14,padding:16,marginTop:16}}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:open?14:0,cursor:"pointer"}} onClick={()=>setOpen(x=>!x)}>
-        <span style={{fontWeight:700,fontSize:14,color:th.txt}}>💬 Feedback ({feedbacks.length})</span>
-        <div style={{width:28,height:28,borderRadius:"50%",background:"#3b82f618",border:"1px solid #3b82f640",display:"flex",alignItems:"center",justifyContent:"center",color:"#3b82f6",fontWeight:800,fontSize:18,transition:"all .2s",transform:open?"rotate(45deg)":"none"}}>+</div>
+    <div style={{ background:th.surf, border:`1px solid ${th.bdr}`, borderRadius:14, padding:16, marginTop:16 }}>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", cursor:"pointer", marginBottom:open?14:0 }}
+        onClick={() => setOpen(x=>!x)}>
+        <span style={{ fontWeight:700, fontSize:14, color:th.txt }}>💬 Feedback ({feedbacks.length})</span>
+        <div style={{ width:28, height:28, borderRadius:"50%", background:"#3b82f618", border:"1px solid #3b82f640", display:"flex", alignItems:"center", justifyContent:"center", color:"#3b82f6", fontWeight:800, fontSize:18, transition:"all .2s", transform:open?"rotate(45deg)":"none" }}>+</div>
       </div>
       {open && (
         <>
-          <div style={{display:"flex",gap:8,marginBottom:14}}>
-            <Av profile={profiles[me]||{}} size={30}/>
-            <div style={{flex:1}}>
-              <div style={{display:"flex",gap:8,marginBottom:attach?8:0}}>
-                <input value={msg} onChange={e=>setMsg(e.target.value)} onKeyDown={e=>e.key==="Enter"&&post()} placeholder="Share your thoughts…" style={{flex:1,background:th.inp,border:`1px solid ${th.inpB}`,borderRadius:10,padding:"8px 12px",fontSize:13,outline:"none",color:th.txt}}/>
-                <button onClick={()=>fileRef.current?.click()} style={{background:"none",border:`1px solid ${th.bdr}`,borderRadius:8,padding:"0 10px",cursor:"pointer",color:th.txt3}}><Image size={14}/></button>
-                <button onClick={post} disabled={(!msg.trim()&&!attach)||posting} style={{background:(msg.trim()||attach)?"#3b82f6":th.surf2,border:"none",borderRadius:10,padding:"0 14px",color:(msg.trim()||attach)?"#fff":th.txt3,cursor:(msg.trim()||attach)?"pointer":"default",fontWeight:700,fontSize:13}}>{posting?"…":"Send"}</button>
-                <input ref={fileRef} type="file" accept="image/*,audio/*" style={{display:"none"}} onChange={e=>attachMedia(e.target.files)}/>
+          <div style={{ display:"flex", gap:8, marginBottom:14 }}>
+            <Av profile={profiles[me]||{}} size={30} />
+            <div style={{ flex:1 }}>
+              <div style={{ display:"flex", gap:8, marginBottom:attach?6:0 }}>
+                <input value={msg} onChange={e => setMsg(e.target.value)}
+                  onKeyDown={e => e.key==="Enter" && post()}
+                  placeholder="Share your feedback…"
+                  style={{ flex:1, background:th.inp, border:`1px solid ${th.inpB}`, borderRadius:10, padding:"8px 12px", fontSize:13, outline:"none", color:th.txt }} />
+                <button onClick={() => fileRef.current?.click()} style={{ background:"none", border:`1px solid ${th.bdr}`, borderRadius:8, padding:"0 10px", cursor:"pointer", color:th.txt3 }}><Image size={14} /></button>
+                <button onClick={post} disabled={(!msg.trim()&&!attach)||posting}
+                  style={{ background:(msg.trim()||attach)?"#3b82f6":th.surf2, border:"none", borderRadius:10, padding:"0 14px", color:(msg.trim()||attach)?"#fff":th.txt3, cursor:(msg.trim()||attach)?"pointer":"default", fontWeight:700, fontSize:13, flexShrink:0 }}>
+                  {posting?"…":"Send"}
+                </button>
+                <input ref={fileRef} type="file" accept="image/*,audio/*" style={{ display:"none" }} onChange={e => attachMedia(e.target.files)} />
               </div>
               {attach && (
-                <div style={{display:"flex",alignItems:"center",gap:8,padding:"4px 0"}}>
-                  {attach.type.startsWith("image")?<img src={attach.url} style={{height:36,borderRadius:6,objectFit:"cover"}}/>:<span style={{fontSize:11,color:th.txt2}}>🎵 Audio</span>}
-                  <button onClick={()=>setAttach(null)} style={{background:"none",border:"none",cursor:"pointer",color:th.txt3}}><X size={12}/></button>
+                <div style={{ display:"flex", alignItems:"center", gap:8, marginTop:4 }}>
+                  {attach.type?.startsWith("image") ? <img src={attach.url} style={{ height:32, borderRadius:6, objectFit:"cover" }} alt="preview" /> : <span style={{ fontSize:11, color:th.txt2 }}>🎵 Audio</span>}
+                  <button onClick={() => setAttach(null)} style={{ background:"none", border:"none", cursor:"pointer", color:th.txt3 }}><X size={11} /></button>
                 </div>
               )}
             </div>
           </div>
-          {feedbacks.length===0
-            ? <p style={{fontSize:13,color:th.txt3,textAlign:"center",padding:"8px 0"}}>No feedback yet. Be first!</p>
-            : feedbacks.map(fb=>{
-              const author = profiles[fb.user_id]||{name:"User"};
-              const canEdit = isFounder||fb.user_id===me;
+          {feedbacks.length === 0
+            ? <p style={{ fontSize:13, color:th.txt3, textAlign:"center", padding:"8px 0" }}>No feedback yet. Be first!</p>
+            : feedbacks.map(fb => {
+              const author = profiles[fb.user_id] || { name:"User" };
+              const canEdit = isFounder || fb.user_id===me;
               return (
-                <div key={fb.id} style={{display:"flex",gap:8,marginBottom:10}}>
-                  <Av profile={author} size={28}/>
-                  <div style={{flex:1,background:th.surf2,border:`1px solid ${th.bdr}`,borderRadius:10,padding:"8px 12px"}}>
-                    <div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}>
-                      <span style={{fontWeight:700,fontSize:12,color:th.txt}}>{author.name} <span style={{fontWeight:400,color:th.txt3}}>{ago(new Date(fb.created_at).getTime())}</span></span>
+                <div key={fb.id} style={{ display:"flex", gap:8, marginBottom:10 }}>
+                  <Av profile={author} size={28} />
+                  <div style={{ flex:1, background:th.surf2, border:`1px solid ${th.bdr}`, borderRadius:10, padding:"8px 12px" }}>
+                    <div style={{ display:"flex", justifyContent:"space-between", marginBottom:3 }}>
+                      <span style={{ fontWeight:700, fontSize:12, color:th.txt }}>{author.name} <span style={{ fontWeight:400, color:th.txt3 }}>{ago(new Date(fb.created_at).getTime())}</span></span>
                       {canEdit && (
-                        <div style={{display:"flex",gap:4}}>
-                          <button onClick={()=>{setEditId(fb.id);setEditMsg(fb.message);}} style={{background:"none",border:"none",cursor:"pointer",color:th.txt3,padding:0}}><Edit3 size={11}/></button>
-                          <button onClick={()=>del(fb.id)} style={{background:"none",border:"none",cursor:"pointer",color:"#ef4444",padding:0}}><Trash2 size={11}/></button>
+                        <div style={{ display:"flex", gap:4 }}>
+                          <button onClick={() => { setEditId(fb.id); setEditMsg(fb.message); }} style={{ background:"none", border:"none", cursor:"pointer", color:th.txt3, padding:0 }}><Edit3 size={11} /></button>
+                          <button onClick={() => del(fb.id)} style={{ background:"none", border:"none", cursor:"pointer", color:"#ef4444", padding:0 }}><Trash2 size={11} /></button>
                         </div>
                       )}
                     </div>
                     {editId===fb.id
-                      ? (
-                        <div style={{display:"flex",gap:6}}>
-                          <input value={editMsg} onChange={e=>setEditMsg(e.target.value)} style={{flex:1,background:th.inp,border:`1px solid ${th.inpB}`,borderRadius:7,padding:"5px 8px",fontSize:12,outline:"none",color:th.txt}}/>
-                          <button onClick={()=>saveEdit(fb.id)} style={{background:"#3b82f6",border:"none",borderRadius:7,padding:"4px 10px",color:"#fff",fontSize:11,cursor:"pointer"}}>Save</button>
-                          <button onClick={()=>setEditId(null)} style={{background:"transparent",border:`1px solid ${th.bdr}`,borderRadius:7,padding:"4px 8px",color:th.txt2,fontSize:11,cursor:"pointer"}}>✕</button>
+                      ? <div style={{ display:"flex", gap:6 }}>
+                          <input value={editMsg} onChange={e => setEditMsg(e.target.value)}
+                            style={{ flex:1, background:th.inp, border:`1px solid ${th.inpB}`, borderRadius:7, padding:"5px 8px", fontSize:12, outline:"none", color:th.txt }} />
+                          <button onClick={() => saveEdit(fb.id)} style={{ background:"#3b82f6", border:"none", borderRadius:7, padding:"4px 10px", color:"#fff", fontSize:11, cursor:"pointer" }}>Save</button>
+                          <button onClick={() => setEditId(null)} style={{ background:"transparent", border:`1px solid ${th.bdr}`, borderRadius:7, padding:"4px 8px", color:th.txt2, fontSize:11, cursor:"pointer" }}>✕</button>
                         </div>
-                      )
                       : <>
-                          <div style={{fontSize:13,color:th.txt2,lineHeight:1.5}}>{fb.message}</div>
+                          <div style={{ fontSize:13, color:th.txt2, lineHeight:1.5 }}>{fb.message}</div>
                           {fb.media?.url && (
                             fb.media.type?.startsWith("image")
-                              ? <img src={fb.media.url} style={{maxWidth:180,borderRadius:8,marginTop:6}}/>
-                              : <audio src={fb.media.url} controls style={{marginTop:6,width:160,height:28}}/>
+                              ? <img src={fb.media.url} style={{ maxWidth:180, borderRadius:8, marginTop:6 }} alt="feedback" />
+                              : <audio src={fb.media.url} controls style={{ marginTop:6, width:160, height:28 }} />
                           )}
                         </>
                     }
@@ -2525,74 +2630,74 @@ function FeedbackSection({ startupId, me, profiles, isFounder, dk }) {
 }
 
 // ─── PAGE WORKSPACE ───────────────────────────────────────────────
-function PageWorkspace({ page, startup, me, profiles, bals, dk, onBack, onProfile }) {
+function CPageWorkspace({ page, startup, me, profiles, bals, dk, onBack, onProfile, isFounder }) {
   const th = T(dk);
   const [members, setMembers] = useState([]);
   const [tab, setTab] = useState("chat");
+  const pt = cpt(page);
 
-  const pt = PAGE_TYPES.find(p=>page.name?.toLowerCase().includes(p.id))||PAGE_TYPES[3];
-
-  useEffect(()=>{
-    db.get("rs_page_access",`page_id=eq.${page.id}&status=eq.approved`).then(d=>setMembers(d||[]));
-  },[page.id]);
+  useEffect(() => {
+    db.get("rs_page_access", `page_id=eq.${page.id}&status=eq.approved`)
+      .then(d => setMembers(d||[]));
+  }, [page.id]);
 
   const tabs = [
-    {id:"chat",   label:"Chat",    e:"💬"},
-    {id:"tasks",  label:"Tasks",   e:"📋"},
-    {id:"files",  label:"Files",   e:"📁"},
-    {id:"meeting",label:"Meetings",e:"📅"},
-    {id:"members",label:"Members", e:"👥"},
+    { id:"chat",     label:"Chat",     e:"💬" },
+    { id:"tasks",    label:"Tasks",    e:"📋" },
+    { id:"files",    label:"Files",    e:"📁" },
+    { id:"meetings", label:"Meetings", e:"📅" },
+    { id:"activity", label:"Activity", e:"⚡" },
+    { id:"members",  label:"Members",  e:"👥" },
   ];
 
   return (
-    <div style={{animation:"fadeUp .3s ease"}}>
-      <button onClick={onBack} style={{display:"flex",alignItems:"center",gap:6,background:"transparent",border:"none",cursor:"pointer",color:th.txt2,fontSize:13,fontWeight:600,padding:"0 0 14px"}}>
-        <ArrowLeft size={15}/> Back to {startup.name}
+    <div style={{ animation:"fadeUp .3s ease" }}>
+      <button onClick={onBack} style={{ display:"flex", alignItems:"center", gap:6, background:"transparent", border:"none", cursor:"pointer", color:th.txt2, fontSize:13, fontWeight:600, padding:"0 0 14px" }}>
+        <ArrowLeft size={15} /> Back to {startup.name}
       </button>
-
-      <div style={{background:`linear-gradient(135deg,${pt.c}22,${pt.c}08)`,border:`1px solid ${pt.c}30`,borderRadius:16,padding:16,marginBottom:16}}>
-        <div style={{display:"flex",alignItems:"center",gap:12}}>
-          <div style={{width:44,height:44,borderRadius:12,background:pt.c+"25",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22}}>{pt.e}</div>
-          <div style={{flex:1}}>
-            <div style={{fontWeight:800,fontSize:17,color:th.txt}}>{page.name}</div>
-            <div style={{fontSize:13,color:th.txt2}}>{page.description||pt.desc}</div>
+      <div style={{ background:`linear-gradient(135deg,${pt.c}22,${pt.c}08)`, border:`1px solid ${pt.c}30`, borderRadius:16, padding:16, marginBottom:16 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+          <div style={{ width:46, height:46, borderRadius:13, background:`${pt.c}25`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:22 }}>{pt.e}</div>
+          <div style={{ flex:1 }}>
+            <div style={{ fontWeight:800, fontSize:17, color:th.txt }}>{page.name}</div>
+            <div style={{ fontSize:13, color:th.txt2 }}>{page.description||pt.desc}</div>
           </div>
-          <div style={{display:"flex",alignItems:"center",gap:10}}>
-            <StackedAvatars userIds={members.map(m=>m.user_id)} profiles={profiles} onProfile={onProfile} max={4} size={24}/>
-            <span style={{fontSize:12,color:th.txt3}}>{members.length} member{members.length!==1?"s":""}</span>
+          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+            <StackedAvatars userIds={members.map(m=>m.user_id)} profiles={profiles} onProfile={onProfile} max={4} size={24} />
+            <span style={{ fontSize:12, color:th.txt3 }}>{members.length} member{members.length!==1?"s":""}</span>
           </div>
         </div>
       </div>
-
-      <div style={{display:"flex",gap:4,marginBottom:16,background:th.surf2,borderRadius:12,padding:4,border:`1px solid ${th.bdr}`,overflowX:"auto"}}>
-        {tabs.map(t=>(
-          <button key={t.id} onClick={()=>setTab(t.id)} style={{flexShrink:0,padding:"7px 12px",borderRadius:9,border:"none",background:tab===t.id?pt.c:"transparent",color:tab===t.id?"#fff":th.txt2,fontSize:12,fontWeight:600,cursor:"pointer",transition:"all .2s",whiteSpace:"nowrap"}}>
+      <div style={{ display:"flex", gap:4, marginBottom:16, background:th.surf2, borderRadius:12, padding:4, border:`1px solid ${th.bdr}`, overflowX:"auto" }}>
+        {tabs.map(t => (
+          <button key={t.id} onClick={() => setTab(t.id)}
+            style={{ flexShrink:0, padding:"7px 12px", borderRadius:9, border:"none", background:tab===t.id?pt.c:"transparent", color:tab===t.id?"#fff":th.txt2, fontSize:12, fontWeight:600, cursor:"pointer", transition:"all .2s", whiteSpace:"nowrap" }}>
             {t.e} {t.label}
           </button>
         ))}
       </div>
-
-      {tab==="chat"    && <PageChat pageId={page.id} me={me} profiles={profiles} bals={bals} dk={dk} onProfile={onProfile}/>}
-      {tab==="tasks"   && <TaskPanel pageId={page.id} me={me} profiles={profiles} members={members} dk={dk}/>}
-      {tab==="files"   && <FileManager pageId={page.id} me={me} profiles={profiles} dk={dk}/>}
-      {tab==="meeting" && <MeetingPanel pageId={page.id} startupId={startup.id} me={me} profiles={profiles} members={members} dk={dk}/>}
-      {tab==="members" && (
+      {tab==="chat"     && <CPageChat pageId={page.id} me={me} profiles={profiles} bals={bals} dk={dk} onProfile={onProfile} />}
+      {tab==="tasks"    && <CTaskPanel pageId={page.id} me={me} profiles={profiles} members={members} dk={dk} />}
+      {tab==="files"    && <CFileManager pageId={page.id} me={me} profiles={profiles} dk={dk} />}
+      {tab==="meetings" && <CMeetingPanel pageId={page.id} startupId={startup.id} me={me} profiles={profiles} members={members} dk={dk} />}
+      {tab==="activity" && <CActivityFeed pageId={page.id} startupId={startup.id} me={me} profiles={profiles} dk={dk} />}
+      {tab==="members"  && (
         <div>
-          {members.length===0
-            ? <p style={{textAlign:"center",color:th.txt3,padding:32}}>No approved members yet.</p>
-            : members.map(m=>{
-              const p=profiles[m.user_id]||{name:"Member"};
+          {members.length === 0
+            ? <p style={{ textAlign:"center", color:th.txt3, padding:32 }}>No approved members yet.</p>
+            : members.map(m => {
+              const p = profiles[m.user_id] || { name:"Member" };
               return (
                 <Card dk={dk} key={m.id}>
-                  <div style={{display:"flex",gap:12,alignItems:"center"}}>
-                    <ProfileCard uid={m.user_id} profiles={profiles} bals={bals} dk={dk} onProfile={onProfile}>
-                      <Av profile={p} size={40}/>
-                    </ProfileCard>
-                    <div style={{flex:1}}>
-                      <div style={{fontWeight:700,fontSize:14,color:th.txt}}>{p.name}</div>
-                      <div style={{fontSize:12,color:th.txt3}}>{p.handle?`@${p.handle}`:p.email}</div>
+                  <div style={{ display:"flex", gap:12, alignItems:"center" }}>
+                    <ProfileHoverCard uid={m.user_id} profiles={profiles} bals={bals} dk={dk} onProfile={onProfile}>
+                      <Av profile={p} size={40} />
+                    </ProfileHoverCard>
+                    <div style={{ flex:1 }}>
+                      <div style={{ fontWeight:700, fontSize:14, color:th.txt }}>{p.name}</div>
+                      <div style={{ fontSize:12, color:th.txt3 }}>{p.handle?`@${p.handle}`:p.email}</div>
                     </div>
-                    <span style={{background:pt.c+"18",color:pt.c,fontSize:11,fontWeight:700,padding:"3px 10px",borderRadius:99}}>✓ Member</span>
+                    <span style={{ background:`${pt.c}18`, color:pt.c, fontSize:11, fontWeight:700, padding:"3px 10px", borderRadius:99 }}>✓ Member</span>
                   </div>
                 </Card>
               );
@@ -2605,57 +2710,60 @@ function PageWorkspace({ page, startup, me, profiles, bals, dk, onBack, onProfil
 }
 
 // ─── JOIN MODAL ───────────────────────────────────────────────────
-function JoinModal({ startup, me, existingPageIds, onClose, onSubmit, dk }) {
+function CJoinModal({ startup, me, onClose, onSubmit, dk }) {
   const th = T(dk);
   const [selected, setSelected] = useState([]);
   const [message, setMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
-  const toggle = id => setSelected(s=>s.includes(id)?s.filter(x=>x!==id):[...s,id]);
+  const toggle = id => setSelected(s => s.includes(id) ? s.filter(x=>x!==id) : [...s,id]);
 
-  const submit = async()=>{
-    if(!selected.length) return;
+  const submit = async () => {
+    if (!selected.length) return;
     setSubmitting(true);
-    // Map selected roles → page type IDs
-    const pageTypeIds = [...new Set(selected.flatMap(r=>ROLE_MAP[r]||[]))];
-    await onSubmit({startup_id:startup.id,user_id:me,selected_roles:selected,page_type_ids:pageTypeIds,message,status:"pending"});
+    const pageTypeIds = [...new Set(selected.flatMap(r => JOIN_ROLES.find(x=>x.id===r)?.maps||[]))];
+    await onSubmit({ startup_id:startup.id, user_id:me, selected_roles:selected, page_type_ids:pageTypeIds, message, status:"pending" });
     setSubmitting(false);
     onClose();
   };
 
   return (
-    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.65)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
-      <div onClick={e=>e.stopPropagation()} style={{background:th.surf,borderRadius:20,padding:24,width:"100%",maxWidth:420,animation:"fadeUp .25s ease"}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:6}}>
+    <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,.7)", zIndex:1000, display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}>
+      <div onClick={e=>e.stopPropagation()} style={{ background:th.surf, borderRadius:20, padding:24, width:"100%", maxWidth:420, animation:"fadeUp .25s ease" }}>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:16 }}>
           <div>
-            <h3 style={{margin:0,fontSize:17,fontWeight:800,color:th.txt}}>Join {startup.name}</h3>
-            <p style={{margin:"4px 0 0",fontSize:13,color:th.txt3}}>Tell us who you are</p>
+            <h3 style={{ margin:0, fontSize:18, fontWeight:800, color:th.txt }}>Join {startup.name}</h3>
+            <p style={{ margin:"4px 0 0", fontSize:13, color:th.txt3 }}>Tell us who you are — select all that apply</p>
           </div>
-          <button onClick={onClose} style={{background:"none",border:"none",cursor:"pointer",color:th.txt3}}><X size={18}/></button>
+          <button onClick={onClose} style={{ background:"none", border:"none", cursor:"pointer", color:th.txt3 }}><X size={18} /></button>
         </div>
-        <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:16,marginTop:16}}>
-          {JOIN_ROLES.map(r=>{
-            const sel=selected.includes(r.id);
+        <div style={{ display:"flex", flexDirection:"column", gap:8, marginBottom:16 }}>
+          {JOIN_ROLES.map(r => {
+            const sel = selected.includes(r.id);
             return (
-              <button key={r.id} onClick={()=>toggle(r.id)} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",borderRadius:12,border:`1.5px solid ${sel?"#3b82f6":th.bdr}`,background:sel?"#3b82f615":"transparent",cursor:"pointer",textAlign:"left"}}>
-                <span style={{fontSize:22}}>{r.e}</span>
-                <div style={{flex:1}}>
-                  <div style={{fontSize:13,fontWeight:700,color:sel?"#3b82f6":th.txt}}>{r.label}</div>
-                  <div style={{fontSize:11,color:th.txt3}}>{r.desc}</div>
+              <button key={r.id} onClick={() => toggle(r.id)}
+                style={{ display:"flex", alignItems:"center", gap:12, padding:"12px 16px", borderRadius:12, border:`1.5px solid ${sel?"#3b82f6":th.bdr}`, background:sel?"#3b82f615":"transparent", cursor:"pointer", textAlign:"left" }}>
+                <span style={{ fontSize:22, flexShrink:0 }}>{r.e}</span>
+                <div style={{ flex:1 }}>
+                  <div style={{ fontSize:13, fontWeight:700, color:sel?"#3b82f6":th.txt }}>{r.label}</div>
+                  <div style={{ fontSize:11, color:th.txt3 }}>{r.desc}</div>
                 </div>
-                {sel && <Check size={14} color="#3b82f6"/>}
+                {sel && <Check size={14} color="#3b82f6" />}
               </button>
             );
           })}
         </div>
-        <div style={{marginBottom:18}}>
-          <label style={{fontSize:12,fontWeight:700,color:th.txt2,display:"block",marginBottom:6,letterSpacing:.4}}>MESSAGE (OPTIONAL)</label>
-          <textarea value={message} onChange={e=>setMessage(e.target.value)} placeholder="Introduce yourself…" rows={3} style={{width:"100%",background:th.inp,border:`1px solid ${th.inpB}`,borderRadius:10,padding:"8px 12px",fontSize:13,outline:"none",resize:"none",fontFamily:"inherit",color:th.txt,boxSizing:"border-box"}}/>
+        <div style={{ marginBottom:18 }}>
+          <label style={{ fontSize:12, fontWeight:700, color:th.txt2, display:"block", marginBottom:6, letterSpacing:.4 }}>MESSAGE (OPTIONAL)</label>
+          <textarea value={message} onChange={e => setMessage(e.target.value)}
+            placeholder="Introduce yourself — why do you want to join?"
+            rows={3} style={{ width:"100%", background:th.inp, border:`1px solid ${th.inpB}`, borderRadius:10, padding:"8px 12px", fontSize:13, outline:"none", resize:"none", fontFamily:"inherit", color:th.txt, boxSizing:"border-box" }} />
         </div>
-        <div style={{display:"flex",gap:10}}>
-          <button onClick={onClose} style={{flex:1,padding:"10px",background:"transparent",border:`1px solid ${th.bdr}`,borderRadius:12,cursor:"pointer",color:th.txt2,fontWeight:600,fontSize:13}}>Cancel</button>
-          <button onClick={submit} disabled={submitting||!selected.length} style={{flex:2,padding:"10px",background:selected.length?"linear-gradient(135deg,#3b82f6,#8b5cf6)":th.surf2,border:"none",borderRadius:12,cursor:selected.length?"pointer":"default",color:selected.length?"#fff":th.txt3,fontWeight:700,fontSize:13}}>
-            {submitting?"Sending…":`Send Request (${selected.length} role${selected.length!==1?"s":""})`}
+        <div style={{ display:"flex", gap:10 }}>
+          <button onClick={onClose} style={{ flex:1, padding:"10px", background:"transparent", border:`1px solid ${th.bdr}`, borderRadius:12, cursor:"pointer", color:th.txt2, fontWeight:600, fontSize:13 }}>Cancel</button>
+          <button onClick={submit} disabled={submitting||!selected.length}
+            style={{ flex:2, padding:"10px", background:selected.length?"linear-gradient(135deg,#3b82f6,#8b5cf6)":th.surf2, border:"none", borderRadius:12, cursor:selected.length?"pointer":"default", color:selected.length?"#fff":th.txt3, fontWeight:700, fontSize:13 }}>
+            {submitting?"Sending…":`Request Access (${selected.length} role${selected.length!==1?"s":""})`}
           </button>
         </div>
       </div>
@@ -2663,8 +2771,8 @@ function JoinModal({ startup, me, existingPageIds, onClose, onSubmit, dk }) {
   );
 }
 
-// ─── REFERRAL JOIN MODAL ─────────────────────────────────────────
-function ReferralJoinModal({ me, onClose, onSuccess, dk }) {
+// ─── REFERRAL JOIN ────────────────────────────────────────────────
+function CReferralModal({ me, onClose, onSuccess, dk }) {
   const th = T(dk);
   const [code, setCode] = useState("");
   const [startup, setStartup] = useState(null);
@@ -2672,50 +2780,56 @@ function ReferralJoinModal({ me, onClose, onSuccess, dk }) {
   const [err, setErr] = useState("");
   const [showJoin, setShowJoin] = useState(false);
 
-  const checkCode = async()=>{
-    if(!code.trim()) return;
+  const checkCode = async () => {
+    if (!code.trim()) return;
     setChecking(true); setErr(""); setStartup(null);
-    const rows = await db.get("rs_startups",`referral_code=eq.${code.trim().toUpperCase()}`);
-    if(!rows?.length){setErr("Invalid code. Please check and try again.");setChecking(false);return;}
+    const rows = await db.get("rs_startups", `referral_code=eq.${code.trim().toUpperCase()}`);
+    if (!rows?.length) { setErr("Invalid code. Check and try again."); setChecking(false); return; }
     setStartup(rows[0]);
     setChecking(false);
   };
 
-  const handleSubmit = async data=>{
-    const saved = await db.post("rs_page_access_requests",data);
-    if(saved){onSuccess(startup);onClose();}
+  const handleSubmit = async data => {
+    const saved = await db.post("rs_page_access_requests", data);
+    if (saved) { onSuccess(startup); onClose(); }
   };
 
-  if(showJoin && startup) return (
-    <JoinModal startup={startup} me={me} existingPageIds={[]} onClose={onClose} onSubmit={handleSubmit} dk={dk}/>
-  );
+  if (showJoin && startup) return <CJoinModal startup={startup} me={me} onClose={onClose} onSubmit={handleSubmit} dk={dk} />;
 
   return (
-    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.65)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
-      <div onClick={e=>e.stopPropagation()} style={{background:th.surf,borderRadius:20,padding:24,width:"100%",maxWidth:360,animation:"fadeUp .25s ease"}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
-          <h3 style={{margin:0,fontSize:17,fontWeight:800,color:th.txt}}>Join via Code</h3>
-          <button onClick={onClose} style={{background:"none",border:"none",cursor:"pointer",color:th.txt3}}><X size={18}/></button>
+    <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,.7)", zIndex:1000, display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}>
+      <div onClick={e=>e.stopPropagation()} style={{ background:th.surf, borderRadius:20, padding:24, width:"100%", maxWidth:360, animation:"fadeUp .25s ease" }}>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20 }}>
+          <h3 style={{ margin:0, fontSize:17, fontWeight:800, color:th.txt }}>Join via Code</h3>
+          <button onClick={onClose} style={{ background:"none", border:"none", cursor:"pointer", color:th.txt3 }}><X size={18} /></button>
         </div>
-        <div style={{display:"flex",gap:8,marginBottom:14}}>
-          <input value={code} onChange={e=>{setCode(e.target.value.toUpperCase());setErr("");setStartup(null);}} onKeyDown={e=>e.key==="Enter"&&checkCode()} placeholder="e.g. SKILL-A3B2" style={{flex:1,background:th.inp,border:`1.5px solid ${err?"#ef4444":startup?"#10b981":th.inpB}`,borderRadius:10,padding:"9px 12px",fontSize:14,outline:"none",color:th.txt,fontFamily:"monospace",letterSpacing:1}}/>
-          <button onClick={checkCode} disabled={checking||!code.trim()} style={{background:"#3b82f6",border:"none",borderRadius:10,padding:"0 16px",color:"#fff",fontWeight:700,fontSize:13,cursor:"pointer"}}>{checking?"…":"Check"}</button>
+        <div style={{ display:"flex", gap:8, marginBottom:14 }}>
+          <input value={code} onChange={e => { setCode(e.target.value.toUpperCase()); setErr(""); setStartup(null); }}
+            onKeyDown={e => e.key==="Enter" && checkCode()}
+            placeholder="e.g. SKILL-A3B2"
+            style={{ flex:1, background:th.inp, border:`1.5px solid ${err?"#ef4444":startup?"#10b981":th.inpB}`, borderRadius:10, padding:"9px 12px", fontSize:14, outline:"none", color:th.txt, fontFamily:"monospace", letterSpacing:1 }} />
+          <button onClick={checkCode} disabled={checking||!code.trim()}
+            style={{ background:"#3b82f6", border:"none", borderRadius:10, padding:"0 16px", color:"#fff", fontWeight:700, fontSize:13, cursor:"pointer" }}>
+            {checking?"…":"Check"}
+          </button>
         </div>
-        {err && <p style={{fontSize:13,color:"#ef4444",margin:"0 0 12px",display:"flex",alignItems:"center",gap:5}}><AlertCircle size={13}/>{err}</p>}
+        {err && <p style={{ fontSize:13, color:"#ef4444", margin:"0 0 12px", display:"flex", alignItems:"center", gap:5 }}><AlertCircle size={13} />{err}</p>}
         {startup && (
-          <div style={{background:th.surf2,borderRadius:14,padding:14,marginBottom:16,border:"1px solid #10b98130"}}>
-            <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:6}}>
-              <div style={{width:40,height:40,borderRadius:10,background:"linear-gradient(135deg,#3b82f6,#8b5cf6)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>{startup.logo||"🚀"}</div>
+          <div style={{ background:th.surf2, borderRadius:14, padding:14, marginBottom:16, border:"1px solid #10b98130" }}>
+            <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:6 }}>
+              <div style={{ width:42, height:42, borderRadius:11, background:"linear-gradient(135deg,#3b82f6,#8b5cf6)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:22, overflow:"hidden", flexShrink:0 }}>
+                {startup.logo?.startsWith("data:")?<img src={startup.logo} style={{ width:"100%", height:"100%", objectFit:"cover" }} alt="logo" />:startup.logo||"🚀"}
+              </div>
               <div>
-                <div style={{fontWeight:800,fontSize:15,color:th.txt}}>{startup.name}</div>
-                <div style={{fontSize:12,color:"#10b981",fontWeight:600}}>✓ Valid startup found</div>
+                <div style={{ fontWeight:800, fontSize:15, color:th.txt }}>{startup.name}</div>
+                <div style={{ fontSize:12, color:"#10b981", fontWeight:600 }}>✓ Valid startup</div>
               </div>
             </div>
-            <p style={{fontSize:13,color:th.txt2,margin:0,lineHeight:1.5}}>{startup.description?.slice(0,100)}{startup.description?.length>100?"…":""}</p>
+            <p style={{ fontSize:13, color:th.txt2, margin:0, lineHeight:1.5 }}>{startup.description?.slice(0,100)}{startup.description?.length>100?"…":""}</p>
           </div>
         )}
         {startup && (
-          <button onClick={()=>setShowJoin(true)} style={{width:"100%",padding:"11px",background:"linear-gradient(135deg,#3b82f6,#8b5cf6)",border:"none",borderRadius:12,color:"#fff",fontWeight:700,fontSize:14,cursor:"pointer"}}>
+          <button onClick={() => setShowJoin(true)} style={{ width:"100%", padding:"11px", background:"linear-gradient(135deg,#3b82f6,#8b5cf6)", border:"none", borderRadius:12, color:"#fff", fontWeight:700, fontSize:14, cursor:"pointer" }}>
             Continue to Join →
           </button>
         )}
@@ -2724,8 +2838,8 @@ function ReferralJoinModal({ me, onClose, onSuccess, dk }) {
   );
 }
 
-// ─── CREATE / EDIT STARTUP MODAL ─────────────────────────────────
-function CreateStartupModal({ me, existing, onClose, onSave, dk }) {
+// ─── CREATE / EDIT STARTUP ────────────────────────────────────────
+function CCreateStartupModal({ me, existing, onClose, onSave, dk }) {
   const th = T(dk);
   const [step, setStep] = useState(1);
   const [form, setForm] = useState({
@@ -2737,39 +2851,41 @@ function CreateStartupModal({ me, existing, onClose, onSave, dk }) {
     twitter: existing?.social_links?.twitter||"",
     linkedin: existing?.social_links?.linkedin||"",
   });
-  const [submitting, setSubmitting] = useState(false);
   const [logoFile, setLogoFile] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
   const logoRef = useRef();
-  const setF = (k,v)=>setForm(p=>({...p,[k]:v}));
-  const canNext = form.name.trim()&&form.description.trim();
+  const setF = (k,v) => setForm(p => ({...p,[k]:v}));
+  const canNext = form.name.trim() && form.description.trim();
 
-  const handleLogoUpload = async files=>{
-    if(!files[0]) return;
-    try{const b64=await fileToB64(files[0],2);setLogoFile(b64);}catch(e){alert(e.message);}
+  const handleLogoUpload = async files => {
+    if (!files[0]) return;
+    try { const b64 = await fileToB64(files[0],2); setLogoFile(b64); }
+    catch(e) { alert(e.message); }
   };
 
-  const handleSave = async()=>{
-    if(!canNext) return;
+  const handleSave = async () => {
+    if (!canNext) return;
     setSubmitting(true);
-    const payload={
-      name:form.name.trim(),
-      logo:logoFile||form.logo||"🚀",
-      description:form.description.trim(),
-      website:form.website.trim(),
-      github_link:form.github_link.trim(),
-      social_links:{twitter:form.twitter,linkedin:form.linkedin},
-      created_by:me,
-      founders:existing?.founders||[me],
+    const logoVal = logoFile || (form.logo?.startsWith("data:") ? form.logo : null) || form.logo || "🚀";
+    const payload = {
+      name:form.name.trim(), logo:logoVal, description:form.description.trim(),
+      website:form.website.trim(), github_link:form.github_link.trim(),
+      social_links:{ twitter:form.twitter, linkedin:form.linkedin },
+      created_by:me, founders:existing?.founders||[me],
       referral_code:existing?.referral_code||genStartupCode(form.name),
     };
     let saved;
-    if(existing?.id){
-      await db.patch("rs_startups",`id=eq.${existing.id}`,payload);
-      saved={...existing,...payload};
+    if (existing?.id) {
+      await db.patch("rs_startups", `id=eq.${existing.id}`, payload);
+      saved = {...existing,...payload};
     } else {
-      saved = await db.post("rs_startups",payload);
-      if(saved?.id){
-        await db.postMany("rs_startup_pages",DEFAULT_PAGES.map(p=>({...p,startup_id:saved.id})));
+      saved = await db.post("rs_startups", payload);
+      if (saved?.id) {
+        const defaultPages = DEFAULT_CPAGE_TYPES.map(tid => {
+          const pt = CPAGE_TYPES.find(p=>p.id===tid);
+          return { startup_id:saved.id, name:pt.label, description:pt.desc, type_id:tid };
+        });
+        await db.postMany("rs_startup_pages", defaultPages);
       }
     }
     setSubmitting(false);
@@ -2777,76 +2893,87 @@ function CreateStartupModal({ me, existing, onClose, onSave, dk }) {
     onClose();
   };
 
-  const inp={width:"100%",background:th.inp,border:`1px solid ${th.inpB}`,borderRadius:10,padding:"9px 12px",fontSize:13,outline:"none",boxSizing:"border-box",color:th.txt};
+  const inp = { width:"100%", background:th.inp, border:`1px solid ${th.inpB}`, borderRadius:10, padding:"9px 12px", fontSize:13, outline:"none", boxSizing:"border-box", color:th.txt };
 
   return (
-    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.65)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:16,overflowY:"auto"}}>
-      <div onClick={e=>e.stopPropagation()} style={{background:th.surf,borderRadius:20,padding:24,width:"100%",maxWidth:460,animation:"fadeUp .25s ease",margin:"auto"}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
-          <h3 style={{margin:0,fontSize:17,fontWeight:800,color:th.txt}}>{existing?"Edit Startup":`Create Startup${!existing?` — Step ${step}/2`:""}`}</h3>
-          <button onClick={onClose} style={{background:"none",border:"none",cursor:"pointer",color:th.txt3}}><X size={18}/></button>
+    <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,.7)", zIndex:1000, display:"flex", alignItems:"center", justifyContent:"center", padding:16, overflowY:"auto" }}>
+      <div onClick={e=>e.stopPropagation()} style={{ background:th.surf, borderRadius:20, padding:24, width:"100%", maxWidth:460, animation:"fadeUp .25s ease", margin:"auto" }}>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
+          <h3 style={{ margin:0, fontSize:17, fontWeight:800, color:th.txt }}>{existing?"Edit Startup":`Create Startup ${!existing?`— Step ${step}/2`:""}`}</h3>
+          <button onClick={onClose} style={{ background:"none", border:"none", cursor:"pointer", color:th.txt3 }}><X size={18} /></button>
         </div>
         {!existing && (
-          <div style={{display:"flex",gap:4,marginBottom:20}}>
-            {[1,2].map(s=><div key={s} style={{flex:1,height:3,borderRadius:99,background:s<=step?"#3b82f6":th.bdr,transition:"all .3s"}}/>)}
+          <div style={{ display:"flex", gap:4, marginBottom:20 }}>
+            {[1,2].map(s => <div key={s} style={{ flex:1, height:3, borderRadius:99, background:s<=step?"#3b82f6":th.bdr, transition:"all .3s" }} />)}
           </div>
         )}
+
         {step===1 && (
           <>
-            {/* Logo upload */}
-            <div style={{display:"flex",justifyContent:"center",marginBottom:16}}>
-              <div style={{position:"relative"}}>
-                <div style={{width:80,height:80,borderRadius:20,background:"linear-gradient(135deg,#3b82f6,#8b5cf6)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:logoFile?0:36,overflow:"hidden",cursor:"pointer"}} onClick={()=>logoRef.current?.click()}>
-                  {logoFile?<img src={logoFile} style={{width:"100%",height:"100%",objectFit:"cover"}}/>:(form.logo||"🚀")}
+            {/* Logo */}
+            <div style={{ display:"flex", justifyContent:"center", marginBottom:18 }}>
+              <div style={{ position:"relative" }}>
+                <div onClick={() => logoRef.current?.click()}
+                  style={{ width:80, height:80, borderRadius:20, background:"linear-gradient(135deg,#3b82f6,#8b5cf6)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:34, overflow:"hidden", cursor:"pointer", border:"3px dashed rgba(59,130,246,.4)" }}>
+                  {(logoFile||existing?.logo)?.startsWith("data:")
+                    ? <img src={logoFile||existing?.logo} style={{ width:"100%", height:"100%", objectFit:"cover" }} alt="logo" />
+                    : <span>{form.logo||"🚀"}</span>
+                  }
                 </div>
-                <button onClick={()=>logoRef.current?.click()} style={{position:"absolute",bottom:-4,right:-4,width:24,height:24,borderRadius:"50%",background:"#3b82f6",border:"2px solid white",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}}>
-                  <Image size={11} color="#fff"/>
-                </button>
-                <input ref={logoRef} type="file" accept="image/*" style={{display:"none"}} onChange={e=>handleLogoUpload(e.target.files)}/>
+                <div style={{ position:"absolute", bottom:-4, right:-4, width:26, height:26, borderRadius:"50%", background:"#3b82f6", border:"2px solid white", display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer" }}
+                  onClick={() => logoRef.current?.click()}>
+                  <Image size={12} color="#fff" />
+                </div>
+                <input ref={logoRef} type="file" accept="image/*" style={{ display:"none" }} onChange={e => handleLogoUpload(e.target.files)} />
               </div>
             </div>
-            <div style={{marginBottom:12}}>
-              <label style={{fontSize:12,fontWeight:600,color:th.txt2,display:"block",marginBottom:4}}>Or use emoji</label>
-              <input value={form.logo} onChange={e=>setF("logo",e.target.value)} placeholder="🚀" style={{...inp,width:80}}/>
+            <div style={{ marginBottom:10 }}>
+              <label style={{ fontSize:12, fontWeight:600, color:th.txt2, display:"block", marginBottom:4 }}>Or use emoji</label>
+              <input value={form.logo} onChange={e=>setF("logo",e.target.value)} placeholder="🚀" style={{...inp,width:70}} />
             </div>
-            <div style={{marginBottom:12}}>
-              <label style={{fontSize:12,fontWeight:600,color:th.txt2,display:"block",marginBottom:4}}>Startup Name *</label>
-              <input value={form.name} onChange={e=>setF("name",e.target.value)} placeholder="e.g. SkillSwap" style={inp}/>
+            <div style={{ marginBottom:12 }}>
+              <label style={{ fontSize:12, fontWeight:600, color:th.txt2, display:"block", marginBottom:4 }}>Startup Name *</label>
+              <input value={form.name} onChange={e=>setF("name",e.target.value)} placeholder="e.g. SkillSwap" style={inp} />
             </div>
-            <div style={{marginBottom:20}}>
-              <label style={{fontSize:12,fontWeight:600,color:th.txt2,display:"block",marginBottom:4}}>Problem & Solution *</label>
-              <textarea value={form.description} onChange={e=>setF("description",e.target.value)} placeholder="What problem are you solving and how?" rows={4} style={{...inp,resize:"vertical",fontFamily:"inherit"}}/>
+            <div style={{ marginBottom:20 }}>
+              <label style={{ fontSize:12, fontWeight:600, color:th.txt2, display:"block", marginBottom:4 }}>Problem & Solution *</label>
+              <textarea value={form.description} onChange={e=>setF("description",e.target.value)}
+                placeholder="What problem are you solving and how?" rows={4}
+                style={{...inp,resize:"vertical",fontFamily:"inherit"}} />
             </div>
-            <div style={{display:"flex",gap:10}}>
-              <button onClick={onClose} style={{flex:1,padding:"10px",background:"transparent",border:`1px solid ${th.bdr}`,borderRadius:12,cursor:"pointer",color:th.txt2,fontWeight:600}}>Cancel</button>
-              <button onClick={()=>existing?handleSave():setStep(2)} disabled={!canNext} style={{flex:2,padding:"10px",background:canNext?"#3b82f6":th.surf2,border:"none",borderRadius:12,cursor:canNext?"pointer":"default",color:canNext?"#fff":th.txt3,fontWeight:700,fontSize:14}}>
+            <div style={{ display:"flex", gap:10 }}>
+              <button onClick={onClose} style={{ flex:1, padding:"10px", background:"transparent", border:`1px solid ${th.bdr}`, borderRadius:12, cursor:"pointer", color:th.txt2, fontWeight:600 }}>Cancel</button>
+              <button onClick={() => existing?handleSave():setStep(2)} disabled={!canNext}
+                style={{ flex:2, padding:"10px", background:canNext?"#3b82f6":th.surf2, border:"none", borderRadius:12, cursor:canNext?"pointer":"default", color:canNext?"#fff":th.txt3, fontWeight:700, fontSize:14 }}>
                 {existing?(submitting?"Saving…":"Save Changes"):"Next: Links →"}
               </button>
             </div>
           </>
         )}
+
         {step===2 && (
           <>
             {[
-              {k:"website",l:"Website",p:"https://…"},
-              {k:"github_link",l:"GitHub",p:"https://github.com/…"},
-              {k:"twitter",l:"Twitter / X",p:"https://twitter.com/…"},
-              {k:"linkedin",l:"LinkedIn",p:"https://linkedin.com/company/…"},
-            ].map(f=>(
-              <div key={f.k} style={{marginBottom:12}}>
-                <label style={{fontSize:12,fontWeight:600,color:th.txt2,display:"block",marginBottom:4}}>{f.l}</label>
-                <input value={form[f.k]} onChange={e=>setF(f.k,e.target.value)} placeholder={f.p} style={inp}/>
+              { k:"website",     l:"Website",    p:"https://…" },
+              { k:"github_link", l:"GitHub",     p:"https://github.com/…" },
+              { k:"twitter",     l:"Twitter / X",p:"https://twitter.com/…" },
+              { k:"linkedin",    l:"LinkedIn",   p:"https://linkedin.com/company/…" },
+            ].map(f => (
+              <div key={f.k} style={{ marginBottom:12 }}>
+                <label style={{ fontSize:12, fontWeight:600, color:th.txt2, display:"block", marginBottom:4 }}>{f.l}</label>
+                <input value={form[f.k]} onChange={e=>setF(f.k,e.target.value)} placeholder={f.p} style={inp} />
               </div>
             ))}
-            <div style={{background:th.surf2,border:`1px solid ${th.bdr}`,borderRadius:12,padding:12,marginBottom:18}}>
-              <div style={{fontSize:12,fontWeight:700,color:th.txt,marginBottom:6}}>📄 Auto-created Pages:</div>
-              <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
-                {PAGE_TYPES.map(p=><span key={p.id} style={{background:p.c+"18",color:p.c,fontSize:11,fontWeight:600,padding:"2px 8px",borderRadius:99}}>{p.e} {p.label}</span>)}
+            <div style={{ background:th.surf2, border:`1px solid ${th.bdr}`, borderRadius:12, padding:12, marginBottom:18 }}>
+              <div style={{ fontSize:12, fontWeight:700, color:th.txt, marginBottom:6 }}>📄 Auto-created Pages:</div>
+              <div style={{ display:"flex", gap:5, flexWrap:"wrap" }}>
+                {DEFAULT_CPAGE_TYPES.map(id => { const pt=CPAGE_TYPES.find(p=>p.id===id); return pt?<span key={id} style={{ background:`${pt.c}18`, color:pt.c, fontSize:11, fontWeight:600, padding:"2px 8px", borderRadius:99 }}>{pt.e} {pt.label}</span>:null; })}
               </div>
             </div>
-            <div style={{display:"flex",gap:10}}>
-              <button onClick={()=>setStep(1)} style={{flex:1,padding:"10px",background:"transparent",border:`1px solid ${th.bdr}`,borderRadius:12,cursor:"pointer",color:th.txt2,fontWeight:600}}>← Back</button>
-              <button onClick={handleSave} disabled={submitting} style={{flex:2,padding:"10px",background:"linear-gradient(135deg,#3b82f6,#8b5cf6)",border:"none",borderRadius:12,cursor:"pointer",color:"#fff",fontWeight:700,fontSize:14}}>
+            <div style={{ display:"flex", gap:10 }}>
+              <button onClick={() => setStep(1)} style={{ flex:1, padding:"10px", background:"transparent", border:`1px solid ${th.bdr}`, borderRadius:12, cursor:"pointer", color:th.txt2, fontWeight:600 }}>← Back</button>
+              <button onClick={handleSave} disabled={submitting}
+                style={{ flex:2, padding:"10px", background:"linear-gradient(135deg,#3b82f6,#8b5cf6)", border:"none", borderRadius:12, cursor:"pointer", color:"#fff", fontWeight:700, fontSize:14 }}>
                 {submitting?"Launching…":"Launch Startup 🚀"}
               </button>
             </div>
@@ -2857,8 +2984,8 @@ function CreateStartupModal({ me, existing, onClose, onSave, dk }) {
   );
 }
 
-// ─── FOUNDER DASHBOARD ────────────────────────────────────────────
-function FounderDashboard({ startup, me, profiles, bals, dk, onBack, onStartupUpdated, onProfile }) {
+// ─── FOUNDER DASHBOARD ───────────────────────────────────────────
+function CFounderDashboard({ startup, me, profiles, bals, dk, onBack, onStartupUpdated, onProfile }) {
   const th = T(dk);
   const [tab, setTab] = useState("requests");
   const [requests, setRequests] = useState([]);
@@ -2869,175 +2996,202 @@ function FounderDashboard({ startup, me, profiles, bals, dk, onBack, onStartupUp
   const [showEdit, setShowEdit] = useState(false);
   const [showAddPage, setShowAddPage] = useState(false);
   const [newPageName, setNewPageName] = useState("");
-  const [newPageType, setNewPageType] = useState("general");
+  const [newPageType, setNewPageType] = useState("community");
   const [posting, setPosting] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [activePage, setActivePage] = useState(null);
+  const [shareLink, setShareLink] = useState("");
 
-  const load = useCallback(async()=>{
+  const load = useCallback(async () => {
     const [rq,pg,ms,us] = await Promise.all([
-      db.get("rs_page_access_requests",`startup_id=eq.${startup.id}&order=created_at.desc`),
-      db.get("rs_startup_pages",`startup_id=eq.${startup.id}&order=created_at.asc`),
-      db.get("rs_page_access",`startup_id=eq.${startup.id}&status=eq.approved`),
-      db.get("rs_startup_updates",`startup_id=eq.${startup.id}&room_id=is.null&order=created_at.desc&limit=20`),
+      db.get("rs_page_access_requests", `startup_id=eq.${startup.id}&order=created_at.desc`),
+      db.get("rs_startup_pages", `startup_id=eq.${startup.id}&order=created_at.asc`),
+      db.get("rs_page_access", `startup_id=eq.${startup.id}&status=eq.approved`),
+      db.get("rs_startup_updates", `startup_id=eq.${startup.id}&room_id=is.null&order=created_at.desc&limit=20`),
     ]);
-    setRequests(rq||[]);
-    setPages(pg||[]);
-    setMembers(ms||[]);
-    setUpdates(us||[]);
+    setRequests(rq||[]); setPages(pg||[]); setMembers(ms||[]); setUpdates(us||[]);
     setLoading(false);
   },[startup.id]);
 
-  useEffect(()=>{load();},[load]);
+  useEffect(() => { load(); }, [load]);
+  useEffect(() => { setShareLink(`${window.location.origin}?join=${startup.referral_code}`); },[startup.referral_code]);
 
-  const approvePageRequest = async(req, pageTypeId)=>{
-    // find matching page
-    const page = pages.find(p=>p.type_id===pageTypeId);
-    if(!page) return;
-    await db.upsert("rs_page_access",{startup_id:req.startup_id,page_id:page.id,user_id:req.user_id,status:"approved"});
-    setMembers(ms=>[...ms.filter(m=>!(m.page_id===page.id&&m.user_id===req.user_id)),{page_id:page.id,user_id:req.user_id,status:"approved"}]);
+  // Open a page workspace from founder dashboard
+  if (activePage) return (
+    <CPageWorkspace page={activePage} startup={startup} me={me} profiles={profiles} bals={bals} dk={dk}
+      onBack={() => setActivePage(null)} onProfile={onProfile} isFounder={true} />
+  );
+
+  const approveForPage = async (req, pageTypeId) => {
+    const page = pages.find(p => p.type_id===pageTypeId);
+    if (!page) return;
+    await db.upsert("rs_page_access", { startup_id:req.startup_id, page_id:page.id, user_id:req.user_id, status:"approved" });
+    setMembers(ms => [...ms.filter(m=>!(m.page_id===page.id&&m.user_id===req.user_id)), { page_id:page.id, user_id:req.user_id, status:"approved" }]);
   };
 
-  const resolveRequest = async(req, status)=>{
-    await db.patch("rs_page_access_requests",`id=eq.${req.id}`,{status});
-    setRequests(rs=>rs.map(r=>r.id===req.id?{...r,status}:r));
+  const resolveRequest = async (req, status) => {
+    await db.patch("rs_page_access_requests", `id=eq.${req.id}`, { status });
+    setRequests(rs => rs.map(r => r.id===req.id?{...r,status}:r));
   };
 
-  const removeFromPage = async(pageId, userId)=>{
-    await db.del("rs_page_access",`page_id=eq.${pageId}&user_id=eq.${userId}`);
-    setMembers(ms=>ms.filter(m=>!(m.page_id===pageId&&m.user_id===userId)));
+  const removeFromPage = async (pageId, userId) => {
+    await db.del("rs_page_access", `page_id=eq.${pageId}&user_id=eq.${userId}`);
+    setMembers(ms => ms.filter(m=>!(m.page_id===pageId&&m.user_id===userId)));
   };
 
-  const addPage = async()=>{
-    if(!newPageName.trim()) return;
-    const pt = PAGE_TYPES.find(p=>p.id===newPageType)||PAGE_TYPES[3];
-    const saved = await db.post("rs_startup_pages",{startup_id:startup.id,name:newPageName.trim(),description:pt.desc,type_id:newPageType});
-    if(saved) setPages(p=>[...p,saved]);
+  const addPage = async () => {
+    if (!newPageName.trim()) return;
+    const pt = CPAGE_TYPES.find(p=>p.id===newPageType)||CPAGE_TYPES[3];
+    const saved = await db.post("rs_startup_pages", { startup_id:startup.id, name:newPageName.trim(), description:pt.desc, type_id:newPageType });
+    if (saved) setPages(p=>[...p,saved]);
     setNewPageName(""); setShowAddPage(false);
   };
 
-  const delPage = async id=>{
-    await db.del("rs_startup_pages",`id=eq.${id}`);
+  const delPage = async id => {
+    await db.del("rs_startup_pages", `id=eq.${id}`);
     setPages(p=>p.filter(x=>x.id!==id));
   };
 
-  const postUpdate = async()=>{
-    if(!newUpdate.trim()) return;
+  const postUpdate = async () => {
+    if (!newUpdate.trim()) return;
     setPosting(true);
-    const saved = await db.post("rs_startup_updates",{startup_id:startup.id,content:newUpdate.trim(),created_by:me});
-    if(saved) setUpdates(us=>[saved,...us]);
+    const saved = await db.post("rs_startup_updates", { startup_id:startup.id, content:newUpdate.trim(), created_by:me });
+    if (saved) setUpdates(us=>[saved,...us]);
     setNewUpdate(""); setPosting(false);
   };
 
+  const delUpdate = async id => {
+    await db.del("rs_startup_updates", `id=eq.${id}`);
+    setUpdates(us=>us.filter(u=>u.id!==id));
+  };
+
   const pending = requests.filter(r=>r.status==="pending");
+  const uniqueMembers = [...new Map(members.map(m=>[m.user_id,m])).values()];
 
-  const allMeetings_section = (
-    <div>
-      <h3 style={{fontSize:14,fontWeight:700,color:th.txt,margin:"0 0 12px"}}>All Meetings Across Pages</h3>
-      {pages.map(pg=>(
-        <div key={pg.id} style={{marginBottom:20}}>
-          <div style={{fontSize:12,fontWeight:700,color:th.txt3,marginBottom:6}}>
-            {(PAGE_TYPES.find(x=>pg.name?.toLowerCase().includes(x.id))||PAGE_TYPES[3]).e} {pg.name}
-          </div>
-          <MeetingPanel pageId={pg.id} startupId={startup.id} me={me} profiles={profiles} members={[]} dk={dk} compact/>
-        </div>
-      ))}
-    </div>
-  );
-
-  const tabs=[
-    {id:"requests",label:`Requests${pending.length?` (${pending.length})`:""}`},
-    {id:"pages",label:"Pages"},
-    {id:"members",label:"Members"},
-    {id:"meetings",label:"Meetings"},
-    {id:"updates",label:"Updates"},
-    {id:"feedback",label:"Feedback"},
+  const dashTabs = [
+    { id:"overview",  label:"Overview" },
+    { id:"requests",  label:`Requests${pending.length?` (${pending.length})`:""}`},
+    { id:"pages",     label:"Pages" },
+    { id:"members",   label:"Members" },
+    { id:"meetings",  label:"Meetings" },
+    { id:"updates",   label:"Updates" },
+    { id:"feedback",  label:"Feedback" },
   ];
 
   return (
-    <div style={{animation:"fadeUp .3s ease"}}>
-      {showEdit && <CreateStartupModal me={me} existing={startup} onClose={()=>setShowEdit(false)} onSave={onStartupUpdated} dk={dk}/>}
+    <div style={{ animation:"fadeUp .3s ease" }}>
+      {showEdit && <CCreateStartupModal me={me} existing={startup} onClose={()=>setShowEdit(false)} onSave={onStartupUpdated} dk={dk} />}
 
-      <button onClick={onBack} style={{display:"flex",alignItems:"center",gap:6,background:"transparent",border:"none",cursor:"pointer",color:th.txt2,fontSize:13,fontWeight:600,padding:"0 0 14px"}}>
-        <ArrowLeft size={15}/> Back to Colab
+      <button onClick={onBack} style={{ display:"flex", alignItems:"center", gap:6, background:"transparent", border:"none", cursor:"pointer", color:th.txt2, fontSize:13, fontWeight:600, padding:"0 0 14px" }}>
+        <ArrowLeft size={15} /> Back to Colab
       </button>
 
       {/* Dashboard header */}
-      <div style={{background:"linear-gradient(135deg,#1e3a8a22,#5b21b622)",border:"1px solid #3b82f630",borderRadius:16,padding:18,marginBottom:16}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:12}}>
-          <div style={{display:"flex",gap:12,alignItems:"center"}}>
-            <div style={{width:54,height:54,borderRadius:15,background:"linear-gradient(135deg,#3b82f6,#8b5cf6)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:28,overflow:"hidden",flexShrink:0}}>
-              {startup.logo?.startsWith("data:")?<img src={startup.logo} style={{width:"100%",height:"100%",objectFit:"cover"}}/>:startup.logo||"🚀"}
+      <div style={{ background:"linear-gradient(135deg,#1e3a8a22,#5b21b622)", border:"1px solid #3b82f630", borderRadius:16, padding:18, marginBottom:16 }}>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", flexWrap:"wrap", gap:12 }}>
+          <div style={{ display:"flex", gap:12, alignItems:"center" }}>
+            <div style={{ width:56, height:56, borderRadius:15, background:"linear-gradient(135deg,#3b82f6,#8b5cf6)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:28, overflow:"hidden", flexShrink:0 }}>
+              {startup.logo?.startsWith("data:") ? <img src={startup.logo} style={{ width:"100%", height:"100%", objectFit:"cover" }} alt="logo" /> : startup.logo||"🚀"}
             </div>
             <div>
-              <div style={{fontWeight:800,fontSize:18,color:th.txt}}>{startup.name}</div>
-              <div style={{fontSize:12,color:th.txt3}}>Founder Dashboard · {pages.length} Pages · {[...new Set(members.map(m=>m.user_id))].length} Members</div>
+              <div style={{ fontWeight:800, fontSize:18, color:th.txt }}>{startup.name}</div>
+              <div style={{ fontSize:12, color:th.txt3 }}>Founder Dashboard · {pages.length} Pages · {uniqueMembers.length} Members</div>
             </div>
           </div>
-          <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
-            <div style={{background:"#f59e0b18",border:"1px solid #f59e0b40",borderRadius:10,padding:"6px 14px"}}>
-              <div style={{fontSize:10,color:"#f59e0b",fontWeight:700}}>REFERRAL CODE</div>
-              <div style={{fontFamily:"monospace",fontSize:14,fontWeight:800,color:"#f59e0b",letterSpacing:1}}>{startup.referral_code}</div>
+          <div style={{ display:"flex", gap:8, flexWrap:"wrap", alignItems:"center" }}>
+            <div style={{ background:"#f59e0b18", border:"1px solid #f59e0b40", borderRadius:10, padding:"6px 14px" }}>
+              <div style={{ fontSize:10, color:"#f59e0b", fontWeight:700 }}>REFERRAL CODE</div>
+              <div style={{ fontFamily:"monospace", fontSize:14, fontWeight:800, color:"#f59e0b", letterSpacing:1 }}>{startup.referral_code}</div>
             </div>
-            <CopyBtn text={startup.referral_code} label="Copy Code"/>
-            <button onClick={()=>setShowEdit(true)} style={{display:"flex",alignItems:"center",gap:5,background:"transparent",border:`1px solid ${th.bdr}`,borderRadius:10,padding:"6px 12px",cursor:"pointer",color:th.txt2,fontSize:12,fontWeight:600}}>
-              <Edit3 size={12}/>Edit
+            <CopyBtn text={startup.referral_code} label="Copy Code" />
+            <CopyBtn text={shareLink} label="Copy Link" />
+            <button onClick={() => setShowEdit(true)} style={{ display:"flex", alignItems:"center", gap:5, background:"transparent", border:`1px solid ${th.bdr}`, borderRadius:10, padding:"6px 12px", cursor:"pointer", color:th.txt2, fontSize:12, fontWeight:600 }}>
+              <Edit3 size={12} />Edit
             </button>
           </div>
         </div>
       </div>
 
       {/* Tab nav */}
-      <div style={{display:"flex",gap:4,marginBottom:16,background:th.surf2,borderRadius:12,padding:4,border:`1px solid ${th.bdr}`,overflowX:"auto"}}>
-        {tabs.map(t=>(
-          <button key={t.id} onClick={()=>setTab(t.id)} style={{flexShrink:0,padding:"7px 12px",borderRadius:9,border:"none",background:tab===t.id?"#3b82f6":"transparent",color:tab===t.id?"#fff":th.txt2,fontSize:12,fontWeight:600,cursor:"pointer",transition:"all .2s",whiteSpace:"nowrap"}}>
+      <div style={{ display:"flex", gap:4, marginBottom:16, background:th.surf2, borderRadius:12, padding:4, border:`1px solid ${th.bdr}`, overflowX:"auto" }}>
+        {dashTabs.map(t => (
+          <button key={t.id} onClick={() => setTab(t.id)}
+            style={{ flexShrink:0, padding:"7px 12px", borderRadius:9, border:"none", background:tab===t.id?"#3b82f6":"transparent", color:tab===t.id?"#fff":th.txt2, fontSize:12, fontWeight:600, cursor:"pointer", transition:"all .2s", whiteSpace:"nowrap" }}>
             {t.label}
           </button>
         ))}
       </div>
 
-      {loading ? <Spin dk={dk} msg="Loading dashboard…"/> : (
+      {loading ? <Spin dk={dk} msg="Loading dashboard…" /> : (
         <>
+          {/* OVERVIEW */}
+          {tab==="overview" && (
+            <div>
+              <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10, marginBottom:20 }}>
+                {[
+                  { l:"Total Members", v:uniqueMembers.length, c:"#3b82f6", e:"👥" },
+                  { l:"Pages", v:pages.length, c:"#8b5cf6", e:"📄" },
+                  { l:"Pending Requests", v:pending.length, c:"#f59e0b", e:"📬" },
+                ].map(s => (
+                  <div key={s.l} style={{ background:th.surf, border:`1px solid ${th.bdr}`, borderRadius:14, padding:"14px 16px" }}>
+                    <div style={{ fontSize:22, marginBottom:4 }}>{s.e}</div>
+                    <div style={{ fontSize:26, fontWeight:800, color:s.c }}>{s.v}</div>
+                    <div style={{ fontSize:11, color:th.txt3 }}>{s.l}</div>
+                  </div>
+                ))}
+              </div>
+              <CActivityFeed startupId={startup.id} me={me} profiles={profiles} dk={dk} />
+            </div>
+          )}
+
           {/* REQUESTS */}
           {tab==="requests" && (
             <div>
-              {requests.length===0
-                ? <div style={{textAlign:"center",padding:40,color:th.txt3}}><Users size={36} style={{marginBottom:10}}/><p>No join requests yet.</p></div>
-                : requests.map(req=>{
-                  const p=profiles[req.user_id]||{name:"Applicant"};
+              {requests.length === 0
+                ? <div style={{ textAlign:"center", padding:40, color:th.txt3 }}><Users size={36} style={{ marginBottom:10 }} /><p>No join requests yet.</p></div>
+                : requests.map(req => {
+                  const p = profiles[req.user_id] || { name:"Applicant" };
                   const roles = req.selected_roles||[];
                   const pageTypeIds = req.page_type_ids||[];
                   return (
                     <Card dk={dk} key={req.id} anim={false}>
-                      <div style={{display:"flex",gap:12,alignItems:"flex-start"}}>
-                        <ProfileCard uid={req.user_id} profiles={profiles} bals={bals} dk={dk} onProfile={onProfile}>
-                          <Av profile={p} size={44}/>
-                        </ProfileCard>
-                        <div style={{flex:1}}>
-                          <div style={{display:"flex",justifyContent:"space-between",flexWrap:"wrap",gap:8,marginBottom:6}}>
+                      <div style={{ display:"flex", gap:12, alignItems:"flex-start" }}>
+                        <ProfileHoverCard uid={req.user_id} profiles={profiles} bals={bals} dk={dk} onProfile={onProfile}>
+                          <Av profile={p} size={44} />
+                        </ProfileHoverCard>
+                        <div style={{ flex:1 }}>
+                          <div style={{ display:"flex", justifyContent:"space-between", flexWrap:"wrap", gap:8, marginBottom:6 }}>
                             <div>
-                              <div style={{fontWeight:700,fontSize:14,color:th.txt}}>{p.name}</div>
-                              <div style={{fontSize:12,color:th.txt3}}>{p.handle?`@${p.handle}`:p.email}</div>
+                              <div style={{ fontWeight:700, fontSize:14, color:th.txt }}>{p.name}</div>
+                              <div style={{ fontSize:12, color:th.txt3 }}>{p.handle?`@${p.handle}`:p.email}</div>
                             </div>
-                            <span style={{fontSize:11,fontWeight:700,padding:"3px 10px",borderRadius:99,background:req.status==="approved"?"#10b98118":req.status==="rejected"?"#ef444418":"#f59e0b18",color:req.status==="approved"?"#10b981":req.status==="rejected"?"#ef4444":"#f59e0b"}}>{req.status?.toUpperCase()}</span>
+                            <span style={{ fontSize:11, fontWeight:700, padding:"3px 10px", borderRadius:99, background:req.status==="approved"?"#10b98118":req.status==="rejected"?"#ef444418":"#f59e0b18", color:req.status==="approved"?"#10b981":req.status==="rejected"?"#ef4444":"#f59e0b" }}>{req.status?.toUpperCase()}</span>
                           </div>
-                          {roles.length>0 && (
-                            <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:6}}>
-                              {roles.map(r=>{const jr=JOIN_ROLES.find(x=>x.id===r);return jr?<span key={r} style={{background:"#3b82f618",color:"#3b82f6",fontSize:11,fontWeight:600,padding:"2px 8px",borderRadius:99}}>{jr.e} {jr.label}</span>:null;})}
+                          {roles.length > 0 && (
+                            <div style={{ display:"flex", gap:5, flexWrap:"wrap", marginBottom:6 }}>
+                              {roles.map(r => { const jr=JOIN_ROLES.find(x=>x.id===r); return jr?<span key={r} style={{ background:"#3b82f618", color:"#3b82f6", fontSize:11, fontWeight:600, padding:"2px 8px", borderRadius:99 }}>{jr.e} {jr.label}</span>:null; })}
                             </div>
                           )}
-                          {req.message && <p style={{fontSize:12,color:th.txt2,margin:"0 0 8px",fontStyle:"italic"}}>"{req.message}"</p>}
+                          {req.message && <p style={{ fontSize:12, color:th.txt2, margin:"0 0 8px", fontStyle:"italic" }}>"{req.message}"</p>}
                           {req.status==="pending" && (
-                            <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-                              {pageTypeIds.map(ptid=>{
-                                const pt=PAGE_TYPES.find(x=>x.id===ptid)||PAGE_TYPES[3];
+                            <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginTop:6 }}>
+                              {pageTypeIds.map(ptid => {
+                                const pt = CPAGE_TYPES.find(x=>x.id===ptid)||CPAGE_TYPES[3];
                                 return (
-                                  <button key={ptid} onClick={()=>approvePageRequest(req,ptid)} style={{display:"flex",alignItems:"center",gap:4,background:pt.c+"18",border:`1px solid ${pt.c}40`,borderRadius:8,padding:"5px 10px",cursor:"pointer",color:pt.c,fontSize:11,fontWeight:700}}>
+                                  <button key={ptid} onClick={() => approveForPage(req, ptid)}
+                                    style={{ display:"flex", alignItems:"center", gap:4, background:`${pt.c}18`, border:`1px solid ${pt.c}40`, borderRadius:8, padding:"5px 10px", cursor:"pointer", color:pt.c, fontSize:11, fontWeight:700 }}>
                                     {pt.e} Approve {pt.label}
                                   </button>
                                 );
                               })}
-                              <button onClick={()=>resolveRequest(req,"rejected")} style={{display:"flex",alignItems:"center",gap:4,background:"#ef444418",border:"1px solid #ef444440",borderRadius:8,padding:"5px 10px",cursor:"pointer",color:"#ef4444",fontSize:11,fontWeight:700}}><X size={10}/>Reject All</button>
-                              <button onClick={()=>{pageTypeIds.forEach(ptid=>approvePageRequest(req,ptid));resolveRequest(req,"approved");}} style={{display:"flex",alignItems:"center",gap:4,background:"#10b98118",border:"1px solid #10b98140",borderRadius:8,padding:"5px 10px",cursor:"pointer",color:"#10b981",fontSize:11,fontWeight:700}}><Check size={10}/>Approve All</button>
+                              <button onClick={() => { pageTypeIds.forEach(ptid=>approveForPage(req,ptid)); resolveRequest(req,"approved"); }}
+                                style={{ display:"flex", alignItems:"center", gap:4, background:"#10b98118", border:"1px solid #10b98140", borderRadius:8, padding:"5px 10px", cursor:"pointer", color:"#10b981", fontSize:11, fontWeight:700 }}>
+                                <Check size={10} />All
+                              </button>
+                              <button onClick={() => resolveRequest(req,"rejected")}
+                                style={{ display:"flex", alignItems:"center", gap:4, background:"#ef444418", border:"1px solid #ef444440", borderRadius:8, padding:"5px 10px", cursor:"pointer", color:"#ef4444", fontSize:11, fontWeight:700 }}>
+                                <X size={10} />Reject
+                              </button>
                             </div>
                           )}
                         </div>
@@ -3052,35 +3206,43 @@ function FounderDashboard({ startup, me, profiles, bals, dk, onBack, onStartupUp
           {/* PAGES */}
           {tab==="pages" && (
             <div>
-              <div style={{display:"flex",justifyContent:"flex-end",marginBottom:12}}>
-                <button onClick={()=>setShowAddPage(x=>!x)} style={{display:"flex",alignItems:"center",gap:5,background:"#3b82f6",border:"none",borderRadius:10,padding:"8px 14px",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer"}}><Plus size={13}/>Add Page</button>
+              <div style={{ display:"flex", justifyContent:"flex-end", marginBottom:12 }}>
+                <button onClick={() => setShowAddPage(x=>!x)}
+                  style={{ display:"flex", alignItems:"center", gap:5, background:"#3b82f6", border:"none", borderRadius:10, padding:"8px 14px", color:"#fff", fontSize:13, fontWeight:700, cursor:"pointer" }}>
+                  <Plus size={13} />Add Page
+                </button>
               </div>
               {showAddPage && (
-                <div style={{background:th.surf2,border:`1px solid ${th.bdr}`,borderRadius:12,padding:14,marginBottom:14}}>
-                  <div style={{display:"flex",gap:8,marginBottom:8}}>
-                    <input value={newPageName} onChange={e=>setNewPageName(e.target.value)} placeholder="Page name" style={{flex:1,background:th.inp,border:`1px solid ${th.inpB}`,borderRadius:8,padding:"7px 10px",fontSize:13,outline:"none",color:th.txt}}/>
-                    <select value={newPageType} onChange={e=>setNewPageType(e.target.value)} style={{background:th.inp,border:`1px solid ${th.inpB}`,borderRadius:8,padding:"7px 10px",fontSize:13,color:th.txt,outline:"none"}}>
-                      {PAGE_TYPES.map(p=><option key={p.id} value={p.id}>{p.e} {p.label}</option>)}
+                <div style={{ background:th.surf2, border:`1px solid ${th.bdr}`, borderRadius:12, padding:14, marginBottom:14 }}>
+                  <div style={{ display:"flex", gap:8, marginBottom:8 }}>
+                    <input value={newPageName} onChange={e=>setNewPageName(e.target.value)} placeholder="Page name"
+                      style={{ flex:1, background:th.inp, border:`1px solid ${th.inpB}`, borderRadius:8, padding:"7px 10px", fontSize:13, outline:"none", color:th.txt }} />
+                    <select value={newPageType} onChange={e=>setNewPageType(e.target.value)}
+                      style={{ background:th.inp, border:`1px solid ${th.inpB}`, borderRadius:8, padding:"7px 10px", fontSize:12, color:th.txt, outline:"none" }}>
+                      {CPAGE_TYPES.map(p => <option key={p.id} value={p.id}>{p.e} {p.label}</option>)}
                     </select>
                   </div>
-                  <div style={{display:"flex",gap:8}}>
-                    <button onClick={()=>setShowAddPage(false)} style={{flex:1,padding:"7px",background:"transparent",border:`1px solid ${th.bdr}`,borderRadius:8,cursor:"pointer",color:th.txt2,fontSize:12}}>Cancel</button>
-                    <button onClick={addPage} style={{flex:2,padding:"7px",background:"#3b82f6",border:"none",borderRadius:8,cursor:"pointer",color:"#fff",fontWeight:700,fontSize:12}}>Create Page</button>
+                  <div style={{ display:"flex", gap:8 }}>
+                    <button onClick={() => setShowAddPage(false)} style={{ flex:1, padding:"7px", background:"transparent", border:`1px solid ${th.bdr}`, borderRadius:8, cursor:"pointer", color:th.txt2, fontSize:12 }}>Cancel</button>
+                    <button onClick={addPage} style={{ flex:2, padding:"7px", background:"#3b82f6", border:"none", borderRadius:8, cursor:"pointer", color:"#fff", fontWeight:700, fontSize:12 }}>Create Page</button>
                   </div>
                 </div>
               )}
-              {pages.map(pg=>{
-                const pt=PAGE_TYPES.find(x=>pg.name?.toLowerCase().includes(x.id)||pg.type_id===x.id)||PAGE_TYPES[3];
-                const pgMembers=[...new Set(members.filter(m=>m.page_id===pg.id).map(m=>m.user_id))];
+              {pages.map(pg => {
+                const pt = cpt(pg);
+                const pgMembers = members.filter(m=>m.page_id===pg.id);
                 return (
                   <Card dk={dk} key={pg.id} anim={false}>
-                    <div style={{display:"flex",alignItems:"center",gap:12}}>
-                      <div style={{width:38,height:38,borderRadius:10,background:pt.c+"20",display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>{pt.e}</div>
-                      <div style={{flex:1}}>
-                        <div style={{fontWeight:700,fontSize:14,color:th.txt}}>{pg.name}</div>
-                        <div style={{fontSize:12,color:th.txt3}}>{pgMembers.length} member{pgMembers.length!==1?"s":""} · {pg.description}</div>
+                    <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+                      <div style={{ width:40, height:40, borderRadius:10, background:`${pt.c}20`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:20, flexShrink:0 }}>{pt.e}</div>
+                      <div style={{ flex:1 }}>
+                        <div style={{ fontWeight:700, fontSize:14, color:th.txt }}>{pg.name}</div>
+                        <div style={{ fontSize:12, color:th.txt3 }}>{pgMembers.length} member{pgMembers.length!==1?"s":""} · {pg.description}</div>
                       </div>
-                      <button onClick={()=>delPage(pg.id)} style={{background:"#ef444415",border:"1px solid #ef444430",borderRadius:8,padding:"5px 8px",cursor:"pointer",color:"#ef4444",display:"flex"}}><Trash2 size={13}/></button>
+                      <div style={{ display:"flex", gap:6 }}>
+                        <button onClick={() => setActivePage(pg)} style={{ background:`${pt.c}18`, border:`1px solid ${pt.c}40`, borderRadius:8, padding:"5px 10px", cursor:"pointer", color:pt.c, fontSize:11, fontWeight:700 }}>Enter</button>
+                        <button onClick={() => delPage(pg.id)} style={{ background:"#ef444415", border:"1px solid #ef444430", borderRadius:8, padding:"5px 8px", cursor:"pointer", color:"#ef4444", display:"flex" }}><Trash2 size={13} /></button>
+                      </div>
                     </div>
                   </Card>
                 );
@@ -3091,26 +3253,28 @@ function FounderDashboard({ startup, me, profiles, bals, dk, onBack, onStartupUp
           {/* MEMBERS */}
           {tab==="members" && (
             <div>
-              {[...new Set(members.map(m=>m.user_id))].length===0
-                ? <p style={{textAlign:"center",color:th.txt3,padding:32}}>No members yet.</p>
-                : [...new Set(members.map(m=>m.user_id))].map(uid=>{
-                  const p=profiles[uid]||{name:"Member"};
-                  const userPages=members.filter(m=>m.user_id===uid).map(m=>pages.find(pg=>pg.id===m.page_id)).filter(Boolean);
+              {uniqueMembers.length === 0
+                ? <p style={{ textAlign:"center", color:th.txt3, padding:32 }}>No members yet.</p>
+                : uniqueMembers.map(m => {
+                  const p = profiles[m.user_id] || { name:"Member" };
+                  const userPages = members.filter(x=>x.user_id===m.user_id).map(x=>pages.find(pg=>pg.id===x.page_id)).filter(Boolean);
                   return (
-                    <Card dk={dk} key={uid} anim={false}>
-                      <div style={{display:"flex",gap:12,alignItems:"flex-start"}}>
-                        <ProfileCard uid={uid} profiles={profiles} bals={bals} dk={dk} onProfile={onProfile}><Av profile={p} size={42}/></ProfileCard>
-                        <div style={{flex:1}}>
-                          <div style={{fontWeight:700,fontSize:14,color:th.txt}}>{p.name}</div>
-                          <div style={{fontSize:12,color:th.txt3,marginBottom:6}}>{p.handle?`@${p.handle}`:p.email}</div>
-                          <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
-                            {userPages.map(pg=>{
-                              const pt=PAGE_TYPES.find(x=>pg.name?.toLowerCase().includes(x.id)||pg.type_id===x.id)||PAGE_TYPES[3];
+                    <Card dk={dk} key={m.user_id} anim={false}>
+                      <div style={{ display:"flex", gap:12, alignItems:"flex-start" }}>
+                        <ProfileHoverCard uid={m.user_id} profiles={profiles} bals={bals} dk={dk} onProfile={onProfile}>
+                          <Av profile={p} size={42} />
+                        </ProfileHoverCard>
+                        <div style={{ flex:1 }}>
+                          <div style={{ fontWeight:700, fontSize:14, color:th.txt }}>{p.name}</div>
+                          <div style={{ fontSize:12, color:th.txt3, marginBottom:6 }}>{p.handle?`@${p.handle}`:p.email}</div>
+                          <div style={{ display:"flex", gap:5, flexWrap:"wrap" }}>
+                            {userPages.map(pg => {
+                              const pt = cpt(pg);
                               return (
-                                <div key={pg.id} style={{display:"flex",alignItems:"center",gap:4,background:pt.c+"15",border:`1px solid ${pt.c}30`,borderRadius:20,padding:"2px 8px 2px 6px"}}>
-                                  <span style={{fontSize:11}}>{pt.e}</span>
-                                  <span style={{fontSize:11,color:pt.c,fontWeight:600}}>{pg.name}</span>
-                                  <button onClick={()=>removeFromPage(pg.id,uid)} style={{background:"none",border:"none",cursor:"pointer",color:pt.c,padding:0,marginLeft:2,display:"flex",alignItems:"center"}}><X size={9}/></button>
+                                <div key={pg.id} style={{ display:"flex", alignItems:"center", gap:3, background:`${pt.c}15`, border:`1px solid ${pt.c}30`, borderRadius:20, padding:"2px 8px 2px 6px" }}>
+                                  <span style={{ fontSize:11 }}>{pt.e}</span>
+                                  <span style={{ fontSize:11, color:pt.c, fontWeight:600 }}>{pg.name}</span>
+                                  <button onClick={() => removeFromPage(pg.id,m.user_id)} style={{ background:"none", border:"none", cursor:"pointer", color:pt.c, padding:0, marginLeft:2, display:"flex" }}><X size={9} /></button>
                                 </div>
                               );
                             })}
@@ -3124,37 +3288,62 @@ function FounderDashboard({ startup, me, profiles, bals, dk, onBack, onStartupUp
             </div>
           )}
 
-          {/* MEETINGS */}
-          {tab==="meetings" && allMeetings_section}
+          {/* MEETINGS — global */}
+          {tab==="meetings" && (
+            <div>
+              <div style={{ fontWeight:700, fontSize:14, color:th.txt, marginBottom:14 }}>All Meetings Across Pages</div>
+              {pages.length === 0 ? <p style={{ color:th.txt3, textAlign:"center", padding:24 }}>No pages yet.</p>
+                : pages.map(pg => {
+                  const pt = cpt(pg);
+                  return (
+                    <div key={pg.id} style={{ marginBottom:20 }}>
+                      <div style={{ fontSize:12, fontWeight:700, color:pt.c, marginBottom:6, display:"flex", alignItems:"center", gap:5 }}>
+                        {pt.e} {pg.name}
+                      </div>
+                      <CMeetingPanel pageId={pg.id} startupId={startup.id} me={me} profiles={profiles} members={[]} dk={dk} compact />
+                    </div>
+                  );
+                })
+              }
+            </div>
+          )}
 
           {/* UPDATES */}
           {tab==="updates" && (
             <div>
-              <Card dk={dk} anim={false} style={{marginBottom:14}}>
-                <div style={{display:"flex",gap:10}}>
-                  <Av profile={profiles[me]||{}} size={34}/>
-                  <div style={{flex:1}}>
-                    <textarea value={newUpdate} onChange={e=>setNewUpdate(e.target.value)} placeholder="Post a startup update visible to all…" rows={3} style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:14,lineHeight:1.6,resize:"none",fontFamily:"inherit",color:th.txt,boxSizing:"border-box"}}/>
-                    <div style={{display:"flex",justifyContent:"flex-end",borderTop:`1px solid ${th.bdr}`,paddingTop:8}}>
-                      <button onClick={postUpdate} disabled={!newUpdate.trim()||posting} style={{background:newUpdate.trim()?"#3b82f6":"transparent",border:`1px solid ${newUpdate.trim()?"transparent":th.bdr}`,borderRadius:10,padding:"7px 20px",color:newUpdate.trim()?"#fff":th.txt3,fontSize:13,fontWeight:700,cursor:newUpdate.trim()?"pointer":"default"}}>
+              <Card dk={dk} anim={false} style={{ marginBottom:14 }}>
+                <div style={{ display:"flex", gap:10 }}>
+                  <Av profile={profiles[me]||{}} size={34} />
+                  <div style={{ flex:1 }}>
+                    <textarea value={newUpdate} onChange={e=>setNewUpdate(e.target.value)}
+                      placeholder="Post a startup update visible to all…" rows={3}
+                      style={{ width:"100%", background:"transparent", border:"none", outline:"none", fontSize:14, lineHeight:1.6, resize:"none", fontFamily:"inherit", color:th.txt, boxSizing:"border-box" }} />
+                    <div style={{ display:"flex", justifyContent:"flex-end", borderTop:`1px solid ${th.bdr}`, paddingTop:8 }}>
+                      <button onClick={postUpdate} disabled={!newUpdate.trim()||posting}
+                        style={{ background:newUpdate.trim()?"#3b82f6":"transparent", border:`1px solid ${newUpdate.trim()?"transparent":th.bdr}`, borderRadius:10, padding:"7px 20px", color:newUpdate.trim()?"#fff":th.txt3, fontSize:13, fontWeight:700, cursor:newUpdate.trim()?"pointer":"default" }}>
                         {posting?"Posting…":"Post Update"}
                       </button>
                     </div>
                   </div>
                 </div>
               </Card>
-              {updates.map(u=>{
-                const author=profiles[u.created_by]||{name:"Founder"};
+              {updates.map(u => {
+                const author = profiles[u.created_by] || { name:"Founder" };
                 return (
                   <Card dk={dk} key={u.id}>
-                    <div style={{display:"flex",gap:10}}>
-                      <Av profile={author} size={34}/>
-                      <div style={{flex:1}}>
-                        <div style={{display:"flex",gap:6,alignItems:"center",marginBottom:5}}>
-                          <span style={{fontWeight:700,fontSize:13,color:th.txt}}>{author.name}</span>
-                          <span style={{fontSize:11,color:th.txt3}}>{ago(new Date(u.created_at).getTime())}</span>
+                    <div style={{ display:"flex", gap:10 }}>
+                      <Av profile={author} size={34} />
+                      <div style={{ flex:1 }}>
+                        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
+                          <div>
+                            <span style={{ fontWeight:700, fontSize:13, color:th.txt }}>{author.name}</span>
+                            <span style={{ fontSize:11, color:th.txt3, marginLeft:6 }}>{ago(new Date(u.created_at).getTime())}</span>
+                          </div>
+                          {(isFounder||u.created_by===me) && (
+                            <button onClick={() => delUpdate(u.id)} style={{ background:"none", border:"none", cursor:"pointer", color:th.txt3 }}><Trash2 size={13} /></button>
+                          )}
                         </div>
-                        <p style={{margin:0,fontSize:14,color:th.txt,lineHeight:1.65,whiteSpace:"pre-wrap"}}>{u.content}</p>
+                        <p style={{ margin:"6px 0 0", fontSize:14, color:th.txt, lineHeight:1.65, whiteSpace:"pre-wrap" }}>{u.content}</p>
                       </div>
                     </div>
                   </Card>
@@ -3163,9 +3352,9 @@ function FounderDashboard({ startup, me, profiles, bals, dk, onBack, onStartupUp
             </div>
           )}
 
-          {/* FEEDBACK MODERATION */}
+          {/* FEEDBACK */}
           {tab==="feedback" && (
-            <FeedbackSection startupId={startup.id} me={me} profiles={profiles} isFounder={true} dk={dk}/>
+            <CColabFeedback startupId={startup.id} me={me} profiles={profiles} isFounder={true} dk={dk} />
           )}
         </>
       )}
@@ -3174,9 +3363,9 @@ function FounderDashboard({ startup, me, profiles, bals, dk, onBack, onStartupUp
 }
 
 // ─── STARTUP DETAIL ───────────────────────────────────────────────
-function StartupDetail({ startup:initialStartup, me, profiles, bals, dk, onBack, onProfile }) {
+function CStartupDetail({ startup:init, me, profiles, bals, dk, onBack, onProfile }) {
   const th = T(dk);
-  const [startup, setStartup] = useState(initialStartup);
+  const [startup, setStartup] = useState(init);
   const [pages, setPages] = useState([]);
   const [updates, setUpdates] = useState([]);
   const [myPageIds, setMyPageIds] = useState([]);
@@ -3188,17 +3377,16 @@ function StartupDetail({ startup:initialStartup, me, profiles, bals, dk, onBack,
 
   const isFounder = startup.created_by===me||(startup.founders||[]).includes(me);
 
-  useEffect(()=>{
-    (async()=>{
+  useEffect(() => {
+    (async () => {
       const [pg,us,rq,acc,bk] = await Promise.all([
-        db.get("rs_startup_pages",`startup_id=eq.${startup.id}&order=created_at.asc`),
-        db.get("rs_startup_updates",`startup_id=eq.${startup.id}&room_id=is.null&order=created_at.desc&limit=10`),
-        db.get("rs_page_access_requests",`startup_id=eq.${startup.id}&user_id=eq.${me}&order=created_at.desc&limit=1`),
-        db.get("rs_page_access",`startup_id=eq.${startup.id}&user_id=eq.${me}&status=eq.approved`),
-        db.get("rs_startup_bookmarks",`startup_id=eq.${startup.id}&user_id=eq.${me}`),
+        db.get("rs_startup_pages", `startup_id=eq.${startup.id}&order=created_at.asc`),
+        db.get("rs_startup_updates", `startup_id=eq.${startup.id}&room_id=is.null&order=created_at.desc&limit=10`),
+        db.get("rs_page_access_requests", `startup_id=eq.${startup.id}&user_id=eq.${me}&order=created_at.desc&limit=1`),
+        db.get("rs_page_access", `startup_id=eq.${startup.id}&user_id=eq.${me}&status=eq.approved`),
+        db.get("rs_startup_bookmarks", `startup_id=eq.${startup.id}&user_id=eq.${me}`),
       ]);
-      setPages(pg||[]);
-      setUpdates(us||[]);
+      setPages(pg||[]); setUpdates(us||[]);
       setMyRequest(rq?.[0]||null);
       setMyPageIds((acc||[]).map(a=>a.page_id));
       setBookmarked((bk||[]).length>0);
@@ -3206,69 +3394,73 @@ function StartupDetail({ startup:initialStartup, me, profiles, bals, dk, onBack,
     })();
   },[startup.id,me]);
 
-  const toggleBookmark = async()=>{
-    if(bookmarked){
-      await db.del("rs_startup_bookmarks",`startup_id=eq.${startup.id}&user_id=eq.${me}`);
+  const toggleBookmark = async () => {
+    if (bookmarked) {
+      await db.del("rs_startup_bookmarks", `startup_id=eq.${startup.id}&user_id=eq.${me}`);
       setBookmarked(false);
     } else {
-      await db.upsert("rs_startup_bookmarks",{startup_id:startup.id,user_id:me});
+      await db.upsert("rs_startup_bookmarks", { startup_id:startup.id, user_id:me });
       setBookmarked(true);
     }
   };
 
-  const handleJoinSubmit = async data=>{
-    const saved = await db.post("rs_page_access_requests",data);
-    if(saved) setMyRequest(saved);
+  const handleJoinSubmit = async data => {
+    const saved = await db.post("rs_page_access_requests", data);
+    if (saved) setMyRequest(saved);
   };
 
-  if(isFounder) return <FounderDashboard startup={startup} me={me} profiles={profiles} bals={bals} dk={dk} onBack={onBack} onStartupUpdated={s=>setStartup(s)} onProfile={onProfile}/>;
-  if(activePage) return <PageWorkspace page={activePage} startup={startup} me={me} profiles={profiles} bals={bals} dk={dk} onBack={()=>setActivePage(null)} onProfile={onProfile}/>;
+  if (isFounder) return <CFounderDashboard startup={startup} me={me} profiles={profiles} bals={bals} dk={dk} onBack={onBack} onStartupUpdated={s=>setStartup(s)} onProfile={onProfile} />;
+  if (activePage) return <CPageWorkspace page={activePage} startup={startup} me={me} profiles={profiles} bals={bals} dk={dk} onBack={()=>setActivePage(null)} onProfile={onProfile} isFounder={false} />;
 
-  const founders=(startup.founders||[startup.created_by]).filter(Boolean);
+  const founders = (startup.founders||[startup.created_by]).filter(Boolean);
+  const isFounder2 = false; // already handled above
 
   return (
-    <div style={{animation:"fadeUp .3s ease"}}>
-      {showJoin && <JoinModal startup={startup} me={me} existingPageIds={myPageIds} onClose={()=>setShowJoin(false)} onSubmit={handleJoinSubmit} dk={dk}/>}
+    <div style={{ animation:"fadeUp .3s ease" }}>
+      {showJoin && <CJoinModal startup={startup} me={me} onClose={()=>setShowJoin(false)} onSubmit={handleJoinSubmit} dk={dk} />}
 
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
-        <button onClick={onBack} style={{display:"flex",alignItems:"center",gap:6,background:"transparent",border:"none",cursor:"pointer",color:th.txt2,fontSize:13,fontWeight:600,padding:0}}>
-          <ArrowLeft size={15}/> Back to Colab
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 }}>
+        <button onClick={onBack} style={{ display:"flex", alignItems:"center", gap:6, background:"transparent", border:"none", cursor:"pointer", color:th.txt2, fontSize:13, fontWeight:600, padding:0 }}>
+          <ArrowLeft size={15} /> Back to Colab
         </button>
-        <button onClick={toggleBookmark} title={bookmarked?"Remove bookmark":"Bookmark"} style={{display:"flex",alignItems:"center",gap:5,background:bookmarked?"#3b82f618":"transparent",border:`1px solid ${bookmarked?"#3b82f640":th.bdr}`,borderRadius:8,padding:"6px 12px",cursor:"pointer",color:bookmarked?"#3b82f6":th.txt3,fontSize:12,fontWeight:600}}>
-          <Bookmark size={13} fill={bookmarked?"#3b82f6":"none"}/>{bookmarked?"Saved":"Save"}
+        <button onClick={toggleBookmark}
+          style={{ display:"flex", alignItems:"center", gap:5, background:bookmarked?"#3b82f618":"transparent", border:`1px solid ${bookmarked?"#3b82f640":th.bdr}`, borderRadius:8, padding:"6px 12px", cursor:"pointer", color:bookmarked?"#3b82f6":th.txt3, fontSize:12, fontWeight:600 }}>
+          <Bookmark size={13} fill={bookmarked?"#3b82f6":"none"} />{bookmarked?"Saved":"Save"}
         </button>
       </div>
 
       {/* Header */}
-      <div style={{background:"linear-gradient(135deg,#1e3a8a18,#5b21b618)",border:"1px solid #3b82f628",borderRadius:20,padding:20,marginBottom:16}}>
-        <div style={{display:"flex",gap:14,alignItems:"flex-start",flexWrap:"wrap"}}>
-          <div style={{width:68,height:68,borderRadius:18,background:"linear-gradient(135deg,#3b82f6,#8b5cf6)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:34,flexShrink:0,overflow:"hidden"}}>
-            {startup.logo?.startsWith("data:")?<img src={startup.logo} style={{width:"100%",height:"100%",objectFit:"cover"}}/>:startup.logo||"🚀"}
+      <div style={{ background:"linear-gradient(135deg,#1e3a8a18,#5b21b618)", border:"1px solid #3b82f628", borderRadius:20, padding:20, marginBottom:16 }}>
+        <div style={{ display:"flex", gap:14, alignItems:"flex-start", flexWrap:"wrap" }}>
+          <div style={{ width:68, height:68, borderRadius:18, background:"linear-gradient(135deg,#3b82f6,#8b5cf6)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:34, flexShrink:0, overflow:"hidden" }}>
+            {startup.logo?.startsWith("data:") ? <img src={startup.logo} style={{ width:"100%", height:"100%", objectFit:"cover" }} alt="logo" /> : startup.logo||"🚀"}
           </div>
-          <div style={{flex:1,minWidth:0}}>
-            <h2 style={{margin:"0 0 4px",fontSize:22,fontWeight:800,color:th.txt}}>{startup.name}</h2>
-            <p style={{margin:"0 0 10px",fontSize:14,color:th.txt2,lineHeight:1.6}}>{startup.description}</p>
-            <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:10}}>
-              {startup.website && <a href={startup.website} target="_blank" rel="noopener noreferrer" style={{display:"flex",alignItems:"center",gap:4,background:th.surf2,border:`1px solid ${th.bdr}`,borderRadius:8,padding:"4px 10px",fontSize:12,color:th.txt2,fontWeight:600}}><Globe size={11}/>Website</a>}
-              {startup.github_link && <a href={startup.github_link} target="_blank" rel="noopener noreferrer" style={{display:"flex",alignItems:"center",gap:4,background:th.surf2,border:`1px solid ${th.bdr}`,borderRadius:8,padding:"4px 10px",fontSize:12,color:th.txt2,fontWeight:600}}>⚡ GitHub</a>}
-              {startup.social_links?.twitter && <a href={startup.social_links.twitter} target="_blank" rel="noopener noreferrer" style={{display:"flex",alignItems:"center",gap:4,background:"#1da1f215",border:"1px solid #1da1f230",borderRadius:8,padding:"4px 10px",fontSize:12,color:"#1da1f2",fontWeight:600}}><Twitter size={11}/></a>}
-              {startup.social_links?.linkedin && <a href={startup.social_links.linkedin} target="_blank" rel="noopener noreferrer" style={{display:"flex",alignItems:"center",gap:4,background:"#0a66c215",border:"1px solid #0a66c230",borderRadius:8,padding:"4px 10px",fontSize:12,color:"#0a66c2",fontWeight:600}}><Linkedin size={11}/></a>}
+          <div style={{ flex:1, minWidth:0 }}>
+            <h2 style={{ margin:"0 0 4px", fontSize:22, fontWeight:800, color:th.txt }}>{startup.name}</h2>
+            <p style={{ margin:"0 0 10px", fontSize:14, color:th.txt2, lineHeight:1.6 }}>{startup.description}</p>
+            <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginBottom:10 }}>
+              {startup.website && <a href={startup.website} target="_blank" rel="noopener noreferrer" style={{ display:"flex", alignItems:"center", gap:4, background:th.surf2, border:`1px solid ${th.bdr}`, borderRadius:8, padding:"4px 10px", fontSize:12, color:th.txt2, fontWeight:600 }}><Globe size={11} />Website</a>}
+              {startup.github_link && <a href={startup.github_link} target="_blank" rel="noopener noreferrer" style={{ display:"flex", alignItems:"center", gap:4, background:th.surf2, border:`1px solid ${th.bdr}`, borderRadius:8, padding:"4px 10px", fontSize:12, color:th.txt2, fontWeight:600 }}>⚡ GitHub</a>}
+              {startup.social_links?.twitter && <a href={startup.social_links.twitter} target="_blank" rel="noopener noreferrer" style={{ display:"flex", alignItems:"center", gap:4, background:"#1da1f215", border:"1px solid #1da1f230", borderRadius:8, padding:"4px 10px", fontSize:12, color:"#1da1f2", fontWeight:600 }}><Twitter size={11} /></a>}
+              {startup.social_links?.linkedin && <a href={startup.social_links.linkedin} target="_blank" rel="noopener noreferrer" style={{ display:"flex", alignItems:"center", gap:4, background:"#0a66c215", border:"1px solid #0a66c230", borderRadius:8, padding:"4px 10px", fontSize:12, color:"#0a66c2", fontWeight:600 }}><Linkedin size={11} /></a>}
             </div>
-            {founders.length>0 && (
-              <div style={{display:"flex",alignItems:"center",gap:10}}>
-                <StackedAvatars userIds={founders} profiles={profiles} onProfile={onProfile} max={5}/>
-                <span style={{fontSize:12,color:th.txt3}}>
-                  {founders.slice(0,2).map(id=>profiles[id]?.name?.split(" ")[0]).filter(Boolean).join(", ")}{founders.length>2?` +${founders.length-2} more`:""}
+            {founders.length > 0 && (
+              <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                <StackedAvatars userIds={founders} profiles={profiles} onProfile={onProfile} max={5} />
+                <span style={{ fontSize:12, color:th.txt3 }}>
+                  {founders.slice(0,2).map(id=>profiles[id]?.name?.split(" ")[0]).filter(Boolean).join(", ")}
+                  {founders.length>2?` +${founders.length-2} more`:""}
                 </span>
               </div>
             )}
           </div>
-          <div style={{flexShrink:0}}>
-            {myRequest&&myRequest.status!=="rejected"
-              ? <span style={{background:myRequest.status==="approved"?"#10b98118":"#f59e0b18",color:myRequest.status==="approved"?"#10b981":"#f59e0b",fontSize:12,fontWeight:700,padding:"8px 16px",borderRadius:99,border:"1px solid currentColor",display:"block"}}>
-                  {myRequest.status==="approved"?"✓ Approved":"⏳ Request Pending"}
+          <div style={{ flexShrink:0 }}>
+            {myRequest && myRequest.status!=="rejected"
+              ? <span style={{ background:myRequest.status==="approved"?"#10b98118":"#f59e0b18", color:myRequest.status==="approved"?"#10b981":"#f59e0b", fontSize:12, fontWeight:700, padding:"8px 16px", borderRadius:99, border:"1px solid currentColor", display:"block" }}>
+                  {myRequest.status==="approved"?"✓ Approved":"⏳ Pending"}
                 </span>
-              : <button onClick={()=>setShowJoin(true)} style={{background:"linear-gradient(135deg,#3b82f6,#8b5cf6)",border:"none",borderRadius:12,padding:"10px 22px",color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer",boxShadow:"0 0 20px rgba(59,130,246,.3)"}}>
+              : <button onClick={()=>setShowJoin(true)}
+                  style={{ background:"linear-gradient(135deg,#3b82f6,#8b5cf6)", border:"none", borderRadius:12, padding:"10px 22px", color:"#fff", fontSize:14, fontWeight:700, cursor:"pointer", boxShadow:"0 0 20px rgba(59,130,246,.3)" }}>
                   {myRequest?.status==="rejected"?"Re-apply":"Join Startup"}
                 </button>
             }
@@ -3276,55 +3468,55 @@ function StartupDetail({ startup:initialStartup, me, profiles, bals, dk, onBack,
         </div>
       </div>
 
-      {loading ? <Spin dk={dk}/> : (
+      {loading ? <Spin dk={dk} /> : (
         <>
           {/* Pages */}
-          <div style={{fontWeight:700,fontSize:15,color:th.txt,marginBottom:10}}>📄 Pages</div>
-          {pages.map(pg=>{
-            const pt=PAGE_TYPES.find(x=>pg.name?.toLowerCase().includes(x.id)||pg.type_id===x.id)||PAGE_TYPES[3];
-            const isApproved=myPageIds.includes(pg.id);
+          <div style={{ fontWeight:700, fontSize:15, color:th.txt, marginBottom:10 }}>📄 Pages</div>
+          {pages.map(pg => {
+            const pt = cpt(pg);
+            const isApproved = myPageIds.includes(pg.id);
             return (
-              <Card dk={dk} key={pg.id} anim={false} style={{position:"relative",overflow:"hidden"}}>
-                {!isApproved && <div style={{position:"absolute",inset:0,backdropFilter:"blur(1.5px)",background:"rgba(0,0,0,.03)",zIndex:1,borderRadius:16}}/>}
-                <div style={{display:"flex",gap:12,alignItems:"center",position:"relative",zIndex:2}}>
-                  <div style={{width:44,height:44,borderRadius:12,background:pt.c+"20",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,flexShrink:0}}>{pt.e}</div>
-                  <div style={{flex:1}}>
-                    <div style={{fontWeight:700,fontSize:14,color:th.txt}}>{pg.name}</div>
-                    <div style={{fontSize:12,color:th.txt3}}>{pg.description}</div>
+              <Card dk={dk} key={pg.id} anim={false} style={{ position:"relative", overflow:"hidden" }}>
+                {!isApproved && <div style={{ position:"absolute", inset:0, backdropFilter:"blur(1.5px)", background:"rgba(0,0,0,.03)", zIndex:1, borderRadius:16 }} />}
+                <div style={{ display:"flex", gap:12, alignItems:"center", position:"relative", zIndex:2 }}>
+                  <div style={{ width:44, height:44, borderRadius:12, background:`${pt.c}20`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:22, flexShrink:0 }}>{pt.e}</div>
+                  <div style={{ flex:1 }}>
+                    <div style={{ fontWeight:700, fontSize:14, color:th.txt }}>{pg.name}</div>
+                    <div style={{ fontSize:12, color:th.txt3 }}>{pg.description}</div>
                   </div>
                   {isApproved
-                    ? <button onClick={()=>setActivePage(pg)} style={{background:pt.c,border:"none",borderRadius:10,padding:"7px 16px",color:"#fff",fontSize:12,fontWeight:700,cursor:"pointer"}}>Enter →</button>
-                    : <span style={{fontSize:11,color:th.txt3,background:th.surf2,border:`1px solid ${th.bdr}`,borderRadius:8,padding:"5px 10px"}}>🔒 Locked</span>
+                    ? <button onClick={()=>setActivePage(pg)} style={{ background:pt.c, border:"none", borderRadius:10, padding:"7px 16px", color:"#fff", fontSize:12, fontWeight:700, cursor:"pointer" }}>Enter →</button>
+                    : <span style={{ fontSize:11, color:th.txt3, background:th.surf2, border:`1px solid ${th.bdr}`, borderRadius:8, padding:"5px 10px" }}>🔒 Locked</span>
                   }
                 </div>
               </Card>
             );
           })}
 
-          {myPageIds.length<pages.length && myRequest?.status!=="pending" && (
-            <div style={{textAlign:"center",padding:"14px 0"}}>
-              <button onClick={()=>setShowJoin(true)} style={{background:"transparent",border:"1.5px dashed #3b82f660",borderRadius:12,padding:"10px 24px",color:"#3b82f6",fontSize:13,fontWeight:700,cursor:"pointer"}}>
+          {myPageIds.length < pages.length && myRequest?.status !== "pending" && (
+            <div style={{ textAlign:"center", padding:"12px 0" }}>
+              <button onClick={()=>setShowJoin(true)} style={{ background:"transparent", border:"1.5px dashed #3b82f660", borderRadius:12, padding:"10px 24px", color:"#3b82f6", fontSize:13, fontWeight:700, cursor:"pointer" }}>
                 + Request access to more pages
               </button>
             </div>
           )}
 
           {/* Updates */}
-          {updates.length>0 && (
+          {updates.length > 0 && (
             <>
-              <div style={{fontWeight:700,fontSize:15,color:th.txt,margin:"20px 0 10px"}}>📢 Updates</div>
-              {updates.map(u=>{
-                const author=profiles[u.created_by]||{name:"Founder"};
+              <div style={{ fontWeight:700, fontSize:15, color:th.txt, margin:"20px 0 10px" }}>📢 Updates</div>
+              {updates.map(u => {
+                const author = profiles[u.created_by] || { name:"Founder" };
                 return (
                   <Card dk={dk} key={u.id}>
-                    <div style={{display:"flex",gap:10}}>
-                      <Av profile={author} size={32}/>
-                      <div style={{flex:1}}>
-                        <div style={{display:"flex",gap:6,alignItems:"center",marginBottom:5}}>
-                          <span style={{fontWeight:700,fontSize:13,color:th.txt}}>{author.name}</span>
-                          <span style={{fontSize:11,color:th.txt3}}>{ago(new Date(u.created_at).getTime())}</span>
+                    <div style={{ display:"flex", gap:10 }}>
+                      <Av profile={author} size={32} />
+                      <div style={{ flex:1 }}>
+                        <div style={{ display:"flex", gap:6, alignItems:"center", marginBottom:5 }}>
+                          <span style={{ fontWeight:700, fontSize:13, color:th.txt }}>{author.name}</span>
+                          <span style={{ fontSize:11, color:th.txt3 }}>{ago(new Date(u.created_at).getTime())}</span>
                         </div>
-                        <p style={{margin:0,fontSize:14,color:th.txt,lineHeight:1.65}}>{u.content}</p>
+                        <p style={{ margin:0, fontSize:14, color:th.txt, lineHeight:1.65 }}>{u.content}</p>
                       </div>
                     </div>
                   </Card>
@@ -3334,7 +3526,7 @@ function StartupDetail({ startup:initialStartup, me, profiles, bals, dk, onBack,
           )}
 
           {/* Feedback */}
-          <FeedbackSection startupId={startup.id} me={me} profiles={profiles} isFounder={false} dk={dk}/>
+          <CColabFeedback startupId={startup.id} me={me} profiles={profiles} isFounder={false} dk={dk} />
         </>
       )}
     </div>
@@ -3353,23 +3545,22 @@ function ColabView({ me, dk, profiles, bals, onProfile, addNotif }) {
   const [updateMap, setUpdateMap] = useState({});
   const [feedbackMap, setFeedbackMap] = useState({});
   const [bookmarkedIds, setBookmarkedIds] = useState([]);
+  const [filterBookmarked, setFilterBookmarked] = useState(false);
 
-  const load = useCallback(async()=>{
+  const load = useCallback(async () => {
     setLoading(true);
-    const data = await db.get("rs_startups","order=created_at.desc&limit=60");
+    const data = await db.get("rs_startups", "order=created_at.desc&limit=60");
     setStartups(data||[]);
-    if(data?.length){
-      const ids=data.map(s=>s.id);
-      const idStr=ids.join(",");
+    if (data?.length) {
+      const ids = data.map(s=>s.id);
+      const idStr = ids.join(",");
       const [us,fb,bk] = await Promise.all([
-        db.get("rs_startup_updates",`startup_id=in.(${idStr})&room_id=is.null&order=created_at.desc`),
-        db.get("rs_startup_feedback",`startup_id=in.(${idStr})&order=created_at.desc`),
-        db.get("rs_startup_bookmarks",`user_id=eq.${me}`),
+        db.get("rs_startup_updates", `startup_id=in.(${idStr})&room_id=is.null&order=created_at.desc`),
+        db.get("rs_startup_feedback", `startup_id=in.(${idStr})&order=created_at.desc`),
+        db.get("rs_startup_bookmarks", `user_id=eq.${me}`),
       ]);
-      const um={};
-      (us||[]).forEach(u=>{if(!um[u.startup_id])um[u.startup_id]=u;});
-      const fm={};
-      (fb||[]).forEach(f=>{if(!fm[f.startup_id])fm[f.startup_id]=[];fm[f.startup_id].push(f);});
+      const um={}; (us||[]).forEach(u=>{if(!um[u.startup_id])um[u.startup_id]=u;});
+      const fm={}; (fb||[]).forEach(f=>{if(!fm[f.startup_id])fm[f.startup_id]=[];fm[f.startup_id].push(f);});
       setUpdateMap(um);
       setFeedbackMap(fm);
       setBookmarkedIds((bk||[]).map(b=>b.startup_id));
@@ -3377,106 +3568,112 @@ function ColabView({ me, dk, profiles, bals, onProfile, addNotif }) {
     setLoading(false);
   },[me]);
 
-  useEffect(()=>{load();},[load]);
+  useEffect(() => { load(); }, [load]);
 
-  const handleCreated = s=>{
-    if(s){setStartups(ss=>[s,...ss.filter(x=>x.id!==s.id)]);setActive(s);}
+  const handleCreated = s => {
+    if (s) { setStartups(ss=>[s,...ss.filter(x=>x.id!==s.id)]); setActive(s); }
   };
 
-  const filtered = startups.filter(s=>
-    !search||s.name?.toLowerCase().includes(search.toLowerCase())||s.description?.toLowerCase().includes(search.toLowerCase())
+  let filtered = startups.filter(s =>
+    !search || s.name?.toLowerCase().includes(search.toLowerCase()) || s.description?.toLowerCase().includes(search.toLowerCase())
   );
+  if (filterBookmarked) filtered = filtered.filter(s=>bookmarkedIds.includes(s.id));
 
-  if(active) return (
-    <StartupDetail startup={active} me={me} profiles={profiles} bals={bals} dk={dk}
-      onBack={()=>{setActive(null);load();}} onProfile={onProfile}/>
+  if (active) return (
+    <CStartupDetail startup={active} me={me} profiles={profiles} bals={bals} dk={dk}
+      onBack={()=>{setActive(null);load();}} onProfile={onProfile} />
   );
 
   return (
     <div>
-      {showCreate && <CreateStartupModal me={me} onClose={()=>setShowCreate(false)} onSave={handleCreated} dk={dk}/>}
-      {showReferral && <ReferralJoinModal me={me} onClose={()=>setShowReferral(false)} onSuccess={s=>{addNotif({type:"sandbox",msg:`🚀 Request sent to join ${s.name}`});}} dk={dk}/>}
+      {showCreate && <CCreateStartupModal me={me} onClose={()=>setShowCreate(false)} onSave={handleCreated} dk={dk} />}
+      {showReferral && <CReferralModal me={me} onClose={()=>setShowReferral(false)} onSuccess={s=>{addNotif({type:"sandbox",msg:`🚀 Request sent to join ${s.name}`});}} dk={dk} />}
 
       {/* Header */}
-      <div style={{background:"linear-gradient(135deg,#0f172a,#1e3a8a,#312e81)",borderRadius:20,padding:24,marginBottom:20}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:14,marginBottom:18}}>
+      <div style={{ background:"linear-gradient(135deg,#0f172a,#1e3a8a,#312e81)", borderRadius:20, padding:24, marginBottom:20 }}>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", flexWrap:"wrap", gap:14, marginBottom:16 }}>
           <div>
-            <h2 style={{margin:"0 0 4px",fontSize:24,fontWeight:900,color:"#fff"}}>🚀 Colab</h2>
-            <p style={{margin:0,fontSize:14,color:"rgba(255,255,255,.55)"}}>Startup operating system · Discover · Join · Build</p>
+            <h2 style={{ margin:"0 0 4px", fontSize:24, fontWeight:900, color:"#fff" }}>🚀 Colab</h2>
+            <p style={{ margin:0, fontSize:14, color:"rgba(255,255,255,.55)" }}>Startup OS · Discover · Collaborate · Build</p>
           </div>
-          <div style={{display:"flex",gap:8}}>
-            <button onClick={()=>setShowReferral(true)} style={{display:"flex",alignItems:"center",gap:6,background:"rgba(255,255,255,.1)",border:"1px solid rgba(255,255,255,.2)",borderRadius:10,padding:"8px 14px",color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer"}}>
-              <Hash size={13}/>Enter Code
+          <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+            <button onClick={()=>setShowReferral(true)}
+              style={{ display:"flex", alignItems:"center", gap:6, background:"rgba(255,255,255,.1)", border:"1px solid rgba(255,255,255,.2)", borderRadius:10, padding:"8px 14px", color:"#fff", fontSize:13, fontWeight:600, cursor:"pointer" }}>
+              <Hash size={13} />Enter Code
             </button>
-            <button onClick={()=>setShowCreate(true)} style={{display:"flex",alignItems:"center",gap:6,background:"#fff",border:"none",borderRadius:10,padding:"8px 16px",color:"#1e3a8a",fontSize:13,fontWeight:800,cursor:"pointer"}}>
-              <Plus size={13}/>Create Startup
+            <button onClick={()=>setShowCreate(true)}
+              style={{ display:"flex", alignItems:"center", gap:6, background:"#fff", border:"none", borderRadius:10, padding:"8px 16px", color:"#1e3a8a", fontSize:13, fontWeight:800, cursor:"pointer" }}>
+              <Plus size={13} />Create Startup
             </button>
           </div>
         </div>
-        <div style={{position:"relative"}}>
-          <Search size={14} style={{position:"absolute",left:12,top:"50%",transform:"translateY(-50%)",color:"rgba(255,255,255,.4)"}}/>
-          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search startups…" style={{width:"100%",background:"rgba(255,255,255,.1)",border:"1px solid rgba(255,255,255,.15)",borderRadius:10,padding:"9px 12px 9px 34px",fontSize:13,outline:"none",color:"#fff",boxSizing:"border-box"}}/>
+        <div style={{ display:"flex", gap:8 }}>
+          <div style={{ position:"relative", flex:1 }}>
+            <Search size={14} style={{ position:"absolute", left:12, top:"50%", transform:"translateY(-50%)", color:"rgba(255,255,255,.4)" }} />
+            <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search startups…"
+              style={{ width:"100%", background:"rgba(255,255,255,.1)", border:"1px solid rgba(255,255,255,.15)", borderRadius:10, padding:"9px 12px 9px 34px", fontSize:13, outline:"none", color:"#fff", boxSizing:"border-box" }} />
+          </div>
+          <button onClick={()=>setFilterBookmarked(x=>!x)}
+            style={{ background:filterBookmarked?"rgba(255,255,255,.2)":"rgba(255,255,255,.08)", border:`1px solid ${filterBookmarked?"rgba(255,255,255,.4)":"rgba(255,255,255,.15)"}`, borderRadius:10, padding:"0 14px", color:"#fff", cursor:"pointer", flexShrink:0, fontSize:12, fontWeight:600 }}>
+            🔖 {filterBookmarked?"All":"Saved"}
+          </button>
         </div>
       </div>
 
-      {loading ? <Spin dk={dk} msg="Loading startups…"/> : filtered.length===0 ? (
-        <div style={{textAlign:"center",padding:60,color:th.txt3}}>
-          <div style={{fontSize:56,marginBottom:12}}>🚀</div>
-          <p style={{fontSize:16,fontWeight:600,margin:"0 0 6px",color:th.txt}}>No startups yet</p>
-          <p style={{fontSize:14,margin:"0 0 20px"}}>Be the first to create one!</p>
-          <button onClick={()=>setShowCreate(true)} style={{background:"linear-gradient(135deg,#3b82f6,#8b5cf6)",border:"none",borderRadius:12,padding:"10px 24px",color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer"}}>Create Startup</button>
+      {loading ? <Spin dk={dk} msg="Loading startups…" /> : filtered.length === 0 ? (
+        <div style={{ textAlign:"center", padding:60, color:th.txt3 }}>
+          <div style={{ fontSize:56, marginBottom:12 }}>🚀</div>
+          <p style={{ fontSize:16, fontWeight:600, margin:"0 0 6px", color:th.txt }}>{filterBookmarked?"No saved startups":"No startups yet"}</p>
+          <p style={{ fontSize:14, margin:"0 0 20px" }}>{filterBookmarked?"Save startups to see them here":"Be the first to create one!"}</p>
+          {!filterBookmarked && <button onClick={()=>setShowCreate(true)} style={{ background:"linear-gradient(135deg,#3b82f6,#8b5cf6)", border:"none", borderRadius:12, padding:"10px 24px", color:"#fff", fontSize:14, fontWeight:700, cursor:"pointer" }}>Create Startup</button>}
         </div>
-      ) : filtered.map(s=>{
-        const isFounder=s.created_by===me||(s.founders||[]).includes(me);
-        const founders=(s.founders||[s.created_by]).filter(Boolean);
-        const latestUpdate=updateMap[s.id];
-        const fbCount=(feedbackMap[s.id]||[]).length;
-        const isBookmarked=bookmarkedIds.includes(s.id);
-
+      ) : filtered.map(s => {
+        const isFounder = s.created_by===me||(s.founders||[]).includes(me);
+        const founders = (s.founders||[s.created_by]).filter(Boolean);
+        const latestUpdate = updateMap[s.id];
+        const fbCount = (feedbackMap[s.id]||[]).length;
+        const isBookmarked = bookmarkedIds.includes(s.id);
         return (
           <Card dk={dk} key={s.id}>
-            <div onClick={()=>setActive(s)} style={{cursor:"pointer"}}>
-              <div style={{display:"flex",gap:14,alignItems:"flex-start",marginBottom:12}}>
-                <div style={{width:56,height:56,borderRadius:16,background:"linear-gradient(135deg,#3b82f6,#8b5cf6)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:28,flexShrink:0,overflow:"hidden"}}>
-                  {s.logo?.startsWith("data:")?<img src={s.logo} style={{width:"100%",height:"100%",objectFit:"cover"}}/>:s.logo||"🚀"}
+            <div onClick={()=>setActive(s)} style={{ cursor:"pointer" }}>
+              <div style={{ display:"flex", gap:14, alignItems:"flex-start", marginBottom:12 }}>
+                <div style={{ width:56, height:56, borderRadius:16, background:"linear-gradient(135deg,#3b82f6,#8b5cf6)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:28, flexShrink:0, overflow:"hidden" }}>
+                  {s.logo?.startsWith("data:") ? <img src={s.logo} style={{ width:"100%", height:"100%", objectFit:"cover" }} alt="logo" /> : s.logo||"🚀"}
                 </div>
-                <div style={{flex:1,minWidth:0}}>
-                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8,marginBottom:4}}>
-                    <div style={{fontWeight:800,fontSize:16,color:th.txt}}>{s.name}</div>
-                    <div style={{display:"flex",gap:5,flexShrink:0}}>
-                      {isBookmarked && <span style={{fontSize:10,color:"#3b82f6"}}>🔖</span>}
-                      {isFounder && <span style={{background:"#f59e0b18",color:"#f59e0b",fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:99,border:"1px solid #f59e0b40"}}>OWNER</span>}
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:8, marginBottom:4 }}>
+                    <div style={{ fontWeight:800, fontSize:16, color:th.txt }}>{s.name}</div>
+                    <div style={{ display:"flex", gap:5, flexShrink:0 }}>
+                      {isBookmarked && <span style={{ fontSize:12, color:"#3b82f6" }}>🔖</span>}
+                      {isFounder && <span style={{ background:"#f59e0b18", color:"#f59e0b", fontSize:10, fontWeight:700, padding:"2px 8px", borderRadius:99, border:"1px solid #f59e0b40" }}>OWNER</span>}
                     </div>
                   </div>
-                  <p style={{margin:"0 0 8px",fontSize:13,color:th.txt2,lineHeight:1.55}}>{s.description?.slice(0,120)}{s.description?.length>120?"…":""}</p>
-                  {/* Social links */}
-                  <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:8}}>
-                    {s.website&&<a href={s.website} onClick={e=>e.stopPropagation()} target="_blank" rel="noopener noreferrer" style={{display:"flex",alignItems:"center",gap:3,background:th.surf2,border:`1px solid ${th.bdr}`,borderRadius:6,padding:"2px 7px",fontSize:11,color:th.txt2,fontWeight:600}}><Globe size={10}/>Web</a>}
-                    {s.github_link&&<a href={s.github_link} onClick={e=>e.stopPropagation()} target="_blank" rel="noopener noreferrer" style={{display:"flex",alignItems:"center",gap:3,background:th.surf2,border:`1px solid ${th.bdr}`,borderRadius:6,padding:"2px 7px",fontSize:11,color:th.txt2,fontWeight:600}}>⚡ Git</a>}
-                    {s.social_links?.twitter&&<a href={s.social_links.twitter} onClick={e=>e.stopPropagation()} target="_blank" rel="noopener noreferrer" style={{display:"flex",alignItems:"center",background:"#1da1f215",border:"1px solid #1da1f230",borderRadius:6,padding:"2px 7px",fontSize:11,color:"#1da1f2",fontWeight:600}}><Twitter size={10}/></a>}
-                    {s.social_links?.linkedin&&<a href={s.social_links.linkedin} onClick={e=>e.stopPropagation()} target="_blank" rel="noopener noreferrer" style={{display:"flex",alignItems:"center",background:"#0a66c215",border:"1px solid #0a66c230",borderRadius:6,padding:"2px 7px",fontSize:11,color:"#0a66c2",fontWeight:600}}><Linkedin size={10}/></a>}
+                  <p style={{ margin:"0 0 8px", fontSize:13, color:th.txt2, lineHeight:1.55 }}>{s.description?.slice(0,120)}{s.description?.length>120?"…":""}</p>
+                  <div style={{ display:"flex", gap:5, flexWrap:"wrap", marginBottom:8 }}>
+                    {s.website && <a href={s.website} onClick={e=>e.stopPropagation()} target="_blank" rel="noopener noreferrer" style={{ display:"flex", alignItems:"center", gap:3, background:th.surf2, border:`1px solid ${th.bdr}`, borderRadius:6, padding:"2px 7px", fontSize:11, color:th.txt2, fontWeight:600 }}><Globe size={10} />Web</a>}
+                    {s.github_link && <a href={s.github_link} onClick={e=>e.stopPropagation()} target="_blank" rel="noopener noreferrer" style={{ display:"flex", alignItems:"center", gap:3, background:th.surf2, border:`1px solid ${th.bdr}`, borderRadius:6, padding:"2px 7px", fontSize:11, color:th.txt2, fontWeight:600 }}>⚡ Git</a>}
+                    {s.social_links?.twitter && <a href={s.social_links.twitter} onClick={e=>e.stopPropagation()} target="_blank" rel="noopener noreferrer" style={{ display:"flex", alignItems:"center", background:"#1da1f215", border:"1px solid #1da1f230", borderRadius:6, padding:"2px 7px", fontSize:11, color:"#1da1f2" }}><Twitter size={10} /></a>}
+                    {s.social_links?.linkedin && <a href={s.social_links.linkedin} onClick={e=>e.stopPropagation()} target="_blank" rel="noopener noreferrer" style={{ display:"flex", alignItems:"center", background:"#0a66c215", border:"1px solid #0a66c230", borderRadius:6, padding:"2px 7px", fontSize:11, color:"#0a66c2" }}><Linkedin size={10} /></a>}
                   </div>
-                  {/* Stacked founders */}
-                  {founders.length>0&&(
-                    <div style={{display:"flex",alignItems:"center",gap:7}}>
-                      <StackedAvatars userIds={founders} profiles={profiles} onProfile={onProfile} max={4} size={22}/>
-                      <span style={{fontSize:11,color:th.txt3}}>{founders.length} founder{founders.length!==1?"s":""}</span>
+                  {founders.length > 0 && (
+                    <div style={{ display:"flex", alignItems:"center", gap:7 }}>
+                      <StackedAvatars userIds={founders} profiles={profiles} onProfile={onProfile} max={4} size={22} />
+                      <span style={{ fontSize:11, color:th.txt3 }}>{founders.length} founder{founders.length!==1?"s":""}</span>
                     </div>
                   )}
                 </div>
               </div>
-              {/* Latest update */}
-              {latestUpdate&&(
-                <div style={{background:th.surf2,border:`1px solid ${th.bdr}`,borderRadius:10,padding:"8px 12px",marginBottom:8}}>
-                  <div style={{fontSize:10,fontWeight:700,color:th.txt3,marginBottom:2}}>📢 LATEST UPDATE</div>
-                  <div style={{fontSize:12,color:th.txt2,lineHeight:1.5}}>{latestUpdate.content?.slice(0,120)}{latestUpdate.content?.length>120?"…":""}</div>
+              {latestUpdate && (
+                <div style={{ background:th.surf2, border:`1px solid ${th.bdr}`, borderRadius:10, padding:"8px 12px", marginBottom:8 }}>
+                  <div style={{ fontSize:10, fontWeight:700, color:th.txt3, marginBottom:2 }}>📢 LATEST UPDATE</div>
+                  <div style={{ fontSize:12, color:th.txt2, lineHeight:1.5 }}>{latestUpdate.content?.slice(0,130)}{latestUpdate.content?.length>130?"…":""}</div>
                 </div>
               )}
-              {fbCount>0&&<div style={{fontSize:11,color:th.txt3,display:"flex",alignItems:"center",gap:4,marginTop:4}}><MessageCircle size={11}/>{fbCount} feedback</div>}
+              {fbCount > 0 && <div style={{ fontSize:11, color:th.txt3, display:"flex", alignItems:"center", gap:4 }}><MessageCircle size={11} />{fbCount} feedback</div>}
             </div>
-            <div style={{borderTop:`1px solid ${th.bdr}`,marginTop:12,paddingTop:12,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-              <span style={{fontSize:12,color:th.txt3}}>{s.created_at?ago(new Date(s.created_at).getTime())+" ago":""}</span>
-              <button onClick={()=>setActive(s)} style={{background:"linear-gradient(135deg,#3b82f6,#8b5cf6)",border:"none",borderRadius:10,padding:"7px 18px",color:"#fff",fontSize:12,fontWeight:700,cursor:"pointer"}}>
+            <div style={{ borderTop:`1px solid ${th.bdr}`, marginTop:12, paddingTop:12, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+              <span style={{ fontSize:12, color:th.txt3 }}>{s.created_at?ago(new Date(s.created_at).getTime())+" ago":""}</span>
+              <button onClick={()=>setActive(s)} style={{ background:"linear-gradient(135deg,#3b82f6,#8b5cf6)", border:"none", borderRadius:10, padding:"7px 18px", color:"#fff", fontSize:12, fontWeight:700, cursor:"pointer" }}>
                 {isFounder?"Manage →":"Join →"}
               </button>
             </div>
