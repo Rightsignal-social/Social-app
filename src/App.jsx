@@ -1982,1581 +1982,1190 @@ function Onboarding({ user, onComplete }) {
     </div>
   );
 }
-// ============================================================
-// Colab.jsx — Full Startup Operating System
-// Drop-in replacement for ColabView in App.jsx
-// Import: import ColabView from './Colab';
-// ============================================================
+// ═══════════════════════════════════════════════════════════════
+// COLAB v3 — STARTUP OPERATING SYSTEM
+// ═══════════════════════════════════════════════════════════════
 
-import { useState, useEffect, useCallback, useRef } from "react";
-import {
-  ArrowLeft, Plus, X, Check, Search, Send, Edit3, Trash2, Globe,
-  Mic, MicOff, Image, Video, File, Download, Calendar, Users,
-  MessageCircle, Settings, Bell, Bookmark, BookmarkCheck, ChevronRight,
-  ChevronDown, MoreHorizontal, Clock, AlertCircle, CheckCircle2,
-  Circle, Link, Twitter, Linkedin, Github, Hash, AtSign, Paperclip,
-  Play, Upload, Star, TrendingUp, Zap, RefreshCw, Filter, Eye,
-  Phone, Copy,
-} from "lucide-react";
+const genStartupCode = name =>
+  name.toUpperCase().replace(/\s+/g,"").slice(0,5) +
+  "-" + Math.random().toString(36).slice(2,6).toUpperCase();
 
-// ─── CONFIG (reuse from App.jsx) ─────────────────────────────
-const SB_URL = "https://kzdjzasopqwzctwebiap.supabase.co";
-const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt6ZGp6YXNvcHF3emN0d2ViaWFwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY1MjM1NTgsImV4cCI6MjA5MjA5OTU1OH0.VqGDt7JVvkP413tl40EIh3IFqtyhX1OMrv3iCGaMvls";
-const H = { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`, "Content-Type": "application/json" };
-
-// ─── DB HELPERS ───────────────────────────────────────────────
-const db = {
-  get: async (t, q = "") => {
-    try { const r = await fetch(`${SB_URL}/rest/v1/${t}${q ? "?" + q : ""}`, { headers: H }); return r.ok ? r.json() : []; } catch { return []; }
-  },
-  post: async (t, body) => {
-    try {
-      const r = await fetch(`${SB_URL}/rest/v1/${t}`, { method: "POST", headers: { ...H, Prefer: "return=representation" }, body: JSON.stringify(body) });
-      if (!r.ok) return null; const d = await r.json(); return Array.isArray(d) ? d[0] : d;
-    } catch { return null; }
-  },
-  postMany: async (t, rows) => {
-    if (!rows?.length) return [];
-    try { const r = await fetch(`${SB_URL}/rest/v1/${t}`, { method: "POST", headers: { ...H, Prefer: "return=representation" }, body: JSON.stringify(rows) }); return r.ok ? r.json() : []; } catch { return []; }
-  },
-  patch: async (t, q, body) => {
-    try { await fetch(`${SB_URL}/rest/v1/${t}?${q}`, { method: "PATCH", headers: H, body: JSON.stringify(body) }); } catch {}
-  },
-  del: async (t, q) => {
-    try { await fetch(`${SB_URL}/rest/v1/${t}?${q}`, { method: "DELETE", headers: H }); } catch {}
-  },
-  upsert: async (t, body) => {
-    try {
-      const r = await fetch(`${SB_URL}/rest/v1/${t}`, { method: "POST", headers: { ...H, Prefer: "resolution=merge-duplicates,return=representation" }, body: JSON.stringify(body) });
-      if (!r.ok) return null; const d = await r.json(); return Array.isArray(d) ? d[0] : d;
-    } catch { return null; }
-  },
-};
-
-// ─── UTILS ───────────────────────────────────────────────────
-const ago = d => { const s = (Date.now() - d) / 1000; if (s < 60) return "just now"; if (s < 3600) return `${~~(s / 60)}m ago`; if (s < 86400) return `${~~(s / 3600)}h ago`; return `${~~(s / 86400)}d ago`; };
-const fmtDate = t => new Date(t).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-const fmtTime = t => new Date(t).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
-const fmtDateTime = t => `${fmtDate(t)} at ${fmtTime(t)}`;
-const genId = () => Math.random().toString(36).slice(2, 10);
-const genCode = name => name.toUpperCase().replace(/\s+/g, "").slice(0, 5) + "-" + Math.random().toString(36).slice(2, 6).toUpperCase();
-const strColor = s => { const c = ["#3b82f6","#10b981","#8b5cf6","#f97316","#f43f5e","#06b6d4","#ec4899","#f59e0b"]; let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) & 0xffffff; return c[Math.abs(h) % c.length]; };
-const fileToB64 = (file, maxMB = 5) => new Promise((res, rej) => {
-  if (file.size > maxMB * 1024 * 1024) { rej(new Error(`Max ${maxMB}MB`)); return; }
-  const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(file);
-});
-
-// ─── CONSTANTS ────────────────────────────────────────────────
+// ─── PAGE DEFINITIONS ────────────────────────────────────────────
 const PAGE_TYPES = [
-  { id: "investor",  label: "Investor",  e: "💰", c: "#10b981", desc: "Pitch deck, funding, traction" },
-  { id: "tech",      label: "Tech",      e: "👾", c: "#3b82f6", desc: "Code, dev logs, tech updates" },
-  { id: "marketing", label: "Marketing", e: "📣", c: "#f97316", desc: "Campaigns, content, growth" },
-  { id: "community", label: "Community", e: "🌐", c: "#8b5cf6", desc: "Public updates, engagement" },
-  { id: "operations",label: "Operations",e: "⚙️", c: "#06b6d4", desc: "Ops, BD, partnerships" },
-  { id: "design",    label: "Design",    e: "🎨", c: "#ec4899", desc: "UI/UX, brand assets" },
-  { id: "general",   label: "General",   e: "📋", c: "#6b7280", desc: "General workspace" },
+  { id:"investor",  label:"Investor",  e:"💰", c:"#10b981", desc:"Investors & advisors — pitch decks, funding updates" },
+  { id:"tech",      label:"Tech",      e:"👾", c:"#3b82f6", desc:"Engineers — dev logs, code, technical discussions" },
+  { id:"marketing", label:"Marketing", e:"📣", c:"#f97316", desc:"Growth team — campaigns, content calendar" },
+  { id:"community", label:"Community", e:"🌐", c:"#8b5cf6", desc:"Public audience — announcements, engagement" },
 ];
+
+const DEFAULT_PAGES = PAGE_TYPES.map(p=>({ name:p.label, description:p.desc, type_id:p.id }));
+
+const ROLE_MAP = {
+  investor:  ["investor"],
+  tech:      ["tech"],
+  marketing: ["marketing"],
+  intern:    ["tech","marketing"],
+  general:   ["community"],
+};
 
 const JOIN_ROLES = [
-  { id: "investor",  label: "Investor",       e: "💰", pages: ["investor"] },
-  { id: "tech",      label: "Tech / Dev",     e: "👾", pages: ["tech"] },
-  { id: "marketing", label: "Marketing",      e: "📣", pages: ["marketing"] },
-  { id: "intern",    label: "Student/Intern", e: "🎓", pages: ["general","community"] },
-  { id: "general",   label: "General Audience",e: "🌐", pages: ["community","general"] },
+  { id:"investor",  label:"Investor",        e:"💰", desc:"Looking to invest or advise" },
+  { id:"tech",      label:"Tech / Developer", e:"👾", desc:"Engineering, product, design" },
+  { id:"marketing", label:"Marketing",        e:"📣", desc:"Growth, content, community" },
+  { id:"intern",    label:"Student / Intern", e:"🎓", desc:"Learning and contributing" },
+  { id:"general",   label:"General Audience", e:"🌐", desc:"Following the journey" },
 ];
 
-const TASK_STATUS = {
-  pending:    { label: "Pending",     c: "#f59e0b", icon: Circle },
-  inprogress: { label: "In Progress", c: "#3b82f6", icon: Clock },
-  completed:  { label: "Completed",   c: "#10b981", icon: CheckCircle2 },
-};
+// ─── TASK STATUS ─────────────────────────────────────────────────
+const TASK_STATUS = [
+  { id:"pending",     label:"Pending",     c:"#f59e0b" },
+  { id:"inprogress",  label:"In Progress", c:"#3b82f6" },
+  { id:"completed",   label:"Completed",   c:"#10b981" },
+];
 
-const EMOJIS = ["😀","😂","🥰","😎","🤔","🚀","💡","🔥","👍","❤️","💪","🙏","✨","💰","🤝","👏","🎯","⚡","🛠️","📊"];
-
-// ─── THEME helper (pass dk from parent) ──────────────────────
-const T = dk => ({
-  bg: dk ? "#080d18" : "#f0f2f8", surf: dk ? "#0e1525" : "#fff", surf2: dk ? "#131d30" : "#f4f6fb",
-  bdr: dk ? "#1c2d47" : "#e2e8f0", txt: dk ? "#e8eeff" : "#0f172a", txt2: dk ? "#7a93c0" : "#475569",
-  txt3: dk ? "#3d5278" : "#94a3b8", inp: dk ? "#131d30" : "#f8fafc", inpB: dk ? "#1c2d47" : "#cbd5e1",
-});
-
-// ─── ATOMS ───────────────────────────────────────────────────
-function Av({ profile = {}, size = 36 }) {
-  const name = profile.name || "?";
-  const ini = name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
-  const hue = profile.hue || strColor(name);
+// ─── STACKED AVATARS ─────────────────────────────────────────────
+function StackedAvatars({ userIds=[], profiles={}, onProfile, max=5, size=26 }) {
+  const shown = userIds.slice(0,max);
+  const extra = userIds.length - max;
   return (
-    <div style={{ width: size, height: size, borderRadius: "50%", background: profile.avatar ? "transparent" : `linear-gradient(135deg,${hue},${hue}99)`, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: size * 0.35, color: "#fff", flexShrink: 0, overflow: "hidden" }}>
-      {profile.avatar ? <img src={profile.avatar} alt={name} style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : ini}
-    </div>
-  );
-}
-
-function StackedAv({ uids = [], profiles = {}, size = 26, max = 4 }) {
-  const vis = uids.slice(0, max); const extra = uids.length - max;
-  return (
-    <div style={{ display: "flex", alignItems: "center" }}>
-      {vis.map((uid, i) => <div key={uid} style={{ marginLeft: i > 0 ? -(size * 0.3) : 0, zIndex: max - i, borderRadius: "50%", border: "2px solid transparent" }}><Av profile={profiles[uid] || { name: "?" }} size={size} /></div>)}
-      {extra > 0 && <div style={{ marginLeft: -(size * 0.3), width: size, height: size, borderRadius: "50%", background: "#3b82f6", display: "flex", alignItems: "center", justifyContent: "center", fontSize: size * 0.28, fontWeight: 800, color: "#fff" }}>+{extra}</div>}
-    </div>
-  );
-}
-
-function Spin({ size = 28, dk = false }) {
-  return <div style={{ width: size, height: size, border: `3px solid ${dk ? "#1c2d47" : "#e2e8f0"}`, borderTopColor: "#3b82f6", borderRadius: "50%", animation: "spin 0.8s linear infinite", margin: "32px auto", display: "block" }} />;
-}
-
-function Badge({ label, color = "#3b82f6" }) {
-  return <span style={{ background: color + "18", color, fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 99, border: `1px solid ${color}30` }}>{label}</span>;
-}
-
-function Btn({ children, onClick, color = "#3b82f6", outline = false, small = false, disabled = false, style: ext = {} }) {
-  return (
-    <button onClick={onClick} disabled={disabled}
-      style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: small ? "5px 12px" : "9px 18px", background: outline ? "transparent" : disabled ? "#374151" : color, border: `1.5px solid ${outline ? color : "transparent"}`, borderRadius: 10, color: outline ? color : "#fff", fontSize: small ? 12 : 13, fontWeight: 700, cursor: disabled ? "default" : "pointer", opacity: disabled ? 0.5 : 1, fontFamily: "inherit", transition: "all .15s", ...ext }}>
-      {children}
-    </button>
-  );
-}
-
-function Modal({ children, onClose, title, width = 480 }) {
-  return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.65)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 16, overflowY: "auto" }}>
-      <div onClick={e => e.stopPropagation()} style={{ background: "#0e1525", border: "1px solid #1c2d47", borderRadius: 20, padding: 24, width: "100%", maxWidth: width, animation: "fadeUp .25s ease", margin: "auto", position: "relative" }}>
-        {title && (
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-            <h3 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: "#e8eeff" }}>{title}</h3>
-            <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: "#3d5278", display: "flex" }}><X size={18} /></button>
+    <div style={{display:"flex",alignItems:"center",gap:6}}>
+      <div style={{display:"flex"}}>
+        {shown.map((id,i) => {
+          const p = profiles[id] || {name:"?"};
+          return (
+            <div key={id} onClick={e=>{e.stopPropagation();onProfile?.(id);}}
+              title={p.name}
+              style={{marginLeft:i>0?-8:0,zIndex:shown.length-i,border:"2px solid transparent",borderRadius:"50%",cursor:"pointer"}}>
+              <Av profile={p} size={size} />
+            </div>
+          );
+        })}
+        {extra>0 && (
+          <div style={{marginLeft:-8,width:size,height:size,borderRadius:"50%",background:"#3b82f6",border:"2px solid transparent",display:"flex",alignItems:"center",justifyContent:"center",fontSize:size*0.38,fontWeight:700,color:"#fff",zIndex:0}}>
+            +{extra}
           </div>
         )}
-        {children}
       </div>
     </div>
   );
 }
 
-function InpStyle(dk) {
+// ─── PROFILE HOVER CARD ───────────────────────────────────────────
+function ProfileCard({ uid, profiles, bals, dk, onProfile, children }) {
   const th = T(dk);
-  return { width: "100%", background: th.inp, border: `1px solid ${th.inpB}`, borderRadius: 10, padding: "9px 12px", fontSize: 13, outline: "none", color: th.txt, boxSizing: "border-box", fontFamily: "inherit" };
+  const [show, setShow] = useState(false);
+  const p = profiles[uid] || {name:"User"};
+  const bal = bals?.[uid] ?? 0;
+  return (
+    <div style={{position:"relative",display:"inline-block"}}
+      onMouseEnter={()=>setShow(true)} onMouseLeave={()=>setShow(false)}>
+      {children}
+      {show && (
+        <div style={{position:"absolute",top:"100%",left:0,zIndex:500,background:th.surf,border:`1px solid ${th.bdr}`,borderRadius:14,padding:14,width:220,boxShadow:`0 10px 40px rgba(0,0,0,${dk?.5:.15})`,animation:"fadeUp .15s ease"}}>
+          <div style={{display:"flex",gap:10,marginBottom:8}}>
+            <Av profile={p} size={36} bal={bal} />
+            <div>
+              <div style={{fontWeight:700,fontSize:13,color:th.txt}}>{p.name}</div>
+              <div style={{fontSize:11,color:th.txt3}}>{p.handle?`@${p.handle}`:""}</div>
+            </div>
+          </div>
+          {p.bio && <div style={{fontSize:12,color:th.txt2,lineHeight:1.5,marginBottom:8}}>{p.bio?.slice(0,80)}</div>}
+          {bal>0 && <div style={{marginBottom:8}}><SGN n={bal} size="sm"/></div>}
+          <button onClick={()=>onProfile?.(uid)} style={{width:"100%",background:"#3b82f6",border:"none",borderRadius:8,padding:"6px",color:"#fff",fontSize:12,fontWeight:700,cursor:"pointer"}}>View Profile</button>
+        </div>
+      )}
+    </div>
+  );
 }
 
-// ─── NOTIFY HELPER ────────────────────────────────────────────
-async function pushNotif(userId, startupId, type, title, body, data = {}) {
-  await db.post("rs_startup_notifications", { user_id: userId, startup_id: startupId, type, title, body, data });
-}
-
-// ─── LOG ACTIVITY ─────────────────────────────────────────────
-async function logActivity(startupId, pageId, actorId, type, description, data = {}) {
-  await db.post("rs_startup_activity", { startup_id: startupId, page_id: pageId, actor_id: actorId, type, description, data });
-}
-
-// ============================================================
-// ─── CREATE STARTUP MODAL ────────────────────────────────────
-// ============================================================
-function CreateStartupModal({ me, myProfile, existing, onClose, onSave, dk }) {
+// ─── TASK PANEL ───────────────────────────────────────────────────
+function TaskPanel({ pageId, me, profiles, members, dk }) {
   const th = T(dk);
-  const inp = InpStyle(dk);
-  const [form, setForm] = useState({
-    name: existing?.name || "", logo: existing?.logo || "", description: existing?.description || "",
-    website: existing?.website || "", github_link: existing?.github_link || "",
-    twitter: existing?.social_links?.twitter || "", linkedin: existing?.social_links?.linkedin || "",
-  });
-  const [logoPreview, setLogoPreview] = useState(existing?.logo || null);
+  const [tasks, setTasks] = useState([]);
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({title:"",assignee:"",status:"pending"});
   const [saving, setSaving] = useState(false);
-  const logoRef = useRef();
-  const setF = (k, v) => setForm(p => ({ ...p, [k]: v }));
-  const canSave = form.name.trim() && form.description.trim();
+  const setF = (k,v) => setForm(p=>({...p,[k]:v}));
 
-  const handleLogo = async files => {
-    if (!files[0]) return;
-    try { const b64 = await fileToB64(files[0], 2); setLogoPreview(b64); setF("logo", b64); } catch {}
+  useEffect(()=>{
+    db.get("rs_page_tasks",`page_id=eq.${pageId}&order=created_at.desc`).then(d=>setTasks(d||[]));
+  },[pageId]);
+
+  const save = async () => {
+    if(!form.title.trim()) return;
+    setSaving(true);
+    const saved = await db.post("rs_page_tasks",{page_id:pageId,title:form.title.trim(),assignee_id:form.assignee||null,status:form.status,created_by:me});
+    if(saved) setTasks(t=>[saved,...t]);
+    setForm({title:"",assignee:"",status:"pending"}); setShowForm(false); setSaving(false);
   };
 
-  const handleSave = async () => {
-    if (!canSave) return; setSaving(true);
-    const payload = {
-      name: form.name.trim(), logo: form.logo, description: form.description.trim(),
-      website: form.website.trim(), github_link: form.github_link.trim(),
-      social_links: { twitter: form.twitter, linkedin: form.linkedin },
-      created_by: me, founders: existing?.founders || [me],
-      referral_code: existing?.referral_code || genCode(form.name),
-    };
-    let saved;
-    if (existing?.id) {
-      await db.patch("rs_startups", `id=eq.${existing.id}`, payload);
-      saved = { ...existing, ...payload };
-    } else {
-      saved = await db.post("rs_startups", payload);
-      if (saved?.id) {
-        const defaultPages = [
-          { startup_id: saved.id, name: "Investor Page", page_type: "investor", description: "Pitch deck, funding & traction" },
-          { startup_id: saved.id, name: "Tech Page", page_type: "tech", description: "Dev logs, code & tech updates" },
-          { startup_id: saved.id, name: "Marketing Page", page_type: "marketing", description: "Campaigns, content & growth" },
-          { startup_id: saved.id, name: "Community Page", page_type: "community", description: "Public updates & engagement" },
-        ];
-        const pages = await db.postMany("rs_startup_pages", defaultPages);
-        // Founder gets access to all pages
-        if (pages?.length) {
-          await db.postMany("rs_page_access", pages.map(pg => ({ startup_id: saved.id, page_id: pg.id, user_id: me, role_type: "founder", is_admin: true, status: "approved" })));
-        }
-        await logActivity(saved.id, null, me, "startup_created", `${myProfile?.name || "Founder"} created this startup`);
-      }
-    }
-    setSaving(false); onSave(saved); onClose();
+  const updateStatus = async (id, status) => {
+    await db.patch("rs_page_tasks",`id=eq.${id}`,{status});
+    setTasks(ts=>ts.map(t=>t.id===id?{...t,status}:t));
+  };
+
+  const del = async id => {
+    await db.del("rs_page_tasks",`id=eq.${id}`);
+    setTasks(ts=>ts.filter(t=>t.id!==id));
   };
 
   return (
-    <Modal title={existing ? "Edit Startup" : "Create Startup"} onClose={onClose} width={500}>
-      {/* Logo Upload */}
-      <div style={{ display: "flex", justifyContent: "center", marginBottom: 20 }}>
-        <div onClick={() => logoRef.current?.click()} style={{ width: 80, height: 80, borderRadius: 20, background: logoPreview ? "transparent" : "#1c2d47", border: "2px dashed #3b82f640", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", overflow: "hidden", position: "relative" }}>
-          {logoPreview ? <img src={logoPreview} style={{ width: "100%", height: "100%", objectFit: "cover" }} alt="logo" /> : <div style={{ textAlign: "center" }}><Upload size={20} color="#3b82f6" /><div style={{ fontSize: 10, color: "#7a93c0", marginTop: 4 }}>Logo</div></div>}
-          <input ref={logoRef} type="file" accept="image/*" style={{ display: "none" }} onChange={e => handleLogo(e.target.files)} />
-        </div>
+    <div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+        <span style={{fontWeight:700,fontSize:14,color:th.txt}}>📋 Tasks ({tasks.length})</span>
+        <button onClick={()=>setShowForm(x=>!x)} style={{display:"flex",alignItems:"center",gap:5,background:"#3b82f6",border:"none",borderRadius:8,padding:"6px 12px",color:"#fff",fontSize:12,fontWeight:700,cursor:"pointer"}}><Plus size={12}/>Add Task</button>
       </div>
-
-      <div style={{ display: "grid", gap: 12 }}>
-        {[
-          { k: "name", l: "Startup Name *", p: "e.g. SkillSwap" },
-          { k: "website", l: "Website", p: "https://…" },
-          { k: "github_link", l: "GitHub", p: "https://github.com/…" },
-          { k: "twitter", l: "Twitter / X", p: "https://twitter.com/…" },
-          { k: "linkedin", l: "LinkedIn", p: "https://linkedin.com/company/…" },
-        ].map(f => (
-          <div key={f.k}>
-            <label style={{ fontSize: 11, fontWeight: 700, color: "#7a93c0", display: "block", marginBottom: 5, letterSpacing: 0.4 }}>{f.l.toUpperCase()}</label>
-            <input value={form[f.k]} onChange={e => setF(f.k, e.target.value)} placeholder={f.p} style={inp} />
+      {showForm && (
+        <div style={{background:th.surf2,border:`1px solid ${th.bdr}`,borderRadius:12,padding:14,marginBottom:12}}>
+          <input value={form.title} onChange={e=>setF("title",e.target.value)} placeholder="Task title…" style={{width:"100%",background:th.inp,border:`1px solid ${th.inpB}`,borderRadius:8,padding:"7px 10px",fontSize:13,outline:"none",color:th.txt,boxSizing:"border-box",marginBottom:8}}/>
+          <div style={{display:"flex",gap:8,marginBottom:8}}>
+            <select value={form.assignee} onChange={e=>setF("assignee",e.target.value)} style={{flex:1,background:th.inp,border:`1px solid ${th.inpB}`,borderRadius:8,padding:"7px 10px",fontSize:12,color:th.txt,outline:"none"}}>
+              <option value="">Assign to…</option>
+              {members.map(m=>{const p=profiles[m.user_id]||{name:"Member"};return <option key={m.user_id} value={m.user_id}>{p.name}</option>;})}
+            </select>
+            <select value={form.status} onChange={e=>setF("status",e.target.value)} style={{flex:1,background:th.inp,border:`1px solid ${th.inpB}`,borderRadius:8,padding:"7px 10px",fontSize:12,color:th.txt,outline:"none"}}>
+              {TASK_STATUS.map(s=><option key={s.id} value={s.id}>{s.label}</option>)}
+            </select>
           </div>
-        ))}
-        <div>
-          <label style={{ fontSize: 11, fontWeight: 700, color: "#7a93c0", display: "block", marginBottom: 5, letterSpacing: 0.4 }}>DESCRIPTION — PROBLEM & SOLUTION *</label>
-          <textarea value={form.description} onChange={e => setF("description", e.target.value)} placeholder="What problem are you solving and how?" rows={4} style={{ ...inp, resize: "vertical" }} />
-        </div>
-      </div>
-
-      {!existing && (
-        <div style={{ background: "#3b82f618", border: "1px solid #3b82f630", borderRadius: 10, padding: "10px 14px", marginTop: 14 }}>
-          <div style={{ fontSize: 12, color: "#3b82f6", fontWeight: 600, marginBottom: 6 }}>✨ Auto-created pages:</div>
-          <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
-            {["Investor","Tech","Marketing","Community"].map(p => <Badge key={p} label={p} color="#3b82f6" />)}
+          <div style={{display:"flex",gap:8}}>
+            <button onClick={()=>setShowForm(false)} style={{flex:1,padding:"7px",background:"transparent",border:`1px solid ${th.bdr}`,borderRadius:8,cursor:"pointer",color:th.txt2,fontSize:12}}>Cancel</button>
+            <button onClick={save} disabled={saving||!form.title.trim()} style={{flex:2,padding:"7px",background:"#3b82f6",border:"none",borderRadius:8,cursor:"pointer",color:"#fff",fontWeight:700,fontSize:12}}>{saving?"Saving…":"Create Task"}</button>
           </div>
         </div>
       )}
-
-      <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
-        <Btn onClick={onClose} outline color="#7a93c0" style={{ flex: 1 }}>Cancel</Btn>
-        <Btn onClick={handleSave} disabled={!canSave || saving} style={{ flex: 2 }}>
-          {saving ? "Saving…" : existing ? "Save Changes" : "Create Startup 🚀"}
-        </Btn>
-      </div>
-    </Modal>
+      {tasks.length===0
+        ? <p style={{fontSize:13,color:th.txt3,textAlign:"center",padding:"16px 0"}}>No tasks yet.</p>
+        : tasks.map(task=>{
+          const st = TASK_STATUS.find(s=>s.id===task.status)||TASK_STATUS[0];
+          const assignee = profiles[task.assignee_id]||null;
+          return (
+            <div key={task.id} style={{display:"flex",gap:10,alignItems:"center",padding:"9px 0",borderBottom:`1px solid ${th.bdr}`}}>
+              <div style={{flex:1}}>
+                <div style={{fontSize:13,color:task.status==="completed"?th.txt3:th.txt,fontWeight:600,textDecoration:task.status==="completed"?"line-through":"none"}}>{task.title}</div>
+                {assignee && <div style={{fontSize:11,color:th.txt3}}>→ {assignee.name}</div>}
+              </div>
+              <select value={task.status} onChange={e=>updateStatus(task.id,e.target.value)} style={{background:`${st.c}18`,border:`1px solid ${st.c}40`,borderRadius:6,padding:"3px 8px",fontSize:11,color:st.c,fontWeight:700,cursor:"pointer",outline:"none"}}>
+                {TASK_STATUS.map(s=><option key={s.id} value={s.id}>{s.label}</option>)}
+              </select>
+              <button onClick={()=>del(task.id)} style={{background:"none",border:"none",cursor:"pointer",color:th.txt3,display:"flex",padding:2}}><Trash2 size={13}/></button>
+            </div>
+          );
+        })
+      }
+    </div>
   );
 }
 
-// ============================================================
-// ─── JOIN MODAL (Simple role selection, no page names shown) ─
-// ============================================================
-function JoinModal({ startup, pages, me, myProfile, existingAccess, onClose, onSubmit, dk }) {
+// ─── PAGE CHAT (Advanced) ────────────────────────────────────────
+function PageChat({ pageId, me, profiles, bals, dk, onProfile }) {
   const th = T(dk);
-  const [selectedRoles, setSelectedRoles] = useState([]);
-  const [message, setMessage] = useState("");
-  const [submitting, setSubmitting] = useState(false);
+  const [msgs, setMsgs] = useState([]);
+  const [text, setText] = useState("");
+  const [sending, setSending] = useState(false);
+  const [replyTo, setReplyTo] = useState(null);
+  const bottomRef = useRef();
+  const fileRef = useRef();
+  const pollRef = useRef();
+  const [mediaAttach, setMediaAttach] = useState(null);
 
-  const toggleRole = id => setSelectedRoles(r => r.includes(id) ? r.filter(x => x !== id) : [...r, id]);
+  const load = useCallback(async()=>{
+    const d = await db.get("rs_page_chat",`page_id=eq.${pageId}&order=created_at.asc&limit=100`);
+    setMsgs(d||[]);
+    setTimeout(()=>bottomRef.current?.scrollIntoView({behavior:"smooth"}),60);
+  },[pageId]);
 
-  // Map roles → page ids internally
-  const getMappedPages = () => {
-    const pageTypeIds = [...new Set(selectedRoles.flatMap(rid => JOIN_ROLES.find(r => r.id === rid)?.pages || []))];
-    return pages.filter(pg => pageTypeIds.includes(pg.page_type) && !existingAccess.includes(pg.id)).map(p => p.id);
+  useEffect(()=>{
+    load();
+    pollRef.current = setInterval(load,5000);
+    return ()=>clearInterval(pollRef.current);
+  },[load]);
+
+  const attachMedia = async files => {
+    if(!files[0]) return;
+    try { const b64 = await fileToB64(files[0],3); setMediaAttach({url:b64,type:files[0].type}); } catch(e){alert(e.message);}
   };
 
-  const submit = async () => {
-    if (!selectedRoles.length) return;
-    setSubmitting(true);
-    const mappedPages = getMappedPages();
-    const pageStatuses = {};
-    mappedPages.forEach(pid => { pageStatuses[pid] = "pending"; });
-    await onSubmit({ startup_id: startup.id, user_id: me, selected_roles: selectedRoles, requested_pages: mappedPages, page_statuses: pageStatuses, message, status: "pending" });
-    setSubmitting(false); onClose();
+  const send = async () => {
+    if(!text.trim()&&!mediaAttach) return;
+    setSending(true);
+    const saved = await db.post("rs_page_chat",{
+      page_id:pageId, sender_uid:me, text:text.trim(),
+      media:mediaAttach||null,
+      reply_to:replyTo?.id||null,
+      reply_preview:replyTo?.text?.slice(0,60)||null,
+    });
+    if(saved) { setMsgs(m=>[...m,saved]); setTimeout(()=>bottomRef.current?.scrollIntoView({behavior:"smooth"}),50); }
+    setText(""); setMediaAttach(null); setReplyTo(null); setSending(false);
   };
 
   return (
-    <Modal title={`Join ${startup.name}`} onClose={onClose}>
-      <p style={{ fontSize: 13, color: "#7a93c0", margin: "0 0 20px" }}>Tell us about yourself — we'll match you to the right spaces.</p>
-
-      <label style={{ fontSize: 11, fontWeight: 700, color: "#7a93c0", display: "block", marginBottom: 10, letterSpacing: 0.4 }}>I AM A… (SELECT ALL THAT APPLY)</label>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 20 }}>
-        {JOIN_ROLES.map(r => {
-          const sel = selectedRoles.includes(r.id);
+    <div style={{display:"flex",flexDirection:"column",height:480,background:th.surf2,borderRadius:14,border:`1px solid ${th.bdr}`,overflow:"hidden"}}>
+      {/* Messages */}
+      <div style={{flex:1,overflowY:"auto",padding:14,display:"flex",flexDirection:"column",gap:8}}>
+        {msgs.length===0 && <p style={{color:th.txt3,fontSize:13,textAlign:"center",margin:"auto"}}>No messages yet. Say hello!</p>}
+        {msgs.map(m=>{
+          const isMe = m.sender_uid===me;
+          const author = profiles[m.sender_uid]||{name:"Member"};
           return (
-            <button key={r.id} onClick={() => toggleRole(r.id)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", borderRadius: 12, border: `1.5px solid ${sel ? "#3b82f6" : "#1c2d47"}`, background: sel ? "#3b82f618" : "transparent", cursor: "pointer", textAlign: "left", transition: "all .15s" }}>
-              <span style={{ fontSize: 22 }}>{r.e}</span>
-              <div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: sel ? "#3b82f6" : "#e8eeff" }}>{r.label}</div>
+            <div key={m.id} style={{display:"flex",gap:8,flexDirection:isMe?"row-reverse":"row",alignItems:"flex-end"}}>
+              {!isMe && (
+                <ProfileCard uid={m.sender_uid} profiles={profiles} bals={bals} dk={dk} onProfile={onProfile}>
+                  <div style={{cursor:"pointer"}}><Av profile={author} size={28}/></div>
+                </ProfileCard>
+              )}
+              <div style={{maxWidth:"72%"}}>
+                {!isMe && <div style={{fontSize:11,color:th.txt3,marginBottom:3,marginLeft:2}}>{author.name}</div>}
+                {m.reply_preview && (
+                  <div style={{background:isMe?"rgba(255,255,255,.15)":th.surf,borderLeft:`3px solid ${isMe?"rgba(255,255,255,.5)":"#3b82f6"}`,borderRadius:6,padding:"4px 8px",fontSize:11,color:isMe?"rgba(255,255,255,.8)":th.txt3,marginBottom:4}}>
+                    ↩ {m.reply_preview}
+                  </div>
+                )}
+                <div style={{background:isMe?"#3b82f6":th.surf,borderRadius:isMe?"14px 14px 4px 14px":"14px 14px 14px 4px",padding:"9px 13px",position:"relative"}}>
+                  {m.text && <div style={{fontSize:13,color:isMe?"#fff":th.txt,lineHeight:1.5,wordBreak:"break-word"}}>{m.text}</div>}
+                  {m.media?.url && (
+                    m.media.type?.startsWith("image")
+                      ? <img src={m.media.url} alt="media" style={{maxWidth:200,maxHeight:200,borderRadius:8,marginTop:m.text?6:0,display:"block"}}/>
+                      : m.media.type?.startsWith("audio")
+                        ? <audio src={m.media.url} controls style={{marginTop:m.text?6:0,width:160,height:32}}/>
+                        : <video src={m.media.url} controls style={{maxWidth:200,borderRadius:8,marginTop:m.text?6:0}}/>
+                  )}
+                  <div style={{fontSize:10,color:isMe?"rgba(255,255,255,.55)":th.txt3,marginTop:4,textAlign:"right"}}>{m.created_at?ago(new Date(m.created_at).getTime()):""}</div>
+                </div>
+                <button onClick={()=>setReplyTo(m)} style={{background:"none",border:"none",cursor:"pointer",fontSize:11,color:th.txt3,padding:"2px 4px",marginTop:2}}>↩ Reply</button>
               </div>
-              {sel && <Check size={14} color="#3b82f6" style={{ marginLeft: "auto" }} />}
-            </button>
+            </div>
           );
         })}
+        <div ref={bottomRef}/>
       </div>
-
-      <div style={{ marginBottom: 20 }}>
-        <label style={{ fontSize: 11, fontWeight: 700, color: "#7a93c0", display: "block", marginBottom: 6, letterSpacing: 0.4 }}>MESSAGE (OPTIONAL)</label>
-        <textarea value={message} onChange={e => setMessage(e.target.value)} placeholder="Why do you want to join? What can you contribute?" rows={3} style={{ ...InpStyle(true), resize: "none" }} />
+      {/* Reply banner */}
+      {replyTo && (
+        <div style={{padding:"6px 14px",background:dk?"rgba(59,130,246,.1)":"#eff6ff",borderTop:`1px solid ${th.bdr}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <span style={{fontSize:12,color:"#3b82f6"}}>↩ Replying to: "{replyTo.text?.slice(0,50)}"</span>
+          <button onClick={()=>setReplyTo(null)} style={{background:"none",border:"none",cursor:"pointer",color:th.txt3}}><X size={12}/></button>
+        </div>
+      )}
+      {/* Media preview */}
+      {mediaAttach && (
+        <div style={{padding:"6px 14px",background:th.surf,borderTop:`1px solid ${th.bdr}`,display:"flex",alignItems:"center",gap:8}}>
+          {mediaAttach.type.startsWith("image") ? <img src={mediaAttach.url} style={{height:40,borderRadius:6,objectFit:"cover"}}/> : <div style={{fontSize:11,color:th.txt2}}>📎 Media attached</div>}
+          <button onClick={()=>setMediaAttach(null)} style={{background:"none",border:"none",cursor:"pointer",color:th.txt3}}><X size={12}/></button>
+        </div>
+      )}
+      {/* Input */}
+      <div style={{padding:"10px 14px",borderTop:`1px solid ${th.bdr}`,background:th.surf,display:"flex",gap:8,alignItems:"flex-end"}}>
+        <div style={{display:"flex",gap:6,flexShrink:0}}>
+          <button onClick={()=>fileRef.current?.click()} title="Attach" style={{background:"none",border:"none",cursor:"pointer",color:th.txt3,display:"flex",padding:4}}><Image size={16}/></button>
+          <button onClick={()=>fileRef.current?.click()} title="Voice" style={{background:"none",border:"none",cursor:"pointer",color:th.txt3,display:"flex",padding:4}}><Mic size={16}/></button>
+          <input ref={fileRef} type="file" accept="image/*,audio/*,video/*" style={{display:"none"}} onChange={e=>attachMedia(e.target.files)}/>
+        </div>
+        <textarea value={text} onChange={e=>setText(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send();}}} placeholder="Type a message… (Enter to send)" rows={1} style={{flex:1,background:th.inp,border:`1px solid ${th.inpB}`,borderRadius:10,padding:"8px 12px",fontSize:13,outline:"none",resize:"none",fontFamily:"inherit",color:th.txt,maxHeight:100}}/>
+        <button onClick={send} disabled={(!text.trim()&&!mediaAttach)||sending} style={{background:(text.trim()||mediaAttach)?"#3b82f6":th.surf2,border:"none",borderRadius:10,padding:"8px 14px",cursor:(text.trim()||mediaAttach)?"pointer":"default",color:(text.trim()||mediaAttach)?"#fff":th.txt3,display:"flex",alignItems:"center",flexShrink:0}}>
+          <Send size={16}/>
+        </button>
       </div>
-
-      <div style={{ display: "flex", gap: 10 }}>
-        <Btn onClick={onClose} outline color="#7a93c0" style={{ flex: 1 }}>Cancel</Btn>
-        <Btn onClick={submit} disabled={submitting || !selectedRoles.length} style={{ flex: 2 }}>
-          {submitting ? "Sending…" : `Request to Join`}
-        </Btn>
-      </div>
-    </Modal>
+    </div>
   );
 }
 
-// ============================================================
-// ─── REFERRAL CODE MODAL ─────────────────────────────────────
-// ============================================================
-function ReferralModal({ me, myProfile, onClose, onSuccess, dk }) {
+// ─── FILE MANAGER ────────────────────────────────────────────────
+function FileManager({ pageId, me, profiles, dk }) {
+  const th = T(dk);
+  const [files, setFiles] = useState([]);
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef();
+
+  useEffect(()=>{
+    db.get("rs_page_files",`page_id=eq.${pageId}&order=created_at.desc`).then(d=>setFiles(d||[]));
+  },[pageId]);
+
+  const upload = async fileList => {
+    setUploading(true);
+    for(const f of fileList){
+      try {
+        const b64 = await fileToB64(f,5);
+        const saved = await db.post("rs_page_files",{page_id:pageId,uploaded_by:me,name:f.name,type:f.type,size:f.size,data_url:b64});
+        if(saved) setFiles(fs=>[saved,...fs]);
+      } catch(e){alert(e.message);}
+    }
+    setUploading(false);
+  };
+
+  const del = async id => {
+    await db.del("rs_page_files",`id=eq.${id}`);
+    setFiles(fs=>fs.filter(f=>f.id!==id));
+  };
+
+  const formatSize = b => b>1024*1024?`${(b/1024/1024).toFixed(1)}MB`:b>1024?`${(b/1024).toFixed(0)}KB`:`${b}B`;
+
+  return (
+    <div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+        <span style={{fontWeight:700,fontSize:14,color:th.txt}}>📁 Files ({files.length})</span>
+        <button onClick={()=>fileRef.current?.click()} disabled={uploading} style={{display:"flex",alignItems:"center",gap:5,background:"#3b82f6",border:"none",borderRadius:8,padding:"6px 12px",color:"#fff",fontSize:12,fontWeight:700,cursor:"pointer"}}>
+          <Plus size={12}/>{uploading?"Uploading…":"Upload File"}
+        </button>
+        <input ref={fileRef} type="file" multiple style={{display:"none"}} onChange={e=>upload([...e.target.files])}/>
+      </div>
+      {files.length===0
+        ? <p style={{fontSize:13,color:th.txt3,textAlign:"center",padding:"16px 0"}}>No files yet.</p>
+        : files.map(f=>{
+          const uploader = profiles[f.uploaded_by]||{name:"Member"};
+          const isImg = f.type?.startsWith("image");
+          return (
+            <div key={f.id} style={{display:"flex",gap:10,alignItems:"center",padding:"9px 0",borderBottom:`1px solid ${th.bdr}`}}>
+              <div style={{width:36,height:36,borderRadius:8,background:th.surf2,border:`1px solid ${th.bdr}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0,overflow:"hidden"}}>
+                {isImg ? <img src={f.data_url} style={{width:"100%",height:"100%",objectFit:"cover"}}/> : "📄"}
+              </div>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:13,fontWeight:600,color:th.txt,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{f.name}</div>
+                <div style={{fontSize:11,color:th.txt3}}>{formatSize(f.size||0)} · {uploader.name} · {ago(new Date(f.created_at).getTime())}</div>
+              </div>
+              {f.data_url && <a href={f.data_url} download={f.name} style={{background:th.surf2,border:`1px solid ${th.bdr}`,borderRadius:7,padding:"4px 8px",fontSize:11,color:th.txt2,fontWeight:600,textDecoration:"none"}}>↓</a>}
+              <button onClick={()=>del(f.id)} style={{background:"none",border:"none",cursor:"pointer",color:th.txt3,display:"flex",padding:2}}><Trash2 size={13}/></button>
+            </div>
+          );
+        })
+      }
+    </div>
+  );
+}
+
+// ─── MEETING PANEL ────────────────────────────────────────────────
+function MeetingPanel({ pageId, startupId, me, profiles, members, dk, compact=false }) {
+  const th = T(dk);
+  const [meetings, setMeetings] = useState([]);
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({title:"",date:"",time:"",platform:"google_meet",link:"",note:""});
+  const [saving, setSaving] = useState(false);
+  const setF = (k,v)=>setForm(p=>({...p,[k]:v}));
+
+  useEffect(()=>{
+    const q = pageId?`page_id=eq.${pageId}&order=scheduled_at.asc`:`startup_id=eq.${startupId}&order=scheduled_at.asc`;
+    db.get("rs_page_meetings",q).then(d=>setMeetings(d||[]));
+  },[pageId,startupId]);
+
+  const save = async()=>{
+    if(!form.title||!form.date||!form.time) return;
+    setSaving(true);
+    const saved = await db.post("rs_page_meetings",{
+      page_id:pageId||null,startup_id:startupId,created_by:me,
+      title:form.title,scheduled_at:`${form.date}T${form.time}:00`,
+      platform:form.platform,link:form.link,note:form.note,
+    });
+    if(saved) setMeetings(m=>[...m,saved]);
+    setForm({title:"",date:"",time:"",platform:"google_meet",link:"",note:""});
+    setShowForm(false); setSaving(false);
+  };
+
+  const del = async id=>{
+    await db.del("rs_page_meetings",`id=eq.${id}`);
+    setMeetings(ms=>ms.filter(m=>m.id!==id));
+  };
+
+  const inp = {width:"100%",background:th.inp,border:`1px solid ${th.inpB}`,borderRadius:8,padding:"7px 10px",fontSize:12,outline:"none",color:th.txt,boxSizing:"border-box"};
+
+  return (
+    <div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:compact?8:12}}>
+        <span style={{fontWeight:700,fontSize:compact?12:14,color:th.txt}}>📅 Meetings ({meetings.length})</span>
+        <button onClick={()=>setShowForm(x=>!x)} style={{display:"flex",alignItems:"center",gap:4,background:"#3b82f6",border:"none",borderRadius:8,padding:"5px 10px",color:"#fff",fontSize:11,fontWeight:700,cursor:"pointer"}}><Plus size={11}/>Book</button>
+      </div>
+      {showForm && (
+        <div style={{background:th.surf2,border:`1px solid ${th.bdr}`,borderRadius:12,padding:14,marginBottom:12}}>
+          <input value={form.title} onChange={e=>setF("title",e.target.value)} placeholder="Meeting title *" style={{...inp,marginBottom:8}}/>
+          <div style={{display:"flex",gap:8,marginBottom:8}}>
+            <input type="date" value={form.date} onChange={e=>setF("date",e.target.value)} style={{...inp,flex:1}}/>
+            <input type="time" value={form.time} onChange={e=>setF("time",e.target.value)} style={{...inp,flex:1}}/>
+          </div>
+          <div style={{display:"flex",gap:8,marginBottom:8}}>
+            {[{id:"google_meet",e:"🎥",l:"Google Meet"},{id:"zoom",e:"💻",l:"Zoom"}].map(p=>(
+              <button key={p.id} onClick={()=>setF("platform",p.id)} style={{flex:1,padding:"6px",borderRadius:8,border:`1.5px solid ${form.platform===p.id?"#3b82f6":th.bdr}`,background:form.platform===p.id?"#3b82f615":"transparent",cursor:"pointer",fontSize:12,color:form.platform===p.id?"#3b82f6":th.txt2,fontWeight:600}}>
+                {p.e} {p.l}
+              </button>
+            ))}
+          </div>
+          <input value={form.link} onChange={e=>setF("link",e.target.value)} placeholder="Meeting link (optional)" style={{...inp,marginBottom:8}}/>
+          <textarea value={form.note} onChange={e=>setF("note",e.target.value)} placeholder="Agenda (optional)" rows={2} style={{...inp,resize:"none",fontFamily:"inherit",marginBottom:8}}/>
+          <div style={{display:"flex",gap:8}}>
+            <button onClick={()=>setShowForm(false)} style={{flex:1,padding:"7px",background:"transparent",border:`1px solid ${th.bdr}`,borderRadius:8,cursor:"pointer",color:th.txt2,fontSize:12}}>Cancel</button>
+            <button onClick={save} disabled={saving||!form.title||!form.date||!form.time} style={{flex:2,padding:"7px",background:"#3b82f6",border:"none",borderRadius:8,cursor:"pointer",color:"#fff",fontWeight:700,fontSize:12}}>{saving?"Scheduling…":"Schedule"}</button>
+          </div>
+        </div>
+      )}
+      {meetings.length===0
+        ? <p style={{fontSize:12,color:th.txt3,textAlign:"center",padding:"10px 0"}}>No meetings scheduled.</p>
+        : meetings.map(m=>(
+          <div key={m.id} style={{background:th.surf,border:`1px solid ${th.bdr}`,borderRadius:10,padding:compact?"8px 10px":"10px 14px",marginBottom:8}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+              <div style={{flex:1}}>
+                <div style={{fontSize:compact?11:13,fontWeight:700,color:th.txt}}>{m.title}</div>
+                <div style={{fontSize:11,color:th.txt3,marginTop:2}}>{m.platform==="zoom"?"💻 Zoom":"🎥 Google Meet"} · {m.scheduled_at?new Date(m.scheduled_at).toLocaleString("en-US",{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"}):""}</div>
+                {m.link && <a href={m.link} target="_blank" rel="noopener noreferrer" style={{fontSize:11,color:"#3b82f6",fontWeight:600,marginTop:2,display:"block"}}>Join Meeting →</a>}
+                {m.note && <div style={{fontSize:11,color:th.txt3,marginTop:2,fontStyle:"italic"}}>{m.note}</div>}
+              </div>
+              <button onClick={()=>del(m.id)} style={{background:"none",border:"none",cursor:"pointer",color:th.txt3,padding:2}}><Trash2 size={12}/></button>
+            </div>
+          </div>
+        ))
+      }
+    </div>
+  );
+}
+
+// ─── FEEDBACK SECTION ─────────────────────────────────────────────
+function FeedbackSection({ startupId, me, profiles, isFounder, dk }) {
+  const th = T(dk);
+  const [feedbacks, setFeedbacks] = useState([]);
+  const [msg, setMsg] = useState("");
+  const [open, setOpen] = useState(false);
+  const [posting, setPosting] = useState(false);
+  const [editId, setEditId] = useState(null);
+  const [editMsg, setEditMsg] = useState("");
+  const fileRef = useRef();
+  const [attach, setAttach] = useState(null);
+
+  useEffect(()=>{
+    db.get("rs_startup_feedback",`startup_id=eq.${startupId}&order=created_at.desc&limit=30`).then(d=>setFeedbacks(d||[]));
+  },[startupId]);
+
+  const post = async()=>{
+    if(!msg.trim()&&!attach) return;
+    setPosting(true);
+    const saved = await db.post("rs_startup_feedback",{startup_id:startupId,user_id:me,message:msg.trim(),media:attach||null});
+    if(saved) setFeedbacks(f=>[saved,...f]);
+    setMsg(""); setAttach(null); setPosting(false);
+  };
+
+  const del = async id=>{
+    await db.del("rs_startup_feedback",`id=eq.${id}`);
+    setFeedbacks(f=>f.filter(x=>x.id!==id));
+  };
+
+  const saveEdit = async id=>{
+    await db.patch("rs_startup_feedback",`id=eq.${id}`,{message:editMsg});
+    setFeedbacks(f=>f.map(x=>x.id===id?{...x,message:editMsg}:x));
+    setEditId(null);
+  };
+
+  const attachMedia = async files=>{
+    if(!files[0]) return;
+    try{const b64=await fileToB64(files[0],3);setAttach({url:b64,type:files[0].type});}catch(e){alert(e.message);}
+  };
+
+  return (
+    <div style={{background:th.surf,border:`1px solid ${th.bdr}`,borderRadius:14,padding:16,marginTop:16}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:open?14:0,cursor:"pointer"}} onClick={()=>setOpen(x=>!x)}>
+        <span style={{fontWeight:700,fontSize:14,color:th.txt}}>💬 Feedback ({feedbacks.length})</span>
+        <div style={{width:28,height:28,borderRadius:"50%",background:"#3b82f618",border:"1px solid #3b82f640",display:"flex",alignItems:"center",justifyContent:"center",color:"#3b82f6",fontWeight:800,fontSize:18,transition:"all .2s",transform:open?"rotate(45deg)":"none"}}>+</div>
+      </div>
+      {open && (
+        <>
+          <div style={{display:"flex",gap:8,marginBottom:14}}>
+            <Av profile={profiles[me]||{}} size={30}/>
+            <div style={{flex:1}}>
+              <div style={{display:"flex",gap:8,marginBottom:attach?8:0}}>
+                <input value={msg} onChange={e=>setMsg(e.target.value)} onKeyDown={e=>e.key==="Enter"&&post()} placeholder="Share your thoughts…" style={{flex:1,background:th.inp,border:`1px solid ${th.inpB}`,borderRadius:10,padding:"8px 12px",fontSize:13,outline:"none",color:th.txt}}/>
+                <button onClick={()=>fileRef.current?.click()} style={{background:"none",border:`1px solid ${th.bdr}`,borderRadius:8,padding:"0 10px",cursor:"pointer",color:th.txt3}}><Image size={14}/></button>
+                <button onClick={post} disabled={(!msg.trim()&&!attach)||posting} style={{background:(msg.trim()||attach)?"#3b82f6":th.surf2,border:"none",borderRadius:10,padding:"0 14px",color:(msg.trim()||attach)?"#fff":th.txt3,cursor:(msg.trim()||attach)?"pointer":"default",fontWeight:700,fontSize:13}}>{posting?"…":"Send"}</button>
+                <input ref={fileRef} type="file" accept="image/*,audio/*" style={{display:"none"}} onChange={e=>attachMedia(e.target.files)}/>
+              </div>
+              {attach && (
+                <div style={{display:"flex",alignItems:"center",gap:8,padding:"4px 0"}}>
+                  {attach.type.startsWith("image")?<img src={attach.url} style={{height:36,borderRadius:6,objectFit:"cover"}}/>:<span style={{fontSize:11,color:th.txt2}}>🎵 Audio</span>}
+                  <button onClick={()=>setAttach(null)} style={{background:"none",border:"none",cursor:"pointer",color:th.txt3}}><X size={12}/></button>
+                </div>
+              )}
+            </div>
+          </div>
+          {feedbacks.length===0
+            ? <p style={{fontSize:13,color:th.txt3,textAlign:"center",padding:"8px 0"}}>No feedback yet. Be first!</p>
+            : feedbacks.map(fb=>{
+              const author = profiles[fb.user_id]||{name:"User"};
+              const canEdit = isFounder||fb.user_id===me;
+              return (
+                <div key={fb.id} style={{display:"flex",gap:8,marginBottom:10}}>
+                  <Av profile={author} size={28}/>
+                  <div style={{flex:1,background:th.surf2,border:`1px solid ${th.bdr}`,borderRadius:10,padding:"8px 12px"}}>
+                    <div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}>
+                      <span style={{fontWeight:700,fontSize:12,color:th.txt}}>{author.name} <span style={{fontWeight:400,color:th.txt3}}>{ago(new Date(fb.created_at).getTime())}</span></span>
+                      {canEdit && (
+                        <div style={{display:"flex",gap:4}}>
+                          <button onClick={()=>{setEditId(fb.id);setEditMsg(fb.message);}} style={{background:"none",border:"none",cursor:"pointer",color:th.txt3,padding:0}}><Edit3 size={11}/></button>
+                          <button onClick={()=>del(fb.id)} style={{background:"none",border:"none",cursor:"pointer",color:"#ef4444",padding:0}}><Trash2 size={11}/></button>
+                        </div>
+                      )}
+                    </div>
+                    {editId===fb.id
+                      ? (
+                        <div style={{display:"flex",gap:6}}>
+                          <input value={editMsg} onChange={e=>setEditMsg(e.target.value)} style={{flex:1,background:th.inp,border:`1px solid ${th.inpB}`,borderRadius:7,padding:"5px 8px",fontSize:12,outline:"none",color:th.txt}}/>
+                          <button onClick={()=>saveEdit(fb.id)} style={{background:"#3b82f6",border:"none",borderRadius:7,padding:"4px 10px",color:"#fff",fontSize:11,cursor:"pointer"}}>Save</button>
+                          <button onClick={()=>setEditId(null)} style={{background:"transparent",border:`1px solid ${th.bdr}`,borderRadius:7,padding:"4px 8px",color:th.txt2,fontSize:11,cursor:"pointer"}}>✕</button>
+                        </div>
+                      )
+                      : <>
+                          <div style={{fontSize:13,color:th.txt2,lineHeight:1.5}}>{fb.message}</div>
+                          {fb.media?.url && (
+                            fb.media.type?.startsWith("image")
+                              ? <img src={fb.media.url} style={{maxWidth:180,borderRadius:8,marginTop:6}}/>
+                              : <audio src={fb.media.url} controls style={{marginTop:6,width:160,height:28}}/>
+                          )}
+                        </>
+                    }
+                  </div>
+                </div>
+              );
+            })
+          }
+        </>
+      )}
+    </div>
+  );
+}
+
+// ─── PAGE WORKSPACE ───────────────────────────────────────────────
+function PageWorkspace({ page, startup, me, profiles, bals, dk, onBack, onProfile }) {
+  const th = T(dk);
+  const [members, setMembers] = useState([]);
+  const [tab, setTab] = useState("chat");
+
+  const pt = PAGE_TYPES.find(p=>page.name?.toLowerCase().includes(p.id))||PAGE_TYPES[3];
+
+  useEffect(()=>{
+    db.get("rs_page_access",`page_id=eq.${page.id}&status=eq.approved`).then(d=>setMembers(d||[]));
+  },[page.id]);
+
+  const tabs = [
+    {id:"chat",   label:"Chat",    e:"💬"},
+    {id:"tasks",  label:"Tasks",   e:"📋"},
+    {id:"files",  label:"Files",   e:"📁"},
+    {id:"meeting",label:"Meetings",e:"📅"},
+    {id:"members",label:"Members", e:"👥"},
+  ];
+
+  return (
+    <div style={{animation:"fadeUp .3s ease"}}>
+      <button onClick={onBack} style={{display:"flex",alignItems:"center",gap:6,background:"transparent",border:"none",cursor:"pointer",color:th.txt2,fontSize:13,fontWeight:600,padding:"0 0 14px"}}>
+        <ArrowLeft size={15}/> Back to {startup.name}
+      </button>
+
+      <div style={{background:`linear-gradient(135deg,${pt.c}22,${pt.c}08)`,border:`1px solid ${pt.c}30`,borderRadius:16,padding:16,marginBottom:16}}>
+        <div style={{display:"flex",alignItems:"center",gap:12}}>
+          <div style={{width:44,height:44,borderRadius:12,background:pt.c+"25",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22}}>{pt.e}</div>
+          <div style={{flex:1}}>
+            <div style={{fontWeight:800,fontSize:17,color:th.txt}}>{page.name}</div>
+            <div style={{fontSize:13,color:th.txt2}}>{page.description||pt.desc}</div>
+          </div>
+          <div style={{display:"flex",alignItems:"center",gap:10}}>
+            <StackedAvatars userIds={members.map(m=>m.user_id)} profiles={profiles} onProfile={onProfile} max={4} size={24}/>
+            <span style={{fontSize:12,color:th.txt3}}>{members.length} member{members.length!==1?"s":""}</span>
+          </div>
+        </div>
+      </div>
+
+      <div style={{display:"flex",gap:4,marginBottom:16,background:th.surf2,borderRadius:12,padding:4,border:`1px solid ${th.bdr}`,overflowX:"auto"}}>
+        {tabs.map(t=>(
+          <button key={t.id} onClick={()=>setTab(t.id)} style={{flexShrink:0,padding:"7px 12px",borderRadius:9,border:"none",background:tab===t.id?pt.c:"transparent",color:tab===t.id?"#fff":th.txt2,fontSize:12,fontWeight:600,cursor:"pointer",transition:"all .2s",whiteSpace:"nowrap"}}>
+            {t.e} {t.label}
+          </button>
+        ))}
+      </div>
+
+      {tab==="chat"    && <PageChat pageId={page.id} me={me} profiles={profiles} bals={bals} dk={dk} onProfile={onProfile}/>}
+      {tab==="tasks"   && <TaskPanel pageId={page.id} me={me} profiles={profiles} members={members} dk={dk}/>}
+      {tab==="files"   && <FileManager pageId={page.id} me={me} profiles={profiles} dk={dk}/>}
+      {tab==="meeting" && <MeetingPanel pageId={page.id} startupId={startup.id} me={me} profiles={profiles} members={members} dk={dk}/>}
+      {tab==="members" && (
+        <div>
+          {members.length===0
+            ? <p style={{textAlign:"center",color:th.txt3,padding:32}}>No approved members yet.</p>
+            : members.map(m=>{
+              const p=profiles[m.user_id]||{name:"Member"};
+              return (
+                <Card dk={dk} key={m.id}>
+                  <div style={{display:"flex",gap:12,alignItems:"center"}}>
+                    <ProfileCard uid={m.user_id} profiles={profiles} bals={bals} dk={dk} onProfile={onProfile}>
+                      <Av profile={p} size={40}/>
+                    </ProfileCard>
+                    <div style={{flex:1}}>
+                      <div style={{fontWeight:700,fontSize:14,color:th.txt}}>{p.name}</div>
+                      <div style={{fontSize:12,color:th.txt3}}>{p.handle?`@${p.handle}`:p.email}</div>
+                    </div>
+                    <span style={{background:pt.c+"18",color:pt.c,fontSize:11,fontWeight:700,padding:"3px 10px",borderRadius:99}}>✓ Member</span>
+                  </div>
+                </Card>
+              );
+            })
+          }
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── JOIN MODAL ───────────────────────────────────────────────────
+function JoinModal({ startup, me, existingPageIds, onClose, onSubmit, dk }) {
+  const th = T(dk);
+  const [selected, setSelected] = useState([]);
+  const [message, setMessage] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  const toggle = id => setSelected(s=>s.includes(id)?s.filter(x=>x!==id):[...s,id]);
+
+  const submit = async()=>{
+    if(!selected.length) return;
+    setSubmitting(true);
+    // Map selected roles → page type IDs
+    const pageTypeIds = [...new Set(selected.flatMap(r=>ROLE_MAP[r]||[]))];
+    await onSubmit({startup_id:startup.id,user_id:me,selected_roles:selected,page_type_ids:pageTypeIds,message,status:"pending"});
+    setSubmitting(false);
+    onClose();
+  };
+
+  return (
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.65)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+      <div onClick={e=>e.stopPropagation()} style={{background:th.surf,borderRadius:20,padding:24,width:"100%",maxWidth:420,animation:"fadeUp .25s ease"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:6}}>
+          <div>
+            <h3 style={{margin:0,fontSize:17,fontWeight:800,color:th.txt}}>Join {startup.name}</h3>
+            <p style={{margin:"4px 0 0",fontSize:13,color:th.txt3}}>Tell us who you are</p>
+          </div>
+          <button onClick={onClose} style={{background:"none",border:"none",cursor:"pointer",color:th.txt3}}><X size={18}/></button>
+        </div>
+        <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:16,marginTop:16}}>
+          {JOIN_ROLES.map(r=>{
+            const sel=selected.includes(r.id);
+            return (
+              <button key={r.id} onClick={()=>toggle(r.id)} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",borderRadius:12,border:`1.5px solid ${sel?"#3b82f6":th.bdr}`,background:sel?"#3b82f615":"transparent",cursor:"pointer",textAlign:"left"}}>
+                <span style={{fontSize:22}}>{r.e}</span>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:13,fontWeight:700,color:sel?"#3b82f6":th.txt}}>{r.label}</div>
+                  <div style={{fontSize:11,color:th.txt3}}>{r.desc}</div>
+                </div>
+                {sel && <Check size={14} color="#3b82f6"/>}
+              </button>
+            );
+          })}
+        </div>
+        <div style={{marginBottom:18}}>
+          <label style={{fontSize:12,fontWeight:700,color:th.txt2,display:"block",marginBottom:6,letterSpacing:.4}}>MESSAGE (OPTIONAL)</label>
+          <textarea value={message} onChange={e=>setMessage(e.target.value)} placeholder="Introduce yourself…" rows={3} style={{width:"100%",background:th.inp,border:`1px solid ${th.inpB}`,borderRadius:10,padding:"8px 12px",fontSize:13,outline:"none",resize:"none",fontFamily:"inherit",color:th.txt,boxSizing:"border-box"}}/>
+        </div>
+        <div style={{display:"flex",gap:10}}>
+          <button onClick={onClose} style={{flex:1,padding:"10px",background:"transparent",border:`1px solid ${th.bdr}`,borderRadius:12,cursor:"pointer",color:th.txt2,fontWeight:600,fontSize:13}}>Cancel</button>
+          <button onClick={submit} disabled={submitting||!selected.length} style={{flex:2,padding:"10px",background:selected.length?"linear-gradient(135deg,#3b82f6,#8b5cf6)":th.surf2,border:"none",borderRadius:12,cursor:selected.length?"pointer":"default",color:selected.length?"#fff":th.txt3,fontWeight:700,fontSize:13}}>
+            {submitting?"Sending…":`Send Request (${selected.length} role${selected.length!==1?"s":""})`}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── REFERRAL JOIN MODAL ─────────────────────────────────────────
+function ReferralJoinModal({ me, onClose, onSuccess, dk }) {
+  const th = T(dk);
   const [code, setCode] = useState("");
   const [startup, setStartup] = useState(null);
-  const [pages, setPages] = useState([]);
-  const [myAccess, setMyAccess] = useState([]);
   const [checking, setChecking] = useState(false);
   const [err, setErr] = useState("");
   const [showJoin, setShowJoin] = useState(false);
 
-  const check = async () => {
-    if (!code.trim()) return;
+  const checkCode = async()=>{
+    if(!code.trim()) return;
     setChecking(true); setErr(""); setStartup(null);
-    const rows = await db.get("rs_startups", `referral_code=eq.${code.trim().toUpperCase()}`);
-    if (!rows?.length) { setErr("Invalid code. Please check and try again."); setChecking(false); return; }
-    const s = rows[0];
-    const [pg, acc] = await Promise.all([
-      db.get("rs_startup_pages", `startup_id=eq.${s.id}&order=position.asc`),
-      db.get("rs_page_access", `startup_id=eq.${s.id}&user_id=eq.${me}&status=eq.approved`),
-    ]);
-    setStartup(s); setPages(pg || []); setMyAccess((acc || []).map(a => a.page_id)); setChecking(false);
+    const rows = await db.get("rs_startups",`referral_code=eq.${code.trim().toUpperCase()}`);
+    if(!rows?.length){setErr("Invalid code. Please check and try again.");setChecking(false);return;}
+    setStartup(rows[0]);
+    setChecking(false);
   };
 
-  const handleJoin = async data => {
-    const saved = await db.post("rs_page_access_requests", data);
-    if (saved) {
-      // Notify founder
-      const founders = startup.founders || [startup.created_by];
-      for (const fid of founders) {
-        await pushNotif(fid, startup.id, "request_received", "New Join Request", `${myProfile?.name || "Someone"} wants to join ${startup.name}`, { request_id: saved.id });
+  const handleSubmit = async data=>{
+    const saved = await db.post("rs_page_access_requests",data);
+    if(saved){onSuccess(startup);onClose();}
+  };
+
+  if(showJoin && startup) return (
+    <JoinModal startup={startup} me={me} existingPageIds={[]} onClose={onClose} onSubmit={handleSubmit} dk={dk}/>
+  );
+
+  return (
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.65)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+      <div onClick={e=>e.stopPropagation()} style={{background:th.surf,borderRadius:20,padding:24,width:"100%",maxWidth:360,animation:"fadeUp .25s ease"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+          <h3 style={{margin:0,fontSize:17,fontWeight:800,color:th.txt}}>Join via Code</h3>
+          <button onClick={onClose} style={{background:"none",border:"none",cursor:"pointer",color:th.txt3}}><X size={18}/></button>
+        </div>
+        <div style={{display:"flex",gap:8,marginBottom:14}}>
+          <input value={code} onChange={e=>{setCode(e.target.value.toUpperCase());setErr("");setStartup(null);}} onKeyDown={e=>e.key==="Enter"&&checkCode()} placeholder="e.g. SKILL-A3B2" style={{flex:1,background:th.inp,border:`1.5px solid ${err?"#ef4444":startup?"#10b981":th.inpB}`,borderRadius:10,padding:"9px 12px",fontSize:14,outline:"none",color:th.txt,fontFamily:"monospace",letterSpacing:1}}/>
+          <button onClick={checkCode} disabled={checking||!code.trim()} style={{background:"#3b82f6",border:"none",borderRadius:10,padding:"0 16px",color:"#fff",fontWeight:700,fontSize:13,cursor:"pointer"}}>{checking?"…":"Check"}</button>
+        </div>
+        {err && <p style={{fontSize:13,color:"#ef4444",margin:"0 0 12px",display:"flex",alignItems:"center",gap:5}}><AlertCircle size={13}/>{err}</p>}
+        {startup && (
+          <div style={{background:th.surf2,borderRadius:14,padding:14,marginBottom:16,border:"1px solid #10b98130"}}>
+            <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:6}}>
+              <div style={{width:40,height:40,borderRadius:10,background:"linear-gradient(135deg,#3b82f6,#8b5cf6)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>{startup.logo||"🚀"}</div>
+              <div>
+                <div style={{fontWeight:800,fontSize:15,color:th.txt}}>{startup.name}</div>
+                <div style={{fontSize:12,color:"#10b981",fontWeight:600}}>✓ Valid startup found</div>
+              </div>
+            </div>
+            <p style={{fontSize:13,color:th.txt2,margin:0,lineHeight:1.5}}>{startup.description?.slice(0,100)}{startup.description?.length>100?"…":""}</p>
+          </div>
+        )}
+        {startup && (
+          <button onClick={()=>setShowJoin(true)} style={{width:"100%",padding:"11px",background:"linear-gradient(135deg,#3b82f6,#8b5cf6)",border:"none",borderRadius:12,color:"#fff",fontWeight:700,fontSize:14,cursor:"pointer"}}>
+            Continue to Join →
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── CREATE / EDIT STARTUP MODAL ─────────────────────────────────
+function CreateStartupModal({ me, existing, onClose, onSave, dk }) {
+  const th = T(dk);
+  const [step, setStep] = useState(1);
+  const [form, setForm] = useState({
+    name: existing?.name||"",
+    logo: existing?.logo||"",
+    description: existing?.description||"",
+    website: existing?.website||"",
+    github_link: existing?.github_link||"",
+    twitter: existing?.social_links?.twitter||"",
+    linkedin: existing?.social_links?.linkedin||"",
+  });
+  const [submitting, setSubmitting] = useState(false);
+  const [logoFile, setLogoFile] = useState(null);
+  const logoRef = useRef();
+  const setF = (k,v)=>setForm(p=>({...p,[k]:v}));
+  const canNext = form.name.trim()&&form.description.trim();
+
+  const handleLogoUpload = async files=>{
+    if(!files[0]) return;
+    try{const b64=await fileToB64(files[0],2);setLogoFile(b64);}catch(e){alert(e.message);}
+  };
+
+  const handleSave = async()=>{
+    if(!canNext) return;
+    setSubmitting(true);
+    const payload={
+      name:form.name.trim(),
+      logo:logoFile||form.logo||"🚀",
+      description:form.description.trim(),
+      website:form.website.trim(),
+      github_link:form.github_link.trim(),
+      social_links:{twitter:form.twitter,linkedin:form.linkedin},
+      created_by:me,
+      founders:existing?.founders||[me],
+      referral_code:existing?.referral_code||genStartupCode(form.name),
+    };
+    let saved;
+    if(existing?.id){
+      await db.patch("rs_startups",`id=eq.${existing.id}`,payload);
+      saved={...existing,...payload};
+    } else {
+      saved = await db.post("rs_startups",payload);
+      if(saved?.id){
+        await db.postMany("rs_startup_pages",DEFAULT_PAGES.map(p=>({...p,startup_id:saved.id})));
       }
-      onSuccess(startup);
     }
+    setSubmitting(false);
+    onSave(saved);
     onClose();
   };
 
-  if (showJoin && startup) return <JoinModal startup={startup} pages={pages} me={me} myProfile={myProfile} existingAccess={myAccess} onClose={onClose} onSubmit={handleJoin} dk={dk} />;
+  const inp={width:"100%",background:th.inp,border:`1px solid ${th.inpB}`,borderRadius:10,padding:"9px 12px",fontSize:13,outline:"none",boxSizing:"border-box",color:th.txt};
 
   return (
-    <Modal title="Join via Referral Code" onClose={onClose} width={400}>
-      <p style={{ fontSize: 13, color: "#7a93c0", margin: "0 0 16px" }}>Enter the referral code shared by a startup founder.</p>
-      <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
-        <input value={code} onChange={e => { setCode(e.target.value.toUpperCase()); setErr(""); setStartup(null); }} onKeyDown={e => e.key === "Enter" && check()} placeholder="e.g. SKILL-A3B2" style={{ ...InpStyle(true), flex: 1, fontFamily: "monospace", letterSpacing: 1.5, fontSize: 15 }} />
-        <Btn onClick={check} disabled={checking || !code.trim()}>{checking ? "…" : "Check"}</Btn>
-      </div>
-      {err && <div style={{ display: "flex", gap: 6, alignItems: "center", padding: "8px 12px", background: "#ef444418", border: "1px solid #ef444440", borderRadius: 8, marginBottom: 12 }}><AlertCircle size={13} color="#ef4444" /><span style={{ fontSize: 12, color: "#ef4444" }}>{err}</span></div>}
-      {startup && (
-        <div style={{ background: "#131d30", border: "1px solid #10b98130", borderRadius: 14, padding: 16, marginBottom: 16 }}>
-          <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 10 }}>
-            <div style={{ width: 44, height: 44, borderRadius: 12, background: "linear-gradient(135deg,#3b82f6,#8b5cf6)", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
-              {startup.logo ? <img src={startup.logo} style={{ width: "100%", height: "100%", objectFit: "cover" }} alt="logo" /> : <span style={{ fontSize: 22 }}>🚀</span>}
-            </div>
-            <div>
-              <div style={{ fontWeight: 800, fontSize: 15, color: "#e8eeff" }}>{startup.name}</div>
-              <div style={{ fontSize: 12, color: "#10b981", fontWeight: 600 }}>✓ Valid startup found</div>
-            </div>
-          </div>
-          <p style={{ fontSize: 13, color: "#7a93c0", margin: 0, lineHeight: 1.5 }}>{startup.description?.slice(0, 120)}…</p>
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.65)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:16,overflowY:"auto"}}>
+      <div onClick={e=>e.stopPropagation()} style={{background:th.surf,borderRadius:20,padding:24,width:"100%",maxWidth:460,animation:"fadeUp .25s ease",margin:"auto"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+          <h3 style={{margin:0,fontSize:17,fontWeight:800,color:th.txt}}>{existing?"Edit Startup":`Create Startup${!existing?` — Step ${step}/2`:""}`}</h3>
+          <button onClick={onClose} style={{background:"none",border:"none",cursor:"pointer",color:th.txt3}}><X size={18}/></button>
         </div>
-      )}
-      {startup && <Btn onClick={() => setShowJoin(true)} style={{ width: "100%", justifyContent: "center" }}>Select Role & Join →</Btn>}
-    </Modal>
-  );
-}
-
-// ============================================================
-// ─── BOOK MEETING MODAL ───────────────────────────────────────
-// ============================================================
-function BookMeetingModal({ startup, page, me, profiles, allPageMembers, onClose, onSave, dk }) {
-  const [form, setForm] = useState({ title: "Team Meeting", platform: "google_meet", meeting_link: "", date: "", time: "", duration_mins: 60, note: "", participants: page ? allPageMembers.map(m => m.user_id) : [] });
-  const [saving, setSaving] = useState(false);
-  const [done, setDone] = useState(false);
-  const setF = (k, v) => setForm(p => ({ ...p, [k]: v }));
-  const canSave = form.title.trim() && form.date && form.time;
-
-  const handleSave = async () => {
-    setSaving(true);
-    const link = form.meeting_link.trim() || `https://${form.platform === "zoom" ? "zoom.us/j/" : "meet.google.com/"}${genId()}`;
-    const saved = await db.post("rs_startup_meetings", {
-      startup_id: startup.id, page_id: page?.id || null, created_by: me,
-      title: form.title, platform: form.platform, meeting_link: link,
-      scheduled_at: new Date(`${form.date}T${form.time}`).toISOString(),
-      duration_mins: form.duration_mins, participants: form.participants, note: form.note, status: "scheduled",
-    });
-    if (saved) {
-      await logActivity(startup.id, page?.id || null, me, "meeting_scheduled", `Meeting scheduled: ${form.title}`);
-      // Notify participants
-      for (const uid of form.participants) {
-        if (uid !== me) await pushNotif(uid, startup.id, "meeting_scheduled", "Meeting Scheduled", `${form.title} on ${fmtDate(saved.scheduled_at)}`, { meeting_id: saved.id });
-      }
-      onSave(saved);
-    }
-    setSaving(false); setDone(true); setTimeout(onClose, 2000);
-  };
-
-  if (done) return (
-    <Modal onClose={onClose} width={380}>
-      <div style={{ textAlign: "center", padding: "20px 0" }}>
-        <div style={{ fontSize: 52, marginBottom: 12 }}>📅</div>
-        <h3 style={{ color: "#e8eeff", fontWeight: 800, margin: "0 0 6px" }}>Meeting Scheduled!</h3>
-        <p style={{ color: "#7a93c0", fontSize: 13 }}>Participants have been notified.</p>
-      </div>
-    </Modal>
-  );
-
-  return (
-    <Modal title="Book a Meeting" onClose={onClose} width={460}>
-      <div style={{ display: "grid", gap: 14 }}>
-        <div>
-          <label style={{ fontSize: 11, fontWeight: 700, color: "#7a93c0", display: "block", marginBottom: 5 }}>TITLE</label>
-          <input value={form.title} onChange={e => setF("title", e.target.value)} style={InpStyle(true)} />
-        </div>
-
-        <div>
-          <label style={{ fontSize: 11, fontWeight: 700, color: "#7a93c0", display: "block", marginBottom: 8 }}>PLATFORM</label>
-          <div style={{ display: "flex", gap: 8 }}>
-            {[["google_meet", "🟢 Google Meet"], ["zoom", "🔵 Zoom"]].map(([id, label]) => (
-              <button key={id} onClick={() => setF("platform", id)} style={{ flex: 1, padding: "10px", borderRadius: 10, border: `1.5px solid ${form.platform === id ? "#3b82f6" : "#1c2d47"}`, background: form.platform === id ? "#3b82f618" : "transparent", color: form.platform === id ? "#3b82f6" : "#7a93c0", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
-                {label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-          <div>
-            <label style={{ fontSize: 11, fontWeight: 700, color: "#7a93c0", display: "block", marginBottom: 5 }}>DATE *</label>
-            <input type="date" value={form.date} onChange={e => setF("date", e.target.value)} style={InpStyle(true)} />
-          </div>
-          <div>
-            <label style={{ fontSize: 11, fontWeight: 700, color: "#7a93c0", display: "block", marginBottom: 5 }}>TIME *</label>
-            <input type="time" value={form.time} onChange={e => setF("time", e.target.value)} style={InpStyle(true)} />
-          </div>
-        </div>
-
-        <div>
-          <label style={{ fontSize: 11, fontWeight: 700, color: "#7a93c0", display: "block", marginBottom: 5 }}>DURATION (MINS)</label>
-          <select value={form.duration_mins} onChange={e => setF("duration_mins", +e.target.value)} style={{ ...InpStyle(true) }}>
-            {[30, 45, 60, 90, 120].map(m => <option key={m} value={m}>{m} minutes</option>)}
-          </select>
-        </div>
-
-        <div>
-          <label style={{ fontSize: 11, fontWeight: 700, color: "#7a93c0", display: "block", marginBottom: 5 }}>MEETING LINK (auto-generated if blank)</label>
-          <input value={form.meeting_link} onChange={e => setF("meeting_link", e.target.value)} placeholder={`https://meet.google.com/…`} style={InpStyle(true)} />
-        </div>
-
-        {allPageMembers?.length > 0 && (
-          <div>
-            <label style={{ fontSize: 11, fontWeight: 700, color: "#7a93c0", display: "block", marginBottom: 8 }}>PARTICIPANTS ({form.participants.length} selected)</label>
-            <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 160, overflowY: "auto" }}>
-              {allPageMembers.map(m => {
-                const p = profiles[m.user_id] || { name: "Member" };
-                const sel = form.participants.includes(m.user_id);
-                return (
-                  <div key={m.user_id} onClick={() => setF("participants", sel ? form.participants.filter(x => x !== m.user_id) : [...form.participants, m.user_id])} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", borderRadius: 8, border: `1px solid ${sel ? "#3b82f640" : "#1c2d47"}`, background: sel ? "#3b82f610" : "transparent", cursor: "pointer" }}>
-                    <Av profile={p} size={28} />
-                    <span style={{ fontSize: 13, color: "#e8eeff", flex: 1 }}>{p.name}</span>
-                    {sel && <Check size={13} color="#3b82f6" />}
-                  </div>
-                );
-              })}
-            </div>
+        {!existing && (
+          <div style={{display:"flex",gap:4,marginBottom:20}}>
+            {[1,2].map(s=><div key={s} style={{flex:1,height:3,borderRadius:99,background:s<=step?"#3b82f6":th.bdr,transition:"all .3s"}}/>)}
           </div>
         )}
-
-        <div>
-          <label style={{ fontSize: 11, fontWeight: 700, color: "#7a93c0", display: "block", marginBottom: 5 }}>AGENDA / NOTE</label>
-          <textarea value={form.note} onChange={e => setF("note", e.target.value)} placeholder="What's the agenda?" rows={2} style={{ ...InpStyle(true), resize: "none" }} />
-        </div>
-      </div>
-
-      <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
-        <Btn onClick={onClose} outline color="#7a93c0" style={{ flex: 1 }}>Cancel</Btn>
-        <Btn onClick={handleSave} disabled={saving || !canSave} style={{ flex: 2 }}>{saving ? "Scheduling…" : "Schedule Meeting"}</Btn>
-      </div>
-    </Modal>
-  );
-}
-
-// ============================================================
-// ─── TASK BOARD ───────────────────────────────────────────────
-// ============================================================
-function TaskBoard({ startup, page, me, profiles, members, dk }) {
-  const th = T(dk);
-  const [tasks, setTasks] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ title: "", description: "", assigned_to: "", priority: "medium", due_date: "" });
-  const [filter, setFilter] = useState("all");
-  const setF = (k, v) => setForm(p => ({ ...p, [k]: v }));
-
-  const load = useCallback(async () => {
-    const data = await db.get("rs_startup_tasks", `page_id=eq.${page.id}&order=created_at.desc`);
-    setTasks(data || []); setLoading(false);
-  }, [page.id]);
-
-  useEffect(() => { load(); }, [load]);
-
-  const createTask = async () => {
-    if (!form.title.trim()) return;
-    const saved = await db.post("rs_startup_tasks", { ...form, startup_id: startup.id, page_id: page.id, created_by: me, status: "pending" });
-    if (saved) {
-      setTasks(ts => [saved, ...ts]);
-      setForm({ title: "", description: "", assigned_to: "", priority: "medium", due_date: "" });
-      setShowForm(false);
-      if (form.assigned_to) {
-        await pushNotif(form.assigned_to, startup.id, "task_assigned", "Task Assigned", `You've been assigned: ${form.title}`, { task_id: saved.id });
-      }
-      await logActivity(startup.id, page.id, me, "task_created", `Task created: ${form.title}`);
-    }
-  };
-
-  const updateStatus = async (id, status) => {
-    setTasks(ts => ts.map(t => t.id === id ? { ...t, status } : t));
-    await db.patch("rs_startup_tasks", `id=eq.${id}`, { status });
-    if (status === "completed") await logActivity(startup.id, page.id, me, "task_completed", `Task completed`);
-  };
-
-  const deleteTask = async id => {
-    setTasks(ts => ts.filter(t => t.id !== id));
-    await db.del("rs_startup_tasks", `id=eq.${id}`);
-  };
-
-  const priorityColors = { low: "#10b981", medium: "#f59e0b", high: "#ef4444" };
-  const filtered = filter === "all" ? tasks : tasks.filter(t => t.status === filter);
-
-  return (
-    <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-        <div style={{ display: "flex", gap: 6 }}>
-          {["all", "pending", "inprogress", "completed"].map(f => (
-            <button key={f} onClick={() => setFilter(f)} style={{ padding: "5px 12px", borderRadius: 20, border: `1px solid ${filter === f ? "#3b82f6" : th.bdr}`, background: filter === f ? "#3b82f618" : "transparent", color: filter === f ? "#3b82f6" : th.txt2, fontSize: 11, fontWeight: 600, cursor: "pointer", textTransform: "capitalize" }}>{f === "all" ? `All (${tasks.length})` : f}</button>
-          ))}
-        </div>
-        <Btn onClick={() => setShowForm(x => !x)} small><Plus size={13} /> New Task</Btn>
-      </div>
-
-      {showForm && (
-        <div style={{ background: th.surf2, border: `1px solid ${th.bdr}`, borderRadius: 14, padding: 16, marginBottom: 14 }}>
-          <div style={{ display: "grid", gap: 10 }}>
-            <input value={form.title} onChange={e => setF("title", e.target.value)} placeholder="Task title *" style={InpStyle(dk)} />
-            <textarea value={form.description} onChange={e => setF("description", e.target.value)} placeholder="Description…" rows={2} style={{ ...InpStyle(dk), resize: "none" }} />
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
-              <select value={form.assigned_to} onChange={e => setF("assigned_to", e.target.value)} style={InpStyle(dk)}>
-                <option value="">Assign to…</option>
-                {members.map(m => <option key={m.user_id} value={m.user_id}>{profiles[m.user_id]?.name || m.user_id}</option>)}
-              </select>
-              <select value={form.priority} onChange={e => setF("priority", e.target.value)} style={InpStyle(dk)}>
-                {["low", "medium", "high"].map(p => <option key={p} value={p}>{p.charAt(0).toUpperCase() + p.slice(1)}</option>)}
-              </select>
-              <input type="date" value={form.due_date} onChange={e => setF("due_date", e.target.value)} style={InpStyle(dk)} />
-            </div>
-            <div style={{ display: "flex", gap: 8 }}>
-              <Btn onClick={createTask} disabled={!form.title.trim()} small>Create Task</Btn>
-              <Btn onClick={() => setShowForm(false)} outline color="#7a93c0" small>Cancel</Btn>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {loading ? <Spin dk={dk} /> : filtered.length === 0 ? (
-        <div style={{ textAlign: "center", padding: 40, color: th.txt3 }}>
-          <CheckCircle2 size={36} style={{ marginBottom: 10, opacity: 0.4 }} />
-          <p>No tasks yet. Create one!</p>
-        </div>
-      ) : filtered.map(task => {
-        const st = TASK_STATUS[task.status] || TASK_STATUS.pending;
-        const Icon = st.icon;
-        const assignee = profiles[task.assigned_to] || null;
-        return (
-          <div key={task.id} style={{ background: th.surf, border: `1px solid ${th.bdr}`, borderRadius: 12, padding: "12px 14px", marginBottom: 8, display: "flex", gap: 12, alignItems: "flex-start" }}>
-            <button onClick={() => { const next = task.status === "pending" ? "inprogress" : task.status === "inprogress" ? "completed" : "pending"; updateStatus(task.id, next); }} style={{ background: "none", border: "none", cursor: "pointer", color: st.c, flexShrink: 0, marginTop: 1, display: "flex" }}>
-              <Icon size={18} />
-            </button>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontWeight: 700, fontSize: 14, color: task.status === "completed" ? th.txt3 : th.txt, textDecoration: task.status === "completed" ? "line-through" : "none" }}>{task.title}</div>
-              {task.description && <p style={{ fontSize: 12, color: th.txt3, margin: "3px 0 6px", lineHeight: 1.4 }}>{task.description}</p>}
-              <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                <span style={{ fontSize: 10, fontWeight: 700, color: priorityColors[task.priority] || "#f59e0b", background: (priorityColors[task.priority] || "#f59e0b") + "15", padding: "2px 7px", borderRadius: 99 }}>{task.priority?.toUpperCase()}</span>
-                <Badge label={st.label} color={st.c} />
-                {assignee && <div style={{ display: "flex", alignItems: "center", gap: 5 }}><Av profile={assignee} size={16} /><span style={{ fontSize: 11, color: th.txt3 }}>{assignee.name?.split(" ")[0]}</span></div>}
-                {task.due_date && <span style={{ fontSize: 11, color: th.txt3 }}>Due {fmtDate(task.due_date)}</span>}
+        {step===1 && (
+          <>
+            {/* Logo upload */}
+            <div style={{display:"flex",justifyContent:"center",marginBottom:16}}>
+              <div style={{position:"relative"}}>
+                <div style={{width:80,height:80,borderRadius:20,background:"linear-gradient(135deg,#3b82f6,#8b5cf6)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:logoFile?0:36,overflow:"hidden",cursor:"pointer"}} onClick={()=>logoRef.current?.click()}>
+                  {logoFile?<img src={logoFile} style={{width:"100%",height:"100%",objectFit:"cover"}}/>:(form.logo||"🚀")}
+                </div>
+                <button onClick={()=>logoRef.current?.click()} style={{position:"absolute",bottom:-4,right:-4,width:24,height:24,borderRadius:"50%",background:"#3b82f6",border:"2px solid white",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}}>
+                  <Image size={11} color="#fff"/>
+                </button>
+                <input ref={logoRef} type="file" accept="image/*" style={{display:"none"}} onChange={e=>handleLogoUpload(e.target.files)}/>
               </div>
             </div>
-            <button onClick={() => deleteTask(task.id)} style={{ background: "none", border: "none", cursor: "pointer", color: th.txt3, display: "flex" }}><Trash2 size={13} /></button>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-// ============================================================
-// ─── PAGE CHAT ────────────────────────────────────────────────
-// ============================================================
-function PageChat({ startup, page, me, profiles, members, dk }) {
-  const th = T(dk);
-  const [messages, setMessages] = useState([]);
-  const [text, setText] = useState("");
-  const [media, setMedia] = useState([]);
-  const [replyTo, setReplyTo] = useState(null);
-  const [showEmoji, setShowEmoji] = useState(false);
-  const [recording, setRecording] = useState(false);
-  const [recDur, setRecDur] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const endRef = useRef();
-  const pollRef = useRef();
-  const recRef = useRef();
-  const timerRef = useRef();
-  const fileRef = useRef();
-
-  const load = useCallback(async () => {
-    const data = await db.get("rs_page_messages", `page_id=eq.${page.id}&order=created_at.asc&limit=100`);
-    setMessages(data || []); setLoading(false);
-    setTimeout(() => endRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
-  }, [page.id]);
-
-  useEffect(() => {
-    load();
-    pollRef.current = setInterval(load, 4000);
-    return () => clearInterval(pollRef.current);
-  }, [load]);
-
-  const addFile = async files => {
-    const items = [];
-    for (const f of files) {
-      try {
-        const b64 = await fileToB64(f, 10);
-        items.push({ type: f.type.startsWith("video") ? "video" : f.type.startsWith("audio") ? "audio" : "image", url: b64, name: f.name });
-      } catch {}
-    }
-    setMedia(m => [...m, ...items].slice(0, 4));
-  };
-
-  const startRec = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mr = new MediaRecorder(stream);
-      const chunks = [];
-      mr.ondataavailable = e => chunks.push(e.data);
-      mr.onstop = () => {
-        const blob = new Blob(chunks, { type: "audio/webm" });
-        const reader = new FileReader();
-        reader.onload = () => setMedia(m => [...m, { type: "audio", url: reader.result, name: "voice.webm" }]);
-        reader.readAsDataURL(blob);
-        stream.getTracks().forEach(t => t.stop());
-      };
-      mr.start(); recRef.current = mr; setRecording(true); setRecDur(0);
-      timerRef.current = setInterval(() => setRecDur(d => d + 1), 1000);
-    } catch {}
-  };
-  const stopRec = () => { recRef.current?.stop(); setRecording(false); clearInterval(timerRef.current); };
-
-  const send = async () => {
-    if (!text.trim() && !media.length) return;
-    const saved = await db.post("rs_page_messages", {
-      page_id: page.id, startup_id: startup.id, sender_id: me,
-      content: text.trim(), media, reply_to: replyTo?.id || null, mentions: [],
-    });
-    if (saved) {
-      setMessages(ms => [...ms, saved]);
-      setText(""); setMedia([]); setReplyTo(null); setShowEmoji(false);
-      setTimeout(() => endRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
-      await logActivity(startup.id, page.id, me, "message", `Message sent in ${page.name}`);
-    }
-  };
-
-  const pt = PAGE_TYPES.find(x => page.page_type === x.id) || PAGE_TYPES[6];
-
-  return (
-    <div style={{ display: "flex", flexDirection: "column", height: "60vh", minHeight: 400 }}>
-      {/* Messages */}
-      <div style={{ flex: 1, overflowY: "auto", padding: "12px 0" }}>
-        {loading ? <Spin dk={dk} /> : messages.length === 0 ? (
-          <div style={{ textAlign: "center", padding: 40, color: th.txt3 }}>
-            <MessageCircle size={36} style={{ marginBottom: 10, opacity: 0.4 }} />
-            <p>No messages yet. Say hi!</p>
-          </div>
-        ) : messages.map((m, idx) => {
-          const isMe = m.sender_id === me;
-          const sender = profiles[m.sender_id] || { name: "Member" };
-          const prevMsg = messages[idx - 1];
-          const showAvatar = !prevMsg || prevMsg.sender_id !== m.sender_id;
-          const replyMsg = m.reply_to ? messages.find(x => x.id === m.reply_to) : null;
-          return (
-            <div key={m.id} style={{ display: "flex", flexDirection: isMe ? "row-reverse" : "row", gap: 8, marginBottom: showAvatar ? 12 : 4, alignItems: "flex-end", padding: "0 4px" }}>
-              {!isMe && (showAvatar ? <Av profile={sender} size={30} /> : <div style={{ width: 30 }} />)}
-              <div style={{ maxWidth: "72%" }}>
-                {showAvatar && !isMe && <div style={{ fontSize: 11, fontWeight: 700, color: pt.c, marginBottom: 3 }}>{sender.name}</div>}
-                {replyMsg && (
-                  <div style={{ background: isMe ? "rgba(255,255,255,.1)" : th.surf2, borderLeft: `3px solid ${pt.c}`, padding: "4px 8px", borderRadius: 6, marginBottom: 4, fontSize: 11, color: th.txt3 }}>
-                    {profiles[replyMsg.sender_id]?.name}: {replyMsg.content?.slice(0, 60)}
-                  </div>
-                )}
-                <div onClick={() => setReplyTo(m)} style={{ background: isMe ? pt.c : th.surf2, borderRadius: isMe ? "14px 14px 4px 14px" : "14px 14px 14px 4px", padding: "9px 13px", cursor: "pointer", border: `1px solid ${isMe ? "transparent" : th.bdr}` }}>
-                  {m.content && <p style={{ margin: 0, fontSize: 13, color: isMe ? "#fff" : th.txt, lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{m.content}</p>}
-                  {m.media?.map((med, i) => (
-                    <div key={i} style={{ marginTop: m.content ? 6 : 0 }}>
-                      {med.type === "image" && <img src={med.url} style={{ maxWidth: 220, borderRadius: 8, display: "block" }} alt="media" />}
-                      {med.type === "video" && <video src={med.url} controls style={{ maxWidth: 220, borderRadius: 8 }} />}
-                      {med.type === "audio" && <audio src={med.url} controls style={{ maxWidth: 200 }} />}
-                    </div>
-                  ))}
-                  <div style={{ fontSize: 10, color: isMe ? "rgba(255,255,255,.55)" : th.txt3, marginTop: 4, textAlign: isMe ? "right" : "left" }}>
-                    {ago(new Date(m.created_at).getTime())}
-                    {m.reply_to && <span style={{ marginLeft: 6 }}>↩ reply</span>}
-                  </div>
-                </div>
-              </div>
+            <div style={{marginBottom:12}}>
+              <label style={{fontSize:12,fontWeight:600,color:th.txt2,display:"block",marginBottom:4}}>Or use emoji</label>
+              <input value={form.logo} onChange={e=>setF("logo",e.target.value)} placeholder="🚀" style={{...inp,width:80}}/>
             </div>
-          );
-        })}
-        <div ref={endRef} />
-      </div>
-
-      {/* Reply preview */}
-      {replyTo && (
-        <div style={{ background: th.surf2, borderLeft: `3px solid ${pt.c}`, padding: "6px 12px", display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12, color: th.txt3 }}>
-          <span>↩ Replying to {profiles[replyTo.sender_id]?.name}: {replyTo.content?.slice(0, 50)}</span>
-          <button onClick={() => setReplyTo(null)} style={{ background: "none", border: "none", cursor: "pointer", color: th.txt3, display: "flex" }}><X size={13} /></button>
-        </div>
-      )}
-
-      {/* Media preview */}
-      {media.length > 0 && (
-        <div style={{ display: "flex", gap: 6, padding: "8px 0", flexWrap: "wrap" }}>
-          {media.map((m, i) => (
-            <div key={i} style={{ position: "relative", width: 52, height: 52, borderRadius: 8, overflow: "hidden", border: `1px solid ${th.bdr}` }}>
-              {m.type === "image" ? <img src={m.url} style={{ width: "100%", height: "100%", objectFit: "cover" }} alt="" />
-                : m.type === "audio" ? <div style={{ width: "100%", height: "100%", background: "linear-gradient(135deg,#8b5cf6,#3b82f6)", display: "flex", alignItems: "center", justifyContent: "center" }}><Mic size={16} color="#fff" /></div>
-                : <div style={{ width: "100%", height: "100%", background: "#1c2d47", display: "flex", alignItems: "center", justifyContent: "center" }}><Video size={16} color="#7a93c0" /></div>}
-              <button onClick={() => setMedia(m => m.filter((_, j) => j !== i))} style={{ position: "absolute", top: 1, right: 1, background: "rgba(0,0,0,.6)", border: "none", borderRadius: "50%", width: 16, height: 16, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#fff" }}><X size={9} /></button>
+            <div style={{marginBottom:12}}>
+              <label style={{fontSize:12,fontWeight:600,color:th.txt2,display:"block",marginBottom:4}}>Startup Name *</label>
+              <input value={form.name} onChange={e=>setF("name",e.target.value)} placeholder="e.g. SkillSwap" style={inp}/>
             </div>
-          ))}
-        </div>
-      )}
-
-      {/* Emoji picker */}
-      {showEmoji && (
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 4, background: th.surf2, borderRadius: 10, padding: 8, border: `1px solid ${th.bdr}` }}>
-          {EMOJIS.map(e => <button key={e} onClick={() => { setText(t => t + e); setShowEmoji(false); }} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 18 }}>{e}</button>)}
-        </div>
-      )}
-
-      {/* Input */}
-      <div style={{ display: "flex", gap: 8, alignItems: "flex-end", borderTop: `1px solid ${th.bdr}`, paddingTop: 10, marginTop: 4 }}>
-        <div style={{ display: "flex", gap: 4 }}>
-          <button onClick={() => fileRef.current?.click()} style={{ background: "none", border: "none", cursor: "pointer", color: th.txt3, display: "flex" }}><Image size={16} /></button>
-          <button onClick={() => setShowEmoji(x => !x)} style={{ background: "none", border: "none", cursor: "pointer", color: th.txt3, display: "flex" }}><span style={{ fontSize: 15 }}>😊</span></button>
-          <button onClick={recording ? stopRec : startRec} style={{ background: "none", border: "none", cursor: "pointer", color: recording ? "#ef4444" : th.txt3, display: "flex" }}>
-            {recording ? <MicOff size={16} /> : <Mic size={16} />}
-          </button>
-          {recording && <span style={{ fontSize: 11, color: "#ef4444", alignSelf: "center" }}>{recDur}s</span>}
-          <input ref={fileRef} type="file" accept="image/*,video/*,audio/*" multiple style={{ display: "none" }} onChange={e => addFile([...e.target.files])} />
-        </div>
-        <textarea
-          value={text}
-          onChange={e => setText(e.target.value)}
-          onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
-          placeholder={`Message ${page.name}…`}
-          rows={1}
-          style={{ flex: 1, background: th.inp, border: `1px solid ${th.inpB}`, borderRadius: 12, padding: "9px 12px", fontSize: 13, outline: "none", resize: "none", fontFamily: "inherit", color: th.txt, maxHeight: 80 }}
-        />
-        <button onClick={send} disabled={!text.trim() && !media.length} style={{ background: (text.trim() || media.length) ? pt.c : th.surf2, border: "none", borderRadius: 10, padding: "9px 14px", cursor: (text.trim() || media.length) ? "pointer" : "default", color: "#fff", display: "flex", alignItems: "center" }}>
-          <Send size={15} />
-        </button>
-      </div>
-    </div>
-  );
-}
-
-// ============================================================
-// ─── FILE MANAGER ────────────────────────────────────────────
-// ============================================================
-function FileManager({ startup, page, me, profiles, dk }) {
-  const th = T(dk);
-  const [files, setFiles] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const fileRef = useRef();
-
-  useEffect(() => {
-    db.get("rs_page_files", `page_id=eq.${page.id}&order=created_at.desc`).then(d => { setFiles(d || []); setLoading(false); });
-  }, [page.id]);
-
-  const upload = async selectedFiles => {
-    for (const f of selectedFiles) {
-      try {
-        const url = await fileToB64(f, 10);
-        const type = f.type.startsWith("image") ? "image" : f.type.startsWith("video") ? "video" : f.type === "application/pdf" ? "pdf" : "other";
-        const saved = await db.post("rs_page_files", { startup_id: startup.id, page_id: page.id, uploaded_by: me, name: f.name, file_type: type, url, size_bytes: f.size });
-        if (saved) {
-          setFiles(fs => [saved, ...fs]);
-          await logActivity(startup.id, page.id, me, "file_uploaded", `File uploaded: ${f.name}`);
-        }
-      } catch {}
-    }
-  };
-
-  const del = async id => {
-    setFiles(fs => fs.filter(f => f.id !== id));
-    await db.del("rs_page_files", `id=eq.${id}`);
-  };
-
-  const fileIcons = { image: "🖼️", video: "🎬", pdf: "📄", other: "📎" };
-  const fmtSize = b => b > 1024 * 1024 ? `${(b / 1024 / 1024).toFixed(1)}MB` : `${(b / 1024).toFixed(0)}KB`;
-
-  return (
-    <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-        <span style={{ fontSize: 14, fontWeight: 700, color: th.txt }}>{files.length} file{files.length !== 1 ? "s" : ""}</span>
-        <Btn onClick={() => fileRef.current?.click()} small><Upload size={13} /> Upload</Btn>
-        <input ref={fileRef} type="file" multiple style={{ display: "none" }} onChange={e => upload([...e.target.files])} />
-      </div>
-      {loading ? <Spin dk={dk} /> : files.length === 0 ? (
-        <div onClick={() => fileRef.current?.click()} style={{ textAlign: "center", padding: 40, color: th.txt3, border: `2px dashed ${th.bdr}`, borderRadius: 14, cursor: "pointer" }}>
-          <Upload size={32} style={{ marginBottom: 10, opacity: 0.4 }} /><p>Click to upload files</p>
-        </div>
-      ) : (
-        <div style={{ display: "grid", gap: 8 }}>
-          {files.map(f => {
-            const uploader = profiles[f.uploaded_by] || { name: "Member" };
-            return (
-              <div key={f.id} style={{ display: "flex", gap: 12, alignItems: "center", background: th.surf, border: `1px solid ${th.bdr}`, borderRadius: 12, padding: "10px 14px" }}>
-                <span style={{ fontSize: 24 }}>{fileIcons[f.file_type] || "📎"}</span>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: th.txt, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.name}</div>
-                  <div style={{ fontSize: 11, color: th.txt3 }}>{fmtSize(f.size_bytes || 0)} · {uploader.name} · {ago(new Date(f.created_at).getTime())}</div>
-                </div>
-                <div style={{ display: "flex", gap: 6 }}>
-                  <a href={f.url} download={f.name} style={{ display: "flex", alignItems: "center", background: "#3b82f618", border: "1px solid #3b82f630", borderRadius: 8, padding: "5px 8px", color: "#3b82f6" }}><Download size={13} /></a>
-                  {f.uploaded_by === me && <button onClick={() => del(f.id)} style={{ display: "flex", alignItems: "center", background: "#ef444418", border: "1px solid #ef444430", borderRadius: 8, padding: "5px 8px", color: "#ef4444", cursor: "pointer" }}><Trash2 size={13} /></button>}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ============================================================
-// ─── INVESTOR DATA PANEL ─────────────────────────────────────
-// ============================================================
-function InvestorPanel({ startup, me, dk, isFounder }) {
-  const th = T(dk);
-  const [data, setData] = useState(null);
-  const [editing, setEditing] = useState(false);
-  const [form, setForm] = useState({ stage: "pre-seed", funding_goal: 0, raised_so_far: 0, one_liner: "", traction: { mrr: 0, users: 0, growth_rate: 0 } });
-  const setF = (k, v) => setForm(p => ({ ...p, [k]: v }));
-  const setT = (k, v) => setForm(p => ({ ...p, traction: { ...p.traction, [k]: v } }));
-
-  useEffect(() => {
-    db.get("rs_startup_investor_data", `startup_id=eq.${startup.id}`).then(d => {
-      if (d?.[0]) { setData(d[0]); setForm({ stage: d[0].stage, funding_goal: d[0].funding_goal, raised_so_far: d[0].raised_so_far, one_liner: d[0].one_liner, traction: d[0].traction || { mrr: 0, users: 0, growth_rate: 0 } }); }
-    });
-  }, [startup.id]);
-
-  const save = async () => {
-    const saved = await db.upsert("rs_startup_investor_data", { startup_id: startup.id, ...form });
-    if (saved) { setData(saved); setEditing(false); }
-  };
-
-  const stages = ["pre-seed", "seed", "series-a", "series-b", "growth"];
-  const fmtUSD = n => n >= 1e6 ? `$${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `$${(n / 1e3).toFixed(0)}K` : `$${n}`;
-
-  if (editing && isFounder) return (
-    <div style={{ display: "grid", gap: 12 }}>
-      <div>
-        <label style={{ fontSize: 11, fontWeight: 700, color: th.txt3, display: "block", marginBottom: 6 }}>STAGE</label>
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-          {stages.map(s => <button key={s} onClick={() => setF("stage", s)} style={{ padding: "5px 12px", borderRadius: 20, border: `1px solid ${form.stage === s ? "#10b981" : th.bdr}`, background: form.stage === s ? "#10b98118" : "transparent", color: form.stage === s ? "#10b981" : th.txt3, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>{s}</button>)}
-        </div>
-      </div>
-      {[{ k: "one_liner", l: "One Liner", p: "We help X do Y by Z" }, { k: "funding_goal", l: "Funding Goal (USD)", p: "500000", t: "number" }, { k: "raised_so_far", l: "Raised So Far (USD)", p: "0", t: "number" }].map(f => (
-        <div key={f.k}>
-          <label style={{ fontSize: 11, fontWeight: 700, color: th.txt3, display: "block", marginBottom: 5 }}>{f.l.toUpperCase()}</label>
-          <input type={f.t || "text"} value={form[f.k]} onChange={e => setF(f.k, f.t === "number" ? +e.target.value : e.target.value)} placeholder={f.p} style={InpStyle(dk)} />
-        </div>
-      ))}
-      <div>
-        <label style={{ fontSize: 11, fontWeight: 700, color: th.txt3, display: "block", marginBottom: 8 }}>TRACTION</label>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
-          {[["mrr", "MRR ($)"], ["users", "Users"], ["growth_rate", "Growth %"]].map(([k, l]) => (
-            <div key={k}>
-              <label style={{ fontSize: 10, color: th.txt3, display: "block", marginBottom: 4 }}>{l}</label>
-              <input type="number" value={form.traction[k] || 0} onChange={e => setT(k, +e.target.value)} style={InpStyle(dk)} />
+            <div style={{marginBottom:20}}>
+              <label style={{fontSize:12,fontWeight:600,color:th.txt2,display:"block",marginBottom:4}}>Problem & Solution *</label>
+              <textarea value={form.description} onChange={e=>setF("description",e.target.value)} placeholder="What problem are you solving and how?" rows={4} style={{...inp,resize:"vertical",fontFamily:"inherit"}}/>
             </div>
-          ))}
-        </div>
-      </div>
-      <div style={{ display: "flex", gap: 8 }}><Btn onClick={save} small>Save</Btn><Btn onClick={() => setEditing(false)} outline color="#7a93c0" small>Cancel</Btn></div>
-    </div>
-  );
-
-  return (
-    <div>
-      {isFounder && <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}><Btn onClick={() => setEditing(true)} outline color="#3b82f6" small><Edit3 size={12} /> Edit</Btn></div>}
-      {!data ? (
-        <div style={{ textAlign: "center", padding: 40, color: th.txt3 }}>
-          <Star size={32} style={{ marginBottom: 10, opacity: 0.4 }} />
-          <p>{isFounder ? "Add investor information to attract funding." : "No investor data published yet."}</p>
-        </div>
-      ) : (
-        <div style={{ display: "grid", gap: 12 }}>
-          <div style={{ background: "linear-gradient(135deg,#10b98118,#3b82f618)", border: "1px solid #10b98130", borderRadius: 14, padding: 16 }}>
-            <div style={{ fontSize: 12, color: "#10b981", fontWeight: 700, marginBottom: 4 }}>STAGE</div>
-            <div style={{ fontSize: 20, fontWeight: 800, color: th.txt, textTransform: "capitalize" }}>{data.stage}</div>
-            {data.one_liner && <p style={{ fontSize: 13, color: th.txt2, margin: "8px 0 0", lineHeight: 1.5 }}>{data.one_liner}</p>}
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-            {[{ l: "Funding Goal", v: fmtUSD(data.funding_goal || 0) }, { l: "Raised So Far", v: fmtUSD(data.raised_so_far || 0) }].map(({ l, v }) => (
-              <div key={l} style={{ background: th.surf2, border: `1px solid ${th.bdr}`, borderRadius: 12, padding: 14 }}>
-                <div style={{ fontSize: 11, color: th.txt3, fontWeight: 700 }}>{l}</div>
-                <div style={{ fontSize: 22, fontWeight: 800, color: th.txt, marginTop: 4 }}>{v}</div>
+            <div style={{display:"flex",gap:10}}>
+              <button onClick={onClose} style={{flex:1,padding:"10px",background:"transparent",border:`1px solid ${th.bdr}`,borderRadius:12,cursor:"pointer",color:th.txt2,fontWeight:600}}>Cancel</button>
+              <button onClick={()=>existing?handleSave():setStep(2)} disabled={!canNext} style={{flex:2,padding:"10px",background:canNext?"#3b82f6":th.surf2,border:"none",borderRadius:12,cursor:canNext?"pointer":"default",color:canNext?"#fff":th.txt3,fontWeight:700,fontSize:14}}>
+                {existing?(submitting?"Saving…":"Save Changes"):"Next: Links →"}
+              </button>
+            </div>
+          </>
+        )}
+        {step===2 && (
+          <>
+            {[
+              {k:"website",l:"Website",p:"https://…"},
+              {k:"github_link",l:"GitHub",p:"https://github.com/…"},
+              {k:"twitter",l:"Twitter / X",p:"https://twitter.com/…"},
+              {k:"linkedin",l:"LinkedIn",p:"https://linkedin.com/company/…"},
+            ].map(f=>(
+              <div key={f.k} style={{marginBottom:12}}>
+                <label style={{fontSize:12,fontWeight:600,color:th.txt2,display:"block",marginBottom:4}}>{f.l}</label>
+                <input value={form[f.k]} onChange={e=>setF(f.k,e.target.value)} placeholder={f.p} style={inp}/>
               </div>
             ))}
-          </div>
-          {data.traction && (
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
-              {[["MRR", `$${data.traction.mrr || 0}`], ["Users", data.traction.users || 0], ["Growth", `${data.traction.growth_rate || 0}%`]].map(([l, v]) => (
-                <div key={l} style={{ background: th.surf2, border: `1px solid ${th.bdr}`, borderRadius: 12, padding: 14, textAlign: "center" }}>
-                  <div style={{ fontSize: 11, color: th.txt3, fontWeight: 700 }}>{l}</div>
-                  <div style={{ fontSize: 18, fontWeight: 800, color: "#10b981", marginTop: 4 }}>{v}</div>
-                </div>
-              ))}
+            <div style={{background:th.surf2,border:`1px solid ${th.bdr}`,borderRadius:12,padding:12,marginBottom:18}}>
+              <div style={{fontSize:12,fontWeight:700,color:th.txt,marginBottom:6}}>📄 Auto-created Pages:</div>
+              <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+                {PAGE_TYPES.map(p=><span key={p.id} style={{background:p.c+"18",color:p.c,fontSize:11,fontWeight:600,padding:"2px 8px",borderRadius:99}}>{p.e} {p.label}</span>)}
+              </div>
             </div>
-          )}
-        </div>
-      )}
+            <div style={{display:"flex",gap:10}}>
+              <button onClick={()=>setStep(1)} style={{flex:1,padding:"10px",background:"transparent",border:`1px solid ${th.bdr}`,borderRadius:12,cursor:"pointer",color:th.txt2,fontWeight:600}}>← Back</button>
+              <button onClick={handleSave} disabled={submitting} style={{flex:2,padding:"10px",background:"linear-gradient(135deg,#3b82f6,#8b5cf6)",border:"none",borderRadius:12,cursor:"pointer",color:"#fff",fontWeight:700,fontSize:14}}>
+                {submitting?"Launching…":"Launch Startup 🚀"}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 }
 
-// ============================================================
-// ─── PAGE DETAIL VIEW ─────────────────────────────────────────
-// ============================================================
-function PageDetail({ startup, page, me, profiles, dk, onBack, isFounder }) {
-  const th = T(dk);
-  const [tab, setTab] = useState("chat");
-  const [members, setMembers] = useState([]);
-  const [meetings, setMeetings] = useState([]);
-  const [showMeeting, setShowMeeting] = useState(false);
-
-  const pt = PAGE_TYPES.find(x => x.id === page.page_type) || PAGE_TYPES[6];
-
-  useEffect(() => {
-    (async () => {
-      const [ms, mts] = await Promise.all([
-        db.get("rs_page_access", `page_id=eq.${page.id}&status=eq.approved`),
-        db.get("rs_startup_meetings", `page_id=eq.${page.id}&order=scheduled_at.asc`),
-      ]);
-      setMembers(ms || []);
-      setMeetings(mts || []);
-    })();
-  }, [page.id]);
-
-  const tabs = [
-    { id: "chat", label: "Chat", icon: MessageCircle },
-    { id: "tasks", label: "Tasks", icon: CheckCircle2 },
-    { id: "files", label: "Files", icon: File },
-    { id: "meetings", label: "Meetings", icon: Calendar },
-    ...(page.page_type === "investor" ? [{ id: "investor", label: "Investor Info", icon: TrendingUp }] : []),
-    { id: "members", label: "Members", icon: Users },
-  ];
-
-  return (
-    <div style={{ animation: "fadeUp .3s ease" }}>
-      {showMeeting && <BookMeetingModal startup={startup} page={page} me={me} profiles={profiles} allPageMembers={members} onClose={() => setShowMeeting(false)} onSave={m => setMeetings(ms => [m, ...ms])} dk={dk} />}
-
-      <button onClick={onBack} style={{ display: "flex", alignItems: "center", gap: 6, background: "transparent", border: "none", cursor: "pointer", color: th.txt2, fontSize: 13, fontWeight: 600, padding: "0 0 14px", fontFamily: "inherit" }}>
-        <ArrowLeft size={15} /> Back to {startup.name}
-      </button>
-
-      {/* Page Header */}
-      <div style={{ background: `linear-gradient(135deg,${pt.c}22,${pt.c}08)`, border: `1px solid ${pt.c}30`, borderRadius: 16, padding: 18, marginBottom: 16 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
-          <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-            <div style={{ width: 46, height: 46, borderRadius: 12, background: pt.c + "25", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22 }}>{pt.e}</div>
-            <div>
-              <div style={{ fontWeight: 800, fontSize: 17, color: th.txt }}>{page.name}</div>
-              <div style={{ fontSize: 12, color: th.txt2 }}>{page.description || pt.desc}</div>
-            </div>
-          </div>
-          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            <StackedAv uids={members.map(m => m.user_id)} profiles={profiles} size={24} />
-            <span style={{ fontSize: 12, color: th.txt3 }}>{members.length} member{members.length !== 1 ? "s" : ""}</span>
-            <Btn onClick={() => setShowMeeting(true)} small color={pt.c}><Calendar size={12} /> Book Meeting</Btn>
-          </div>
-        </div>
-      </div>
-
-      {/* Tabs */}
-      <div style={{ display: "flex", gap: 2, marginBottom: 16, background: th.surf2, borderRadius: 12, padding: 4, border: `1px solid ${th.bdr}`, overflowX: "auto" }}>
-        {tabs.map(({ id, label, icon: Icon }) => (
-          <button key={id} onClick={() => setTab(id)} style={{ display: "flex", alignItems: "center", gap: 5, flex: "0 0 auto", padding: "7px 12px", borderRadius: 9, border: "none", background: tab === id ? pt.c : "transparent", color: tab === id ? "#fff" : th.txt2, fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", transition: "all .2s" }}>
-            <Icon size={13} /> {label}
-          </button>
-        ))}
-      </div>
-
-      {/* Tab Content */}
-      {tab === "chat" && <PageChat startup={startup} page={page} me={me} profiles={profiles} members={members} dk={dk} />}
-      {tab === "tasks" && <TaskBoard startup={startup} page={page} me={me} profiles={profiles} members={members} dk={dk} />}
-      {tab === "files" && <FileManager startup={startup} page={page} me={me} profiles={profiles} dk={dk} />}
-      {tab === "investor" && <InvestorPanel startup={startup} me={me} dk={dk} isFounder={isFounder} />}
-
-      {tab === "meetings" && (
-        <div>
-          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
-            <Btn onClick={() => setShowMeeting(true)} small><Plus size={13} /> Schedule</Btn>
-          </div>
-          {meetings.length === 0 ? (
-            <div style={{ textAlign: "center", padding: 40, color: th.txt3 }}><Calendar size={36} style={{ marginBottom: 10, opacity: 0.4 }} /><p>No meetings scheduled yet.</p></div>
-          ) : meetings.map(m => (
-            <div key={m.id} style={{ background: th.surf, border: `1px solid ${th.bdr}`, borderRadius: 12, padding: "14px 16px", marginBottom: 8 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 8 }}>
-                <div>
-                  <div style={{ fontWeight: 700, fontSize: 14, color: th.txt }}>{m.title}</div>
-                  <div style={{ fontSize: 12, color: th.txt3, marginTop: 3 }}>📅 {fmtDateTime(m.scheduled_at)} · {m.duration_mins} min · {m.platform === "zoom" ? "🔵 Zoom" : "🟢 Google Meet"}</div>
-                  {m.note && <p style={{ fontSize: 12, color: th.txt2, margin: "6px 0 0", lineHeight: 1.4 }}>{m.note}</p>}
-                </div>
-                <a href={m.meeting_link} target="_blank" rel="noopener noreferrer" style={{ display: "flex", alignItems: "center", gap: 5, background: "#3b82f6", border: "none", borderRadius: 8, padding: "6px 12px", color: "#fff", fontSize: 12, fontWeight: 700 }}>
-                  <Phone size={12} /> Join
-                </a>
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10 }}>
-                <StackedAv uids={m.participants || []} profiles={profiles} size={22} />
-                <span style={{ fontSize: 11, color: th.txt3 }}>{(m.participants || []).length} participant{(m.participants || []).length !== 1 ? "s" : ""}</span>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {tab === "members" && (
-        <div>
-          {members.length === 0 ? <div style={{ textAlign: "center", padding: 40, color: th.txt3 }}><Users size={36} style={{ marginBottom: 10, opacity: 0.4 }} /><p>No members yet.</p></div>
-          : members.map(m => {
-            const p = profiles[m.user_id] || { name: "Member" };
-            return (
-              <div key={m.id} style={{ display: "flex", gap: 12, alignItems: "center", background: th.surf, border: `1px solid ${th.bdr}`, borderRadius: 12, padding: "12px 14px", marginBottom: 8 }}>
-                <Av profile={p} size={40} />
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 700, fontSize: 14, color: th.txt }}>{p.name}</div>
-                  <div style={{ fontSize: 12, color: th.txt3 }}>{p.handle ? `@${p.handle}` : ""}</div>
-                </div>
-                <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                  {m.is_admin && <Badge label="Page Admin" color="#f59e0b" />}
-                  <Badge label={m.role_type} color={pt.c} />
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ============================================================
-// ─── FEEDBACK SECTION ────────────────────────────────────────
-// ============================================================
-function FeedbackSection({ startup, me, profiles, dk, isFounder }) {
-  const th = T(dk);
-  const [feedbacks, setFeedbacks] = useState([]);
-  const [expanded, setExpanded] = useState(false);
-  const [text, setText] = useState("");
-  const [media, setMedia] = useState([]);
-  const [submitting, setSubmitting] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [recording, setRecording] = useState(false);
-  const [recDur, setRecDur] = useState(0);
-  const recRef = useRef(); const timerRef = useRef(); const fileRef = useRef();
-
-  useEffect(() => {
-    db.get("rs_startup_feedback", `startup_id=eq.${startup.id}&order=created_at.desc&limit=20`).then(d => { setFeedbacks(d || []); setLoading(false); });
-  }, [startup.id]);
-
-  const startRec = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mr = new MediaRecorder(stream);
-      const chunks = [];
-      mr.ondataavailable = e => chunks.push(e.data);
-      mr.onstop = () => {
-        const blob = new Blob(chunks, { type: "audio/webm" });
-        const reader = new FileReader();
-        reader.onload = () => setMedia(m => [...m, { type: "audio", url: reader.result }]);
-        reader.readAsDataURL(blob);
-        stream.getTracks().forEach(t => t.stop());
-      };
-      mr.start(); recRef.current = mr; setRecording(true); setRecDur(0);
-      timerRef.current = setInterval(() => setRecDur(d => d + 1), 1000);
-    } catch {}
-  };
-  const stopRec = () => { recRef.current?.stop(); setRecording(false); clearInterval(timerRef.current); };
-
-  const submit = async () => {
-    if (!text.trim() && !media.length) return;
-    setSubmitting(true);
-    const saved = await db.post("rs_startup_feedback", { startup_id: startup.id, user_id: me, message: text.trim(), media });
-    if (saved) { setFeedbacks(fb => [saved, ...fb]); setText(""); setMedia([]); }
-    setSubmitting(false);
-  };
-
-  const deleteFb = async id => {
-    setFeedbacks(fb => fb.filter(f => f.id !== id));
-    await db.del("rs_startup_feedback", `id=eq.${id}`);
-  };
-
-  return (
-    <div style={{ borderTop: `1px solid ${th.bdr}`, paddingTop: 20, marginTop: 20 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-        <div style={{ fontWeight: 700, fontSize: 15, color: th.txt, display: "flex", alignItems: "center", gap: 6 }}>
-          <MessageCircle size={16} color="#3b82f6" /> Feedback <span style={{ fontSize: 12, color: th.txt3, fontWeight: 400 }}>({feedbacks.length})</span>
-        </div>
-        <button onClick={() => setExpanded(x => !x)} style={{ display: "flex", alignItems: "center", gap: 5, background: "#3b82f618", border: "1px solid #3b82f630", borderRadius: 8, padding: "5px 12px", cursor: "pointer", color: "#3b82f6", fontSize: 12, fontWeight: 700 }}>
-          {expanded ? <><X size={12} /> Close</> : <><Plus size={12} /> Add Feedback</>}
-        </button>
-      </div>
-
-      {expanded && (
-        <div style={{ background: th.surf2, border: `1px solid ${th.bdr}`, borderRadius: 14, padding: 14, marginBottom: 14 }}>
-          <div style={{ display: "flex", gap: 10 }}>
-            <Av profile={profiles[me] || {}} size={32} />
-            <div style={{ flex: 1 }}>
-              <textarea value={text} onChange={e => setText(e.target.value)} placeholder="Share your thoughts on this startup…" rows={3} style={{ ...InpStyle(dk), resize: "none", marginBottom: 8 }} />
-              {media.length > 0 && (
-                <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
-                  {media.map((m, i) => (
-                    <div key={i} style={{ position: "relative", width: 48, height: 48, borderRadius: 8, overflow: "hidden", border: `1px solid ${th.bdr}` }}>
-                      {m.type === "image" ? <img src={m.url} style={{ width: "100%", height: "100%", objectFit: "cover" }} alt="" />
-                        : m.type === "audio" ? <div style={{ width: "100%", height: "100%", background: "#8b5cf618", display: "flex", alignItems: "center", justifyContent: "center" }}><Mic size={16} color="#8b5cf6" /></div>
-                        : null}
-                      <button onClick={() => setMedia(m => m.filter((_, j) => j !== i))} style={{ position: "absolute", top: 1, right: 1, background: "rgba(0,0,0,.6)", border: "none", borderRadius: "50%", width: 14, height: 14, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#fff" }}><X size={8} /></button>
-                    </div>
-                  ))}
-                </div>
-              )}
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div style={{ display: "flex", gap: 6 }}>
-                  <button onClick={() => fileRef.current?.click()} style={{ background: "none", border: "none", cursor: "pointer", color: th.txt3, display: "flex" }}><Image size={15} /></button>
-                  <button onClick={recording ? stopRec : startRec} style={{ background: "none", border: "none", cursor: "pointer", color: recording ? "#ef4444" : th.txt3, display: "flex" }}>{recording ? <><MicOff size={15} /><span style={{ fontSize: 11, color: "#ef4444", marginLeft: 4 }}>{recDur}s</span></> : <Mic size={15} />}</button>
-                  <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={async e => { for (const f of e.target.files) { try { const b64 = await fileToB64(f, 3); setMedia(m => [...m, { type: "image", url: b64 }]); } catch {} } }} />
-                </div>
-                <Btn onClick={submit} disabled={submitting || (!text.trim() && !media.length)} small>
-                  {submitting ? "Posting…" : "Post Feedback"}
-                </Btn>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {loading ? <Spin dk={dk} size={20} /> : feedbacks.length === 0 ? (
-        <p style={{ color: th.txt3, fontSize: 13, textAlign: "center", padding: "12px 0" }}>No feedback yet. Be the first!</p>
-      ) : feedbacks.map(fb => {
-        const author = profiles[fb.user_id] || { name: "Member" };
-        const canDel = isFounder || fb.user_id === me;
-        return (
-          <div key={fb.id} style={{ display: "flex", gap: 10, marginBottom: 12 }}>
-            <Av profile={author} size={32} />
-            <div style={{ flex: 1, background: th.surf2, borderRadius: 12, padding: "10px 12px", border: `1px solid ${th.bdr}` }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 5 }}>
-                <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                  <span style={{ fontWeight: 700, fontSize: 12, color: th.txt }}>{author.name}</span>
-                  <span style={{ fontSize: 11, color: th.txt3 }}>{ago(new Date(fb.created_at).getTime())}</span>
-                </div>
-                {canDel && <button onClick={() => deleteFb(fb.id)} style={{ background: "none", border: "none", cursor: "pointer", color: th.txt3, display: "flex" }}><Trash2 size={12} /></button>}
-              </div>
-              {fb.message && <p style={{ margin: 0, fontSize: 13, color: th.txt, lineHeight: 1.5 }}>{fb.message}</p>}
-              {fb.media?.map((m, i) => (
-                <div key={i} style={{ marginTop: 8 }}>
-                  {m.type === "image" && <img src={m.url} style={{ maxWidth: 200, borderRadius: 8 }} alt="" />}
-                  {m.type === "audio" && <audio src={m.url} controls style={{ maxWidth: 200 }} />}
-                </div>
-              ))}
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-// ============================================================
-// ─── FOUNDER DASHBOARD ────────────────────────────────────────
-// ============================================================
-function FounderDashboard({ startup, me, myProfile, profiles, dk, onBack, onStartupUpdated }) {
+// ─── FOUNDER DASHBOARD ────────────────────────────────────────────
+function FounderDashboard({ startup, me, profiles, bals, dk, onBack, onStartupUpdated, onProfile }) {
   const th = T(dk);
   const [tab, setTab] = useState("requests");
   const [requests, setRequests] = useState([]);
   const [pages, setPages] = useState([]);
-  const [allMembers, setAllMembers] = useState([]);
-  const [meetings, setMeetings] = useState([]);
+  const [members, setMembers] = useState([]);
   const [updates, setUpdates] = useState([]);
-  const [activity, setActivity] = useState([]);
   const [newUpdate, setNewUpdate] = useState("");
-  const [posting, setPosting] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [showEditStartup, setShowEditStartup] = useState(false);
+  const [showEdit, setShowEdit] = useState(false);
   const [showAddPage, setShowAddPage] = useState(false);
   const [newPageName, setNewPageName] = useState("");
   const [newPageType, setNewPageType] = useState("general");
-  const [showMeeting, setShowMeeting] = useState(false);
+  const [posting, setPosting] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-  const load = useCallback(async () => {
-    const [rq, pg, acc, mts, us, act] = await Promise.all([
-      db.get("rs_page_access_requests", `startup_id=eq.${startup.id}&order=created_at.desc`),
-      db.get("rs_startup_pages", `startup_id=eq.${startup.id}&order=position.asc`),
-      db.get("rs_page_access", `startup_id=eq.${startup.id}&status=eq.approved`),
-      db.get("rs_startup_meetings", `startup_id=eq.${startup.id}&order=scheduled_at.asc&limit=20`),
-      db.get("rs_startup_updates", `startup_id=eq.${startup.id}&order=created_at.desc&limit=20`),
-      db.get("rs_startup_activity", `startup_id=eq.${startup.id}&order=created_at.desc&limit=30`),
+  const load = useCallback(async()=>{
+    const [rq,pg,ms,us] = await Promise.all([
+      db.get("rs_page_access_requests",`startup_id=eq.${startup.id}&order=created_at.desc`),
+      db.get("rs_startup_pages",`startup_id=eq.${startup.id}&order=created_at.asc`),
+      db.get("rs_page_access",`startup_id=eq.${startup.id}&status=eq.approved`),
+      db.get("rs_startup_updates",`startup_id=eq.${startup.id}&room_id=is.null&order=created_at.desc&limit=20`),
     ]);
-    setRequests(rq || []); setPages(pg || []); setAllMembers(acc || []);
-    setMeetings(mts || []); setUpdates(us || []); setActivity(act || []);
+    setRequests(rq||[]);
+    setPages(pg||[]);
+    setMembers(ms||[]);
+    setUpdates(us||[]);
     setLoading(false);
-  }, [startup.id]);
+  },[startup.id]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(()=>{load();},[load]);
 
-  const handleRequest = async (req, pageId, status) => {
-    const updatedStatuses = { ...(req.page_statuses || {}), [pageId]: status };
-    if (status === "approved") {
-      await db.upsert("rs_page_access", { startup_id: req.startup_id, page_id: pageId, user_id: req.user_id, role_type: req.selected_roles?.[0] || "other", status: "approved" });
-      await pushNotif(req.user_id, startup.id, "request_approved", "Request Approved!", `You've been approved to join ${startup.name}`, { page_id: pageId });
-    }
-    const allDecided = (req.requested_pages || []).every(pid => updatedStatuses[pid]);
-    const overallStatus = allDecided ? (Object.values(updatedStatuses).every(s => s === "approved") ? "approved" : "partial") : "pending";
-    await db.patch("rs_page_access_requests", `id=eq.${req.id}`, { page_statuses: updatedStatuses, status: overallStatus });
-    setRequests(rs => rs.map(r => r.id === req.id ? { ...r, page_statuses: updatedStatuses, status: overallStatus } : r));
+  const approvePageRequest = async(req, pageTypeId)=>{
+    // find matching page
+    const page = pages.find(p=>p.type_id===pageTypeId);
+    if(!page) return;
+    await db.upsert("rs_page_access",{startup_id:req.startup_id,page_id:page.id,user_id:req.user_id,status:"approved"});
+    setMembers(ms=>[...ms.filter(m=>!(m.page_id===page.id&&m.user_id===req.user_id)),{page_id:page.id,user_id:req.user_id,status:"approved"}]);
   };
 
-  const addPage = async () => {
-    if (!newPageName.trim()) return;
-    const saved = await db.post("rs_startup_pages", { startup_id: startup.id, name: newPageName.trim(), page_type: newPageType, position: pages.length });
-    if (saved) {
-      setPages(ps => [...ps, saved]);
-      await db.post("rs_page_access", { startup_id: startup.id, page_id: saved.id, user_id: me, role_type: "founder", is_admin: true, status: "approved" });
-      setNewPageName(""); setNewPageType("general"); setShowAddPage(false);
-    }
+  const resolveRequest = async(req, status)=>{
+    await db.patch("rs_page_access_requests",`id=eq.${req.id}`,{status});
+    setRequests(rs=>rs.map(r=>r.id===req.id?{...r,status}:r));
   };
 
-  const deletePage = async id => {
-    if (!window.confirm("Delete this page? All content will be lost.")) return;
-    setPages(ps => ps.filter(p => p.id !== id));
-    await db.del("rs_startup_pages", `id=eq.${id}`);
+  const removeFromPage = async(pageId, userId)=>{
+    await db.del("rs_page_access",`page_id=eq.${pageId}&user_id=eq.${userId}`);
+    setMembers(ms=>ms.filter(m=>!(m.page_id===pageId&&m.user_id===userId)));
   };
 
-  const removeMember = async (pageId, userId) => {
-    setAllMembers(ms => ms.filter(m => !(m.page_id === pageId && m.user_id === userId)));
-    await db.del("rs_page_access", `page_id=eq.${pageId}&user_id=eq.${userId}`);
+  const addPage = async()=>{
+    if(!newPageName.trim()) return;
+    const pt = PAGE_TYPES.find(p=>p.id===newPageType)||PAGE_TYPES[3];
+    const saved = await db.post("rs_startup_pages",{startup_id:startup.id,name:newPageName.trim(),description:pt.desc,type_id:newPageType});
+    if(saved) setPages(p=>[...p,saved]);
+    setNewPageName(""); setShowAddPage(false);
   };
 
-  const postUpdate = async () => {
-    if (!newUpdate.trim()) return; setPosting(true);
-    const saved = await db.post("rs_startup_updates", { startup_id: startup.id, content: newUpdate.trim(), created_by: me });
-    if (saved) { setUpdates(us => [saved, ...us]); setNewUpdate(""); await logActivity(startup.id, null, me, "update_posted", "Update posted"); }
-    setPosting(false);
+  const delPage = async id=>{
+    await db.del("rs_startup_pages",`id=eq.${id}`);
+    setPages(p=>p.filter(x=>x.id!==id));
   };
 
-  const deleteUpdate = async id => {
-    setUpdates(us => us.filter(u => u.id !== id));
-    await db.del("rs_startup_updates", `id=eq.${id}`);
+  const postUpdate = async()=>{
+    if(!newUpdate.trim()) return;
+    setPosting(true);
+    const saved = await db.post("rs_startup_updates",{startup_id:startup.id,content:newUpdate.trim(),created_by:me});
+    if(saved) setUpdates(us=>[saved,...us]);
+    setNewUpdate(""); setPosting(false);
   };
 
-  const pending = requests.filter(r => r.status === "pending");
-  const uniqueMembers = [...new Map(allMembers.map(m => [m.user_id, m])).values()];
+  const pending = requests.filter(r=>r.status==="pending");
 
-  const TABS = [
-    { id: "requests", label: `Requests${pending.length ? ` (${pending.length})` : ""}` },
-    { id: "pages", label: "Pages" },
-    { id: "members", label: "Members" },
-    { id: "meetings", label: "Meetings" },
-    { id: "updates", label: "Updates" },
-    { id: "activity", label: "Activity" },
+  const allMeetings_section = (
+    <div>
+      <h3 style={{fontSize:14,fontWeight:700,color:th.txt,margin:"0 0 12px"}}>All Meetings Across Pages</h3>
+      {pages.map(pg=>(
+        <div key={pg.id} style={{marginBottom:20}}>
+          <div style={{fontSize:12,fontWeight:700,color:th.txt3,marginBottom:6}}>
+            {(PAGE_TYPES.find(x=>pg.name?.toLowerCase().includes(x.id))||PAGE_TYPES[3]).e} {pg.name}
+          </div>
+          <MeetingPanel pageId={pg.id} startupId={startup.id} me={me} profiles={profiles} members={[]} dk={dk} compact/>
+        </div>
+      ))}
+    </div>
+  );
+
+  const tabs=[
+    {id:"requests",label:`Requests${pending.length?` (${pending.length})`:""}`},
+    {id:"pages",label:"Pages"},
+    {id:"members",label:"Members"},
+    {id:"meetings",label:"Meetings"},
+    {id:"updates",label:"Updates"},
+    {id:"feedback",label:"Feedback"},
   ];
 
   return (
-    <div style={{ animation: "fadeUp .3s ease" }}>
-      {showEditStartup && <CreateStartupModal me={me} myProfile={myProfile} existing={startup} onClose={() => setShowEditStartup(false)} onSave={onStartupUpdated} dk={dk} />}
-      {showMeeting && <BookMeetingModal startup={startup} page={null} me={me} profiles={profiles} allPageMembers={uniqueMembers.map(m => ({ user_id: m.user_id }))} onClose={() => setShowMeeting(false)} onSave={m => setMeetings(ms => [m, ...ms])} dk={dk} />}
+    <div style={{animation:"fadeUp .3s ease"}}>
+      {showEdit && <CreateStartupModal me={me} existing={startup} onClose={()=>setShowEdit(false)} onSave={onStartupUpdated} dk={dk}/>}
 
-      <button onClick={onBack} style={{ display: "flex", alignItems: "center", gap: 6, background: "transparent", border: "none", cursor: "pointer", color: T(dk).txt2, fontSize: 13, fontWeight: 600, padding: "0 0 14px", fontFamily: "inherit" }}>
-        <ArrowLeft size={15} /> Back to Colab
+      <button onClick={onBack} style={{display:"flex",alignItems:"center",gap:6,background:"transparent",border:"none",cursor:"pointer",color:th.txt2,fontSize:13,fontWeight:600,padding:"0 0 14px"}}>
+        <ArrowLeft size={15}/> Back to Colab
       </button>
 
-      {/* Startup Header */}
-      <div style={{ background: "linear-gradient(135deg,#1e3a8a22,#5b21b622)", border: "1px solid #3b82f630", borderRadius: 18, padding: 20, marginBottom: 16 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
-          <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
-            <div style={{ width: 56, height: 56, borderRadius: 16, background: "linear-gradient(135deg,#3b82f6,#8b5cf6)", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              {startup.logo ? <img src={startup.logo} style={{ width: "100%", height: "100%", objectFit: "cover" }} alt="" /> : <span style={{ fontSize: 26 }}>🚀</span>}
+      {/* Dashboard header */}
+      <div style={{background:"linear-gradient(135deg,#1e3a8a22,#5b21b622)",border:"1px solid #3b82f630",borderRadius:16,padding:18,marginBottom:16}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:12}}>
+          <div style={{display:"flex",gap:12,alignItems:"center"}}>
+            <div style={{width:54,height:54,borderRadius:15,background:"linear-gradient(135deg,#3b82f6,#8b5cf6)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:28,overflow:"hidden",flexShrink:0}}>
+              {startup.logo?.startsWith("data:")?<img src={startup.logo} style={{width:"100%",height:"100%",objectFit:"cover"}}/>:startup.logo||"🚀"}
             </div>
             <div>
-              <div style={{ fontWeight: 900, fontSize: 20, color: T(dk).txt }}>{startup.name}</div>
-              <div style={{ fontSize: 12, color: T(dk).txt3 }}>Founder Dashboard · {pages.length} pages · {uniqueMembers.length} members</div>
+              <div style={{fontWeight:800,fontSize:18,color:th.txt}}>{startup.name}</div>
+              <div style={{fontSize:12,color:th.txt3}}>Founder Dashboard · {pages.length} Pages · {[...new Set(members.map(m=>m.user_id))].length} Members</div>
             </div>
           </div>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-            <div style={{ background: "#f59e0b18", border: "1px solid #f59e0b40", borderRadius: 10, padding: "6px 14px", textAlign: "center" }}>
-              <div style={{ fontSize: 10, color: "#f59e0b", fontWeight: 700 }}>REFERRAL CODE</div>
-              <div style={{ fontFamily: "monospace", fontSize: 14, fontWeight: 800, color: "#f59e0b", letterSpacing: 1 }}>{startup.referral_code}</div>
+          <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
+            <div style={{background:"#f59e0b18",border:"1px solid #f59e0b40",borderRadius:10,padding:"6px 14px"}}>
+              <div style={{fontSize:10,color:"#f59e0b",fontWeight:700}}>REFERRAL CODE</div>
+              <div style={{fontFamily:"monospace",fontSize:14,fontWeight:800,color:"#f59e0b",letterSpacing:1}}>{startup.referral_code}</div>
             </div>
-            <button onClick={() => { try { navigator.clipboard.writeText(startup.referral_code); } catch {} }} style={{ background: "#f59e0b18", border: "1px solid #f59e0b40", borderRadius: 8, padding: "6px 10px", cursor: "pointer", color: "#f59e0b", display: "flex", alignItems: "center" }}><Copy size={13} /></button>
-            <Btn onClick={() => setShowMeeting(true)} small outline color="#3b82f6"><Calendar size={12} /> Meeting</Btn>
-            <Btn onClick={() => setShowEditStartup(true)} small outline color="#7a93c0"><Edit3 size={12} /> Edit</Btn>
+            <CopyBtn text={startup.referral_code} label="Copy Code"/>
+            <button onClick={()=>setShowEdit(true)} style={{display:"flex",alignItems:"center",gap:5,background:"transparent",border:`1px solid ${th.bdr}`,borderRadius:10,padding:"6px 12px",cursor:"pointer",color:th.txt2,fontSize:12,fontWeight:600}}>
+              <Edit3 size={12}/>Edit
+            </button>
           </div>
         </div>
       </div>
 
-      {/* Tabs */}
-      <div style={{ display: "flex", gap: 4, marginBottom: 16, background: T(dk).surf2, borderRadius: 12, padding: 4, border: `1px solid ${T(dk).bdr}`, overflowX: "auto" }}>
-        {TABS.map(({ id, label }) => (
-          <button key={id} onClick={() => setTab(id)} style={{ flex: "0 0 auto", padding: "7px 14px", borderRadius: 9, border: "none", background: tab === id ? "#3b82f6" : "transparent", color: tab === id ? "#fff" : T(dk).txt2, fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>{label}</button>
+      {/* Tab nav */}
+      <div style={{display:"flex",gap:4,marginBottom:16,background:th.surf2,borderRadius:12,padding:4,border:`1px solid ${th.bdr}`,overflowX:"auto"}}>
+        {tabs.map(t=>(
+          <button key={t.id} onClick={()=>setTab(t.id)} style={{flexShrink:0,padding:"7px 12px",borderRadius:9,border:"none",background:tab===t.id?"#3b82f6":"transparent",color:tab===t.id?"#fff":th.txt2,fontSize:12,fontWeight:600,cursor:"pointer",transition:"all .2s",whiteSpace:"nowrap"}}>
+            {t.label}
+          </button>
         ))}
       </div>
 
-      {loading ? <Spin dk={dk} /> : (
+      {loading ? <Spin dk={dk} msg="Loading dashboard…"/> : (
         <>
-          {/* ── REQUESTS TAB ── */}
-          {tab === "requests" && (
+          {/* REQUESTS */}
+          {tab==="requests" && (
             <div>
-              {requests.length === 0 ? (
-                <div style={{ textAlign: "center", padding: 48, color: T(dk).txt3 }}><Users size={36} style={{ marginBottom: 10, opacity: 0.4 }} /><p>No join requests yet.</p></div>
-              ) : requests.map(req => {
-                const p = profiles[req.user_id] || { name: "Applicant" };
-                const requestedPageObjs = (req.requested_pages || []).map(pid => pages.find(pg => pg.id === pid)).filter(Boolean);
-                return (
-                  <div key={req.id} style={{ background: T(dk).surf, border: `1px solid ${T(dk).bdr}`, borderRadius: 14, padding: 16, marginBottom: 10 }}>
-                    <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
-                      <Av profile={p} size={44} />
-                      <div style={{ flex: 1 }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
-                          <div>
-                            <div style={{ fontWeight: 700, fontSize: 14, color: T(dk).txt }}>{p.name}</div>
-                            <div style={{ fontSize: 12, color: T(dk).txt3, marginBottom: 6 }}>{p.handle ? `@${p.handle}` : ""}</div>
-                            <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginBottom: 8 }}>
-                              {(req.selected_roles || []).map(r => { const ro = JOIN_ROLES.find(x => x.id === r); return ro ? <Badge key={r} label={`${ro.e} ${ro.label}`} color="#8b5cf6" /> : null; })}
+              {requests.length===0
+                ? <div style={{textAlign:"center",padding:40,color:th.txt3}}><Users size={36} style={{marginBottom:10}}/><p>No join requests yet.</p></div>
+                : requests.map(req=>{
+                  const p=profiles[req.user_id]||{name:"Applicant"};
+                  const roles = req.selected_roles||[];
+                  const pageTypeIds = req.page_type_ids||[];
+                  return (
+                    <Card dk={dk} key={req.id} anim={false}>
+                      <div style={{display:"flex",gap:12,alignItems:"flex-start"}}>
+                        <ProfileCard uid={req.user_id} profiles={profiles} bals={bals} dk={dk} onProfile={onProfile}>
+                          <Av profile={p} size={44}/>
+                        </ProfileCard>
+                        <div style={{flex:1}}>
+                          <div style={{display:"flex",justifyContent:"space-between",flexWrap:"wrap",gap:8,marginBottom:6}}>
+                            <div>
+                              <div style={{fontWeight:700,fontSize:14,color:th.txt}}>{p.name}</div>
+                              <div style={{fontSize:12,color:th.txt3}}>{p.handle?`@${p.handle}`:p.email}</div>
                             </div>
-                            {req.message && <p style={{ fontSize: 12, color: T(dk).txt2, margin: "0 0 10px", fontStyle: "italic" }}>"{req.message}"</p>}
-                            {/* Per-page approve/reject */}
-                            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                              {requestedPageObjs.map(pg => {
-                                const pt = PAGE_TYPES.find(x => x.id === pg.page_type) || PAGE_TYPES[6];
-                                const ps = req.page_statuses?.[pg.id];
+                            <span style={{fontSize:11,fontWeight:700,padding:"3px 10px",borderRadius:99,background:req.status==="approved"?"#10b98118":req.status==="rejected"?"#ef444418":"#f59e0b18",color:req.status==="approved"?"#10b981":req.status==="rejected"?"#ef4444":"#f59e0b"}}>{req.status?.toUpperCase()}</span>
+                          </div>
+                          {roles.length>0 && (
+                            <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:6}}>
+                              {roles.map(r=>{const jr=JOIN_ROLES.find(x=>x.id===r);return jr?<span key={r} style={{background:"#3b82f618",color:"#3b82f6",fontSize:11,fontWeight:600,padding:"2px 8px",borderRadius:99}}>{jr.e} {jr.label}</span>:null;})}
+                            </div>
+                          )}
+                          {req.message && <p style={{fontSize:12,color:th.txt2,margin:"0 0 8px",fontStyle:"italic"}}>"{req.message}"</p>}
+                          {req.status==="pending" && (
+                            <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                              {pageTypeIds.map(ptid=>{
+                                const pt=PAGE_TYPES.find(x=>x.id===ptid)||PAGE_TYPES[3];
                                 return (
-                                  <div key={pg.id} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                                    <span style={{ fontSize: 13 }}>{pt.e}</span>
-                                    <span style={{ fontSize: 12, color: T(dk).txt, flex: 1 }}>{pg.name}</span>
-                                    {ps ? (
-                                      <Badge label={ps === "approved" ? "✓ Approved" : "✗ Rejected"} color={ps === "approved" ? "#10b981" : "#ef4444"} />
-                                    ) : req.status === "pending" ? (
-                                      <div style={{ display: "flex", gap: 5 }}>
-                                        <button onClick={() => handleRequest(req, pg.id, "approved")} style={{ background: "#10b981", border: "none", borderRadius: 6, padding: "4px 10px", cursor: "pointer", color: "#fff", fontSize: 11, fontWeight: 700, fontFamily: "inherit" }}>✓ Approve</button>
-                                        <button onClick={() => handleRequest(req, pg.id, "rejected")} style={{ background: "#ef4444", border: "none", borderRadius: 6, padding: "4px 10px", cursor: "pointer", color: "#fff", fontSize: 11, fontWeight: 700, fontFamily: "inherit" }}>✗ Reject</button>
-                                      </div>
-                                    ) : null}
-                                  </div>
+                                  <button key={ptid} onClick={()=>approvePageRequest(req,ptid)} style={{display:"flex",alignItems:"center",gap:4,background:pt.c+"18",border:`1px solid ${pt.c}40`,borderRadius:8,padding:"5px 10px",cursor:"pointer",color:pt.c,fontSize:11,fontWeight:700}}>
+                                    {pt.e} Approve {pt.label}
+                                  </button>
                                 );
                               })}
+                              <button onClick={()=>resolveRequest(req,"rejected")} style={{display:"flex",alignItems:"center",gap:4,background:"#ef444418",border:"1px solid #ef444440",borderRadius:8,padding:"5px 10px",cursor:"pointer",color:"#ef4444",fontSize:11,fontWeight:700}}><X size={10}/>Reject All</button>
+                              <button onClick={()=>{pageTypeIds.forEach(ptid=>approvePageRequest(req,ptid));resolveRequest(req,"approved");}} style={{display:"flex",alignItems:"center",gap:4,background:"#10b98118",border:"1px solid #10b98140",borderRadius:8,padding:"5px 10px",cursor:"pointer",color:"#10b981",fontSize:11,fontWeight:700}}><Check size={10}/>Approve All</button>
                             </div>
-                          </div>
-                          <Badge label={req.status?.toUpperCase()} color={req.status === "approved" ? "#10b981" : req.status === "rejected" ? "#ef4444" : req.status === "partial" ? "#3b82f6" : "#f59e0b"} />
+                          )}
                         </div>
                       </div>
-                    </div>
-                  </div>
-                );
-              })}
+                    </Card>
+                  );
+                })
+              }
             </div>
           )}
 
-          {/* ── PAGES TAB ── */}
-          {tab === "pages" && (
+          {/* PAGES */}
+          {tab==="pages" && (
             <div>
-              <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
-                <Btn onClick={() => setShowAddPage(x => !x)} small><Plus size={13} /> Add Page</Btn>
+              <div style={{display:"flex",justifyContent:"flex-end",marginBottom:12}}>
+                <button onClick={()=>setShowAddPage(x=>!x)} style={{display:"flex",alignItems:"center",gap:5,background:"#3b82f6",border:"none",borderRadius:10,padding:"8px 14px",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer"}}><Plus size={13}/>Add Page</button>
               </div>
               {showAddPage && (
-                <div style={{ background: T(dk).surf2, border: `1px solid ${T(dk).bdr}`, borderRadius: 14, padding: 16, marginBottom: 14 }}>
-                  <div style={{ display: "grid", gap: 10 }}>
-                    <input value={newPageName} onChange={e => setNewPageName(e.target.value)} placeholder="Page name e.g. Sales, Design" style={InpStyle(dk)} />
-                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                      {PAGE_TYPES.map(pt => (
-                        <button key={pt.id} onClick={() => setNewPageType(pt.id)} style={{ display: "flex", alignItems: "center", gap: 5, padding: "6px 12px", borderRadius: 20, border: `1px solid ${newPageType === pt.id ? pt.c : T(dk).bdr}`, background: newPageType === pt.id ? pt.c + "18" : "transparent", color: newPageType === pt.id ? pt.c : T(dk).txt3, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>{pt.e} {pt.label}</button>
-                      ))}
-                    </div>
-                    <div style={{ display: "flex", gap: 8 }}><Btn onClick={addPage} disabled={!newPageName.trim()} small>Create</Btn><Btn onClick={() => setShowAddPage(false)} outline color="#7a93c0" small>Cancel</Btn></div>
+                <div style={{background:th.surf2,border:`1px solid ${th.bdr}`,borderRadius:12,padding:14,marginBottom:14}}>
+                  <div style={{display:"flex",gap:8,marginBottom:8}}>
+                    <input value={newPageName} onChange={e=>setNewPageName(e.target.value)} placeholder="Page name" style={{flex:1,background:th.inp,border:`1px solid ${th.inpB}`,borderRadius:8,padding:"7px 10px",fontSize:13,outline:"none",color:th.txt}}/>
+                    <select value={newPageType} onChange={e=>setNewPageType(e.target.value)} style={{background:th.inp,border:`1px solid ${th.inpB}`,borderRadius:8,padding:"7px 10px",fontSize:13,color:th.txt,outline:"none"}}>
+                      {PAGE_TYPES.map(p=><option key={p.id} value={p.id}>{p.e} {p.label}</option>)}
+                    </select>
+                  </div>
+                  <div style={{display:"flex",gap:8}}>
+                    <button onClick={()=>setShowAddPage(false)} style={{flex:1,padding:"7px",background:"transparent",border:`1px solid ${th.bdr}`,borderRadius:8,cursor:"pointer",color:th.txt2,fontSize:12}}>Cancel</button>
+                    <button onClick={addPage} style={{flex:2,padding:"7px",background:"#3b82f6",border:"none",borderRadius:8,cursor:"pointer",color:"#fff",fontWeight:700,fontSize:12}}>Create Page</button>
                   </div>
                 </div>
               )}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                {pages.map(pg => {
-                  const pt = PAGE_TYPES.find(x => x.id === pg.page_type) || PAGE_TYPES[6];
-                  const memberCount = allMembers.filter(m => m.page_id === pg.id).length;
+              {pages.map(pg=>{
+                const pt=PAGE_TYPES.find(x=>pg.name?.toLowerCase().includes(x.id)||pg.type_id===x.id)||PAGE_TYPES[3];
+                const pgMembers=[...new Set(members.filter(m=>m.page_id===pg.id).map(m=>m.user_id))];
+                return (
+                  <Card dk={dk} key={pg.id} anim={false}>
+                    <div style={{display:"flex",alignItems:"center",gap:12}}>
+                      <div style={{width:38,height:38,borderRadius:10,background:pt.c+"20",display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>{pt.e}</div>
+                      <div style={{flex:1}}>
+                        <div style={{fontWeight:700,fontSize:14,color:th.txt}}>{pg.name}</div>
+                        <div style={{fontSize:12,color:th.txt3}}>{pgMembers.length} member{pgMembers.length!==1?"s":""} · {pg.description}</div>
+                      </div>
+                      <button onClick={()=>delPage(pg.id)} style={{background:"#ef444415",border:"1px solid #ef444430",borderRadius:8,padding:"5px 8px",cursor:"pointer",color:"#ef4444",display:"flex"}}><Trash2 size={13}/></button>
+                    </div>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+
+          {/* MEMBERS */}
+          {tab==="members" && (
+            <div>
+              {[...new Set(members.map(m=>m.user_id))].length===0
+                ? <p style={{textAlign:"center",color:th.txt3,padding:32}}>No members yet.</p>
+                : [...new Set(members.map(m=>m.user_id))].map(uid=>{
+                  const p=profiles[uid]||{name:"Member"};
+                  const userPages=members.filter(m=>m.user_id===uid).map(m=>pages.find(pg=>pg.id===m.page_id)).filter(Boolean);
                   return (
-                    <div key={pg.id} style={{ background: T(dk).surf, border: `1px solid ${T(dk).bdr}`, borderRadius: 14, padding: 14 }}>
-                      <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 10 }}>
-                        <div style={{ width: 36, height: 36, borderRadius: 10, background: pt.c + "20", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>{pt.e}</div>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontWeight: 700, fontSize: 13, color: T(dk).txt }}>{pg.name}</div>
-                          <div style={{ fontSize: 11, color: T(dk).txt3 }}>{memberCount} member{memberCount !== 1 ? "s" : ""}</div>
-                        </div>
-                      </div>
-                      <button onClick={() => deletePage(pg.id)} style={{ display: "flex", alignItems: "center", gap: 5, background: "#ef444418", border: "1px solid #ef444430", borderRadius: 8, padding: "4px 10px", cursor: "pointer", color: "#ef4444", fontSize: 11, fontWeight: 700, fontFamily: "inherit" }}><Trash2 size={11} /> Delete</button>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* ── MEMBERS TAB ── */}
-          {tab === "members" && (
-            <div>
-              <div style={{ fontSize: 13, color: T(dk).txt3, marginBottom: 12 }}>{uniqueMembers.length} total member{uniqueMembers.length !== 1 ? "s" : ""} across all pages</div>
-              {uniqueMembers.map(m => {
-                const p = profiles[m.user_id] || { name: "Member" };
-                const memberPages = allMembers.filter(acc => acc.user_id === m.user_id);
-                return (
-                  <div key={m.user_id} style={{ background: T(dk).surf, border: `1px solid ${T(dk).bdr}`, borderRadius: 12, padding: "12px 14px", marginBottom: 8 }}>
-                    <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 8 }}>
-                      <Av profile={p} size={42} />
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontWeight: 700, fontSize: 14, color: T(dk).txt }}>{p.name}</div>
-                        <div style={{ fontSize: 12, color: T(dk).txt3 }}>{p.handle ? `@${p.handle}` : ""}</div>
-                      </div>
-                    </div>
-                    <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
-                      {memberPages.map(mp => {
-                        const pg = pages.find(x => x.id === mp.page_id);
-                        if (!pg) return null;
-                        const pt = PAGE_TYPES.find(x => x.id === pg.page_type) || PAGE_TYPES[6];
-                        return (
-                          <div key={mp.id} style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                            <span style={{ background: pt.c + "15", color: pt.c, fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 99 }}>{pt.e} {pg.name}</span>
-                            <button onClick={() => removeMember(mp.page_id, m.user_id)} style={{ background: "none", border: "none", cursor: "pointer", color: T(dk).txt3, display: "flex" }}><X size={10} /></button>
+                    <Card dk={dk} key={uid} anim={false}>
+                      <div style={{display:"flex",gap:12,alignItems:"flex-start"}}>
+                        <ProfileCard uid={uid} profiles={profiles} bals={bals} dk={dk} onProfile={onProfile}><Av profile={p} size={42}/></ProfileCard>
+                        <div style={{flex:1}}>
+                          <div style={{fontWeight:700,fontSize:14,color:th.txt}}>{p.name}</div>
+                          <div style={{fontSize:12,color:th.txt3,marginBottom:6}}>{p.handle?`@${p.handle}`:p.email}</div>
+                          <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+                            {userPages.map(pg=>{
+                              const pt=PAGE_TYPES.find(x=>pg.name?.toLowerCase().includes(x.id)||pg.type_id===x.id)||PAGE_TYPES[3];
+                              return (
+                                <div key={pg.id} style={{display:"flex",alignItems:"center",gap:4,background:pt.c+"15",border:`1px solid ${pt.c}30`,borderRadius:20,padding:"2px 8px 2px 6px"}}>
+                                  <span style={{fontSize:11}}>{pt.e}</span>
+                                  <span style={{fontSize:11,color:pt.c,fontWeight:600}}>{pg.name}</span>
+                                  <button onClick={()=>removeFromPage(pg.id,uid)} style={{background:"none",border:"none",cursor:"pointer",color:pt.c,padding:0,marginLeft:2,display:"flex",alignItems:"center"}}><X size={9}/></button>
+                                </div>
+                              );
+                            })}
                           </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
-          {/* ── MEETINGS TAB (GLOBAL) ── */}
-          {tab === "meetings" && (
-            <div>
-              <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
-                <Btn onClick={() => setShowMeeting(true)} small><Plus size={13} /> Schedule</Btn>
-              </div>
-              {meetings.length === 0 ? <div style={{ textAlign: "center", padding: 40, color: T(dk).txt3 }}><Calendar size={36} style={{ marginBottom: 10, opacity: 0.4 }} /><p>No meetings yet.</p></div>
-              : meetings.map(m => {
-                const pg = pages.find(x => x.id === m.page_id);
-                const pt = pg ? (PAGE_TYPES.find(x => x.id === pg.page_type) || PAGE_TYPES[6]) : null;
-                return (
-                  <div key={m.id} style={{ background: T(dk).surf, border: `1px solid ${T(dk).bdr}`, borderRadius: 12, padding: "14px 16px", marginBottom: 8 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 4 }}>
-                          <div style={{ fontWeight: 700, fontSize: 14, color: T(dk).txt }}>{m.title}</div>
-                          {pt && <Badge label={`${pt.e} ${pg.name}`} color={pt.c} />}
-                          <Badge label={m.status} color={m.status === "completed" ? "#10b981" : m.status === "cancelled" ? "#ef4444" : "#3b82f6"} />
-                        </div>
-                        <div style={{ fontSize: 12, color: T(dk).txt3 }}>📅 {fmtDateTime(m.scheduled_at)} · {m.duration_mins} min · {m.platform === "zoom" ? "🔵 Zoom" : "🟢 Meet"}</div>
-                        {m.note && <p style={{ fontSize: 12, color: T(dk).txt2, margin: "6px 0 0" }}>{m.note}</p>}
-                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8 }}>
-                          <StackedAv uids={m.participants || []} profiles={profiles} size={20} />
-                          <span style={{ fontSize: 11, color: T(dk).txt3 }}>{(m.participants || []).length} participants</span>
                         </div>
                       </div>
-                      <a href={m.meeting_link} target="_blank" rel="noopener noreferrer" style={{ display: "flex", alignItems: "center", gap: 5, background: "#3b82f6", border: "none", borderRadius: 8, padding: "7px 14px", color: "#fff", fontSize: 12, fontWeight: 700, height: "fit-content" }}><Phone size={12} /> Join</a>
-                    </div>
-                  </div>
-                );
-              })}
+                    </Card>
+                  );
+                })
+              }
             </div>
           )}
 
-          {/* ── UPDATES TAB ── */}
-          {tab === "updates" && (
+          {/* MEETINGS */}
+          {tab==="meetings" && allMeetings_section}
+
+          {/* UPDATES */}
+          {tab==="updates" && (
             <div>
-              <div style={{ background: T(dk).surf2, border: `1px solid ${T(dk).bdr}`, borderRadius: 14, padding: 14, marginBottom: 14 }}>
-                <div style={{ display: "flex", gap: 10 }}>
-                  <Av profile={profiles[me] || {}} size={34} />
-                  <div style={{ flex: 1 }}>
-                    <textarea value={newUpdate} onChange={e => setNewUpdate(e.target.value)} placeholder="Post a startup-wide update…" rows={3} style={{ ...InpStyle(dk), resize: "none" }} />
-                    <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 8 }}>
-                      <Btn onClick={postUpdate} disabled={!newUpdate.trim() || posting} small>{posting ? "Posting…" : "Post Update"}</Btn>
+              <Card dk={dk} anim={false} style={{marginBottom:14}}>
+                <div style={{display:"flex",gap:10}}>
+                  <Av profile={profiles[me]||{}} size={34}/>
+                  <div style={{flex:1}}>
+                    <textarea value={newUpdate} onChange={e=>setNewUpdate(e.target.value)} placeholder="Post a startup update visible to all…" rows={3} style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:14,lineHeight:1.6,resize:"none",fontFamily:"inherit",color:th.txt,boxSizing:"border-box"}}/>
+                    <div style={{display:"flex",justifyContent:"flex-end",borderTop:`1px solid ${th.bdr}`,paddingTop:8}}>
+                      <button onClick={postUpdate} disabled={!newUpdate.trim()||posting} style={{background:newUpdate.trim()?"#3b82f6":"transparent",border:`1px solid ${newUpdate.trim()?"transparent":th.bdr}`,borderRadius:10,padding:"7px 20px",color:newUpdate.trim()?"#fff":th.txt3,fontSize:13,fontWeight:700,cursor:newUpdate.trim()?"pointer":"default"}}>
+                        {posting?"Posting…":"Post Update"}
+                      </button>
                     </div>
                   </div>
                 </div>
-              </div>
-              {updates.map(u => {
-                const author = profiles[u.created_by] || { name: "Founder" };
+              </Card>
+              {updates.map(u=>{
+                const author=profiles[u.created_by]||{name:"Founder"};
                 return (
-                  <div key={u.id} style={{ background: T(dk).surf, border: `1px solid ${T(dk).bdr}`, borderRadius: 12, padding: "12px 14px", marginBottom: 8 }}>
-                    <div style={{ display: "flex", gap: 10 }}>
-                      <Av profile={author} size={34} />
-                      <div style={{ flex: 1 }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 5 }}>
-                          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                            <span style={{ fontWeight: 700, fontSize: 13, color: T(dk).txt }}>{author.name}</span>
-                            <span style={{ fontSize: 11, color: T(dk).txt3 }}>{ago(new Date(u.created_at).getTime())}</span>
-                          </div>
-                          <button onClick={() => deleteUpdate(u.id)} style={{ background: "none", border: "none", cursor: "pointer", color: T(dk).txt3, display: "flex" }}><Trash2 size={13} /></button>
+                  <Card dk={dk} key={u.id}>
+                    <div style={{display:"flex",gap:10}}>
+                      <Av profile={author} size={34}/>
+                      <div style={{flex:1}}>
+                        <div style={{display:"flex",gap:6,alignItems:"center",marginBottom:5}}>
+                          <span style={{fontWeight:700,fontSize:13,color:th.txt}}>{author.name}</span>
+                          <span style={{fontSize:11,color:th.txt3}}>{ago(new Date(u.created_at).getTime())}</span>
                         </div>
-                        <p style={{ margin: 0, fontSize: 14, color: T(dk).txt, lineHeight: 1.65, whiteSpace: "pre-wrap" }}>{u.content}</p>
+                        <p style={{margin:0,fontSize:14,color:th.txt,lineHeight:1.65,whiteSpace:"pre-wrap"}}>{u.content}</p>
                       </div>
                     </div>
-                  </div>
+                  </Card>
                 );
               })}
             </div>
           )}
 
-          {/* ── ACTIVITY TAB ── */}
-          {tab === "activity" && (
-            <div>
-              {activity.length === 0 ? <div style={{ textAlign: "center", padding: 40, color: T(dk).txt3 }}><Zap size={36} style={{ marginBottom: 10, opacity: 0.4 }} /><p>No activity yet.</p></div>
-              : activity.map(a => {
-                const actor = profiles[a.actor_id] || { name: "Member" };
-                const typeIcons = { message: "💬", task_created: "✅", task_completed: "🏆", file_uploaded: "📎", member_joined: "👤", meeting_scheduled: "📅", update_posted: "📢", startup_created: "🚀" };
-                return (
-                  <div key={a.id} style={{ display: "flex", gap: 10, alignItems: "flex-start", padding: "10px 0", borderBottom: `1px solid ${T(dk).bdr}` }}>
-                    <div style={{ width: 32, height: 32, borderRadius: "50%", background: T(dk).surf2, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0 }}>{typeIcons[a.type] || "⚡"}</div>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 13, color: T(dk).txt }}>{a.description}</div>
-                      <div style={{ fontSize: 11, color: T(dk).txt3, marginTop: 2 }}>{actor.name} · {ago(new Date(a.created_at).getTime())}</div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+          {/* FEEDBACK MODERATION */}
+          {tab==="feedback" && (
+            <FeedbackSection startupId={startup.id} me={me} profiles={profiles} isFounder={true} dk={dk}/>
           )}
         </>
       )}
@@ -3564,355 +3173,319 @@ function FounderDashboard({ startup, me, myProfile, profiles, dk, onBack, onStar
   );
 }
 
-// ============================================================
-// ─── STARTUP DETAIL ───────────────────────────────────────────
-// ============================================================
-function StartupDetail({ startup: initialStartup, me, myProfile, profiles, dk, onBack }) {
+// ─── STARTUP DETAIL ───────────────────────────────────────────────
+function StartupDetail({ startup:initialStartup, me, profiles, bals, dk, onBack, onProfile }) {
   const th = T(dk);
   const [startup, setStartup] = useState(initialStartup);
   const [pages, setPages] = useState([]);
-  const [myAccess, setMyAccess] = useState([]);
-  const [myRequest, setMyRequest] = useState(null);
   const [updates, setUpdates] = useState([]);
+  const [myPageIds, setMyPageIds] = useState([]);
+  const [myRequest, setMyRequest] = useState(null);
   const [showJoin, setShowJoin] = useState(false);
   const [activePage, setActivePage] = useState(null);
-  const [loading, setLoading] = useState(true);
   const [bookmarked, setBookmarked] = useState(false);
-  const [showMeeting, setShowMeeting] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-  const isFounder = startup.created_by === me || (startup.founders || []).includes(me);
+  const isFounder = startup.created_by===me||(startup.founders||[]).includes(me);
 
-  useEffect(() => {
-    (async () => {
-      const [pg, acc, rq, us, bk] = await Promise.all([
-        db.get("rs_startup_pages", `startup_id=eq.${startup.id}&order=position.asc`),
-        db.get("rs_page_access", `startup_id=eq.${startup.id}&user_id=eq.${me}&status=eq.approved`),
-        db.get("rs_page_access_requests", `startup_id=eq.${startup.id}&user_id=eq.${me}&order=created_at.desc&limit=1`),
-        db.get("rs_startup_updates", `startup_id=eq.${startup.id}&page_id=is.null&order=created_at.desc&limit=5`),
-        db.get("rs_startup_bookmarks", `startup_id=eq.${startup.id}&user_id=eq.${me}`),
+  useEffect(()=>{
+    (async()=>{
+      const [pg,us,rq,acc,bk] = await Promise.all([
+        db.get("rs_startup_pages",`startup_id=eq.${startup.id}&order=created_at.asc`),
+        db.get("rs_startup_updates",`startup_id=eq.${startup.id}&room_id=is.null&order=created_at.desc&limit=10`),
+        db.get("rs_page_access_requests",`startup_id=eq.${startup.id}&user_id=eq.${me}&order=created_at.desc&limit=1`),
+        db.get("rs_page_access",`startup_id=eq.${startup.id}&user_id=eq.${me}&status=eq.approved`),
+        db.get("rs_startup_bookmarks",`startup_id=eq.${startup.id}&user_id=eq.${me}`),
       ]);
-      setPages(pg || []); setMyAccess((acc || []).map(a => a.page_id));
-      setMyRequest(rq?.[0] || null); setUpdates(us || []);
-      setBookmarked((bk || []).length > 0); setLoading(false);
+      setPages(pg||[]);
+      setUpdates(us||[]);
+      setMyRequest(rq?.[0]||null);
+      setMyPageIds((acc||[]).map(a=>a.page_id));
+      setBookmarked((bk||[]).length>0);
+      setLoading(false);
     })();
-  }, [startup.id, me]);
+  },[startup.id,me]);
 
-  if (isFounder) return <FounderDashboard startup={startup} me={me} myProfile={myProfile} profiles={profiles} dk={dk} onBack={onBack} onStartupUpdated={s => setStartup(s)} />;
-  if (activePage) return <PageDetail startup={startup} page={activePage} me={me} profiles={profiles} dk={dk} onBack={() => setActivePage(null)} isFounder={false} />;
-
-  const handleJoin = async data => {
-    const saved = await db.post("rs_page_access_requests", data);
-    if (saved) {
-      setMyRequest(saved);
-      const founders = startup.founders || [startup.created_by];
-      for (const fid of founders) await pushNotif(fid, startup.id, "request_received", "New Join Request", `${myProfile?.name || "Someone"} wants to join ${startup.name}`);
+  const toggleBookmark = async()=>{
+    if(bookmarked){
+      await db.del("rs_startup_bookmarks",`startup_id=eq.${startup.id}&user_id=eq.${me}`);
+      setBookmarked(false);
+    } else {
+      await db.upsert("rs_startup_bookmarks",{startup_id:startup.id,user_id:me});
+      setBookmarked(true);
     }
   };
 
-  const toggleBookmark = async () => {
-    if (bookmarked) { await db.del("rs_startup_bookmarks", `startup_id=eq.${startup.id}&user_id=eq.${me}`); setBookmarked(false); }
-    else { await db.upsert("rs_startup_bookmarks", { user_id: me, startup_id: startup.id }); setBookmarked(true); }
+  const handleJoinSubmit = async data=>{
+    const saved = await db.post("rs_page_access_requests",data);
+    if(saved) setMyRequest(saved);
   };
 
-  const founders = (startup.founders || [startup.created_by]).map(id => profiles[id]).filter(Boolean);
-  const accessiblePages = pages.filter(p => myAccess.includes(p.id));
-  const lockedPages = pages.filter(p => !myAccess.includes(p.id));
-  const hasRequestedAll = myRequest && pages.every(p => (myRequest.requested_pages || []).includes(p.id) || myAccess.includes(p.id));
+  if(isFounder) return <FounderDashboard startup={startup} me={me} profiles={profiles} bals={bals} dk={dk} onBack={onBack} onStartupUpdated={s=>setStartup(s)} onProfile={onProfile}/>;
+  if(activePage) return <PageWorkspace page={activePage} startup={startup} me={me} profiles={profiles} bals={bals} dk={dk} onBack={()=>setActivePage(null)} onProfile={onProfile}/>;
+
+  const founders=(startup.founders||[startup.created_by]).filter(Boolean);
 
   return (
-    <div style={{ animation: "fadeUp .3s ease" }}>
-      {showJoin && <JoinModal startup={startup} pages={pages} me={me} myProfile={myProfile} existingAccess={myAccess} onClose={() => setShowJoin(false)} onSubmit={handleJoin} dk={dk} />}
-      {showMeeting && <BookMeetingModal startup={startup} page={null} me={me} profiles={profiles} allPageMembers={[]} onClose={() => setShowMeeting(false)} onSave={() => {}} dk={dk} />}
+    <div style={{animation:"fadeUp .3s ease"}}>
+      {showJoin && <JoinModal startup={startup} me={me} existingPageIds={myPageIds} onClose={()=>setShowJoin(false)} onSubmit={handleJoinSubmit} dk={dk}/>}
 
-      <button onClick={onBack} style={{ display: "flex", alignItems: "center", gap: 6, background: "transparent", border: "none", cursor: "pointer", color: th.txt2, fontSize: 13, fontWeight: 600, padding: "0 0 14px", fontFamily: "inherit" }}>
-        <ArrowLeft size={15} /> Back to Colab
-      </button>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+        <button onClick={onBack} style={{display:"flex",alignItems:"center",gap:6,background:"transparent",border:"none",cursor:"pointer",color:th.txt2,fontSize:13,fontWeight:600,padding:0}}>
+          <ArrowLeft size={15}/> Back to Colab
+        </button>
+        <button onClick={toggleBookmark} title={bookmarked?"Remove bookmark":"Bookmark"} style={{display:"flex",alignItems:"center",gap:5,background:bookmarked?"#3b82f618":"transparent",border:`1px solid ${bookmarked?"#3b82f640":th.bdr}`,borderRadius:8,padding:"6px 12px",cursor:"pointer",color:bookmarked?"#3b82f6":th.txt3,fontSize:12,fontWeight:600}}>
+          <Bookmark size={13} fill={bookmarked?"#3b82f6":"none"}/>{bookmarked?"Saved":"Save"}
+        </button>
+      </div>
 
-      {/* Hero */}
-      <div style={{ background: "linear-gradient(135deg,#1e3a8a18,#5b21b618)", border: "1px solid #3b82f628", borderRadius: 20, padding: 22, marginBottom: 16 }}>
-        <div style={{ display: "flex", gap: 16, alignItems: "flex-start", flexWrap: "wrap" }}>
-          <div style={{ width: 64, height: 64, borderRadius: 18, background: "linear-gradient(135deg,#3b82f6,#8b5cf6)", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-            {startup.logo ? <img src={startup.logo} style={{ width: "100%", height: "100%", objectFit: "cover" }} alt="logo" /> : <span style={{ fontSize: 30 }}>🚀</span>}
+      {/* Header */}
+      <div style={{background:"linear-gradient(135deg,#1e3a8a18,#5b21b618)",border:"1px solid #3b82f628",borderRadius:20,padding:20,marginBottom:16}}>
+        <div style={{display:"flex",gap:14,alignItems:"flex-start",flexWrap:"wrap"}}>
+          <div style={{width:68,height:68,borderRadius:18,background:"linear-gradient(135deg,#3b82f6,#8b5cf6)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:34,flexShrink:0,overflow:"hidden"}}>
+            {startup.logo?.startsWith("data:")?<img src={startup.logo} style={{width:"100%",height:"100%",objectFit:"cover"}}/>:startup.logo||"🚀"}
           </div>
-          <div style={{ flex: 1, minWidth: 200 }}>
-            <h2 style={{ margin: "0 0 6px", fontSize: 22, fontWeight: 900, color: th.txt }}>{startup.name}</h2>
-            <p style={{ margin: "0 0 12px", fontSize: 14, color: th.txt2, lineHeight: 1.6 }}>{startup.description}</p>
-            {founders.length > 0 && (
-              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-                <StackedAv uids={founders.map(f => f.id)} profiles={profiles} size={26} />
-                <span style={{ fontSize: 13, color: th.txt3 }}>by {founders.slice(0, 2).map(f => f.name?.split(" ")[0]).join(", ")}{founders.length > 2 ? ` +${founders.length - 2}` : ""}</span>
+          <div style={{flex:1,minWidth:0}}>
+            <h2 style={{margin:"0 0 4px",fontSize:22,fontWeight:800,color:th.txt}}>{startup.name}</h2>
+            <p style={{margin:"0 0 10px",fontSize:14,color:th.txt2,lineHeight:1.6}}>{startup.description}</p>
+            <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:10}}>
+              {startup.website && <a href={startup.website} target="_blank" rel="noopener noreferrer" style={{display:"flex",alignItems:"center",gap:4,background:th.surf2,border:`1px solid ${th.bdr}`,borderRadius:8,padding:"4px 10px",fontSize:12,color:th.txt2,fontWeight:600}}><Globe size={11}/>Website</a>}
+              {startup.github_link && <a href={startup.github_link} target="_blank" rel="noopener noreferrer" style={{display:"flex",alignItems:"center",gap:4,background:th.surf2,border:`1px solid ${th.bdr}`,borderRadius:8,padding:"4px 10px",fontSize:12,color:th.txt2,fontWeight:600}}>⚡ GitHub</a>}
+              {startup.social_links?.twitter && <a href={startup.social_links.twitter} target="_blank" rel="noopener noreferrer" style={{display:"flex",alignItems:"center",gap:4,background:"#1da1f215",border:"1px solid #1da1f230",borderRadius:8,padding:"4px 10px",fontSize:12,color:"#1da1f2",fontWeight:600}}><Twitter size={11}/></a>}
+              {startup.social_links?.linkedin && <a href={startup.social_links.linkedin} target="_blank" rel="noopener noreferrer" style={{display:"flex",alignItems:"center",gap:4,background:"#0a66c215",border:"1px solid #0a66c230",borderRadius:8,padding:"4px 10px",fontSize:12,color:"#0a66c2",fontWeight:600}}><Linkedin size={11}/></a>}
+            </div>
+            {founders.length>0 && (
+              <div style={{display:"flex",alignItems:"center",gap:10}}>
+                <StackedAvatars userIds={founders} profiles={profiles} onProfile={onProfile} max={5}/>
+                <span style={{fontSize:12,color:th.txt3}}>
+                  {founders.slice(0,2).map(id=>profiles[id]?.name?.split(" ")[0]).filter(Boolean).join(", ")}{founders.length>2?` +${founders.length-2} more`:""}
+                </span>
               </div>
             )}
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              {startup.website && <a href={startup.website} target="_blank" rel="noopener noreferrer" style={{ display: "flex", alignItems: "center", gap: 4, background: th.surf2, border: `1px solid ${th.bdr}`, borderRadius: 8, padding: "4px 10px", fontSize: 12, color: th.txt2, fontWeight: 600 }}><Globe size={11} />Website</a>}
-              {startup.github_link && <a href={startup.github_link} target="_blank" rel="noopener noreferrer" style={{ display: "flex", alignItems: "center", gap: 4, background: th.surf2, border: `1px solid ${th.bdr}`, borderRadius: 8, padding: "4px 10px", fontSize: 12, color: th.txt2, fontWeight: 600 }}><Github size={11} />GitHub</a>}
-              {startup.social_links?.twitter && <a href={startup.social_links.twitter} target="_blank" rel="noopener noreferrer" style={{ display: "flex", alignItems: "center", gap: 4, background: "#1da1f215", border: "1px solid #1da1f230", borderRadius: 8, padding: "4px 10px", fontSize: 12, color: "#1da1f2", fontWeight: 600 }}><Twitter size={11} />Twitter</a>}
-              {startup.social_links?.linkedin && <a href={startup.social_links.linkedin} target="_blank" rel="noopener noreferrer" style={{ display: "flex", alignItems: "center", gap: 4, background: "#0a66c215", border: "1px solid #0a66c230", borderRadius: 8, padding: "4px 10px", fontSize: 12, color: "#0a66c2", fontWeight: 600 }}><Linkedin size={11} />LinkedIn</a>}
-            </div>
           </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8, flexShrink: 0 }}>
-            {!hasRequestedAll && !myAccess.length ? (
-              <Btn onClick={() => setShowJoin(true)} style={{ background: "linear-gradient(135deg,#3b82f6,#8b5cf6)", boxShadow: "0 0 20px rgba(59,130,246,.3)" }}>Join Startup →</Btn>
-            ) : myAccess.length > 0 && !hasRequestedAll ? (
-              <Btn onClick={() => setShowJoin(true)} outline color="#3b82f6">Join More Pages</Btn>
-            ) : myRequest?.status === "pending" ? (
-              <span style={{ background: "#f59e0b18", color: "#f59e0b", fontSize: 12, fontWeight: 700, padding: "8px 16px", borderRadius: 10, border: "1px solid #f59e0b40", textAlign: "center" }}>⏳ Request Pending</span>
-            ) : null}
-            <div style={{ display: "flex", gap: 6 }}>
-              <button onClick={toggleBookmark} style={{ display: "flex", alignItems: "center", gap: 5, background: bookmarked ? "#3b82f618" : th.surf2, border: `1px solid ${bookmarked ? "#3b82f640" : th.bdr}`, borderRadius: 8, padding: "7px 12px", cursor: "pointer", color: bookmarked ? "#3b82f6" : th.txt3, fontSize: 12, fontWeight: 600, fontFamily: "inherit" }}>
-                {bookmarked ? <><BookmarkCheck size={13} />Saved</> : <><Bookmark size={13} />Save</>}
-              </button>
-              <button onClick={() => setShowMeeting(true)} style={{ display: "flex", alignItems: "center", gap: 5, background: th.surf2, border: `1px solid ${th.bdr}`, borderRadius: 8, padding: "7px 12px", cursor: "pointer", color: th.txt2, fontSize: 12, fontWeight: 600, fontFamily: "inherit" }}>
-                <Calendar size={13} />Meeting
-              </button>
-            </div>
+          <div style={{flexShrink:0}}>
+            {myRequest&&myRequest.status!=="rejected"
+              ? <span style={{background:myRequest.status==="approved"?"#10b98118":"#f59e0b18",color:myRequest.status==="approved"?"#10b981":"#f59e0b",fontSize:12,fontWeight:700,padding:"8px 16px",borderRadius:99,border:"1px solid currentColor",display:"block"}}>
+                  {myRequest.status==="approved"?"✓ Approved":"⏳ Request Pending"}
+                </span>
+              : <button onClick={()=>setShowJoin(true)} style={{background:"linear-gradient(135deg,#3b82f6,#8b5cf6)",border:"none",borderRadius:12,padding:"10px 22px",color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer",boxShadow:"0 0 20px rgba(59,130,246,.3)"}}>
+                  {myRequest?.status==="rejected"?"Re-apply":"Join Startup"}
+                </button>
+            }
           </div>
         </div>
       </div>
 
-      {loading ? <Spin dk={dk} /> : (
+      {loading ? <Spin dk={dk}/> : (
         <>
-          {/* Accessible Pages */}
-          {accessiblePages.length > 0 && (
-            <>
-              <div style={{ fontWeight: 700, fontSize: 14, color: th.txt, marginBottom: 10, display: "flex", alignItems: "center", gap: 6 }}>
-                <Check size={14} color="#10b981" /> Your Pages ({accessiblePages.length})
-              </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 20 }}>
-                {accessiblePages.map(pg => {
-                  const pt = PAGE_TYPES.find(x => x.id === pg.page_type) || PAGE_TYPES[6];
-                  return (
-                    <div key={pg.id} onClick={() => setActivePage(pg)} style={{ background: pt.c + "10", border: `1.5px solid ${pt.c}40`, borderRadius: 14, padding: 14, cursor: "pointer", transition: "all .2s" }}
-                      onMouseEnter={e => e.currentTarget.style.transform = "translateY(-2px)"}
-                      onMouseLeave={e => e.currentTarget.style.transform = "translateY(0)"}
-                    >
-                      <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 8 }}>
-                        <div style={{ width: 36, height: 36, borderRadius: 10, background: pt.c + "20", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>{pt.e}</div>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontWeight: 700, fontSize: 13, color: pt.c }}>{pg.name}</div>
-                          <div style={{ fontSize: 11, color: th.txt3 }}>{pg.description || pt.desc}</div>
-                        </div>
-                      </div>
-                      <div style={{ background: pt.c, border: "none", borderRadius: 8, padding: "6px 0", color: "#fff", fontSize: 12, fontWeight: 700, textAlign: "center" }}>Enter →</div>
-                    </div>
-                  );
-                })}
-              </div>
-            </>
-          )}
-
-          {/* Locked Pages */}
-          {lockedPages.length > 0 && (
-            <>
-              <div style={{ fontWeight: 700, fontSize: 14, color: th.txt, marginBottom: 10 }}>All Pages ({pages.length})</div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 20 }}>
-                {lockedPages.map(pg => {
-                  const pt = PAGE_TYPES.find(x => x.id === pg.page_type) || PAGE_TYPES[6];
-                  const reqStatus = myRequest?.page_statuses?.[pg.id];
-                  return (
-                    <div key={pg.id} style={{ background: th.surf, border: `1px solid ${th.bdr}`, borderRadius: 14, padding: 14, opacity: 0.65, position: "relative", overflow: "hidden" }}>
-                      <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                        <div style={{ width: 36, height: 36, borderRadius: 10, background: th.surf2, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>{pt.e}</div>
-                        <div>
-                          <div style={{ fontWeight: 700, fontSize: 13, color: th.txt }}>{pg.name}</div>
-                          <div style={{ fontSize: 10, color: reqStatus === "pending" ? "#f59e0b" : reqStatus === "rejected" ? "#ef4444" : th.txt3, fontWeight: reqStatus ? 700 : 400 }}>
-                            {reqStatus === "pending" ? "⏳ Pending" : reqStatus === "rejected" ? "✗ Rejected" : "🔒 Members only"}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </>
-          )}
-
-          {/* Latest Updates */}
-          {updates.length > 0 && (
-            <>
-              <div style={{ fontWeight: 700, fontSize: 14, color: th.txt, margin: "0 0 10px" }}>📢 Latest Updates</div>
-              {updates.map(u => {
-                const author = profiles[u.created_by] || { name: "Founder" };
-                return (
-                  <div key={u.id} style={{ background: th.surf, border: `1px solid ${th.bdr}`, borderRadius: 12, padding: "12px 14px", marginBottom: 8 }}>
-                    <div style={{ display: "flex", gap: 10 }}>
-                      <Av profile={author} size={32} />
-                      <div style={{ flex: 1 }}>
-                        <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 5 }}>
-                          <span style={{ fontWeight: 700, fontSize: 13, color: th.txt }}>{author.name}</span>
-                          <span style={{ fontSize: 11, color: th.txt3 }}>{ago(new Date(u.created_at).getTime())}</span>
-                        </div>
-                        <p style={{ margin: 0, fontSize: 14, color: th.txt, lineHeight: 1.65 }}>{u.content}</p>
-                      </div>
-                    </div>
+          {/* Pages */}
+          <div style={{fontWeight:700,fontSize:15,color:th.txt,marginBottom:10}}>📄 Pages</div>
+          {pages.map(pg=>{
+            const pt=PAGE_TYPES.find(x=>pg.name?.toLowerCase().includes(x.id)||pg.type_id===x.id)||PAGE_TYPES[3];
+            const isApproved=myPageIds.includes(pg.id);
+            return (
+              <Card dk={dk} key={pg.id} anim={false} style={{position:"relative",overflow:"hidden"}}>
+                {!isApproved && <div style={{position:"absolute",inset:0,backdropFilter:"blur(1.5px)",background:"rgba(0,0,0,.03)",zIndex:1,borderRadius:16}}/>}
+                <div style={{display:"flex",gap:12,alignItems:"center",position:"relative",zIndex:2}}>
+                  <div style={{width:44,height:44,borderRadius:12,background:pt.c+"20",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,flexShrink:0}}>{pt.e}</div>
+                  <div style={{flex:1}}>
+                    <div style={{fontWeight:700,fontSize:14,color:th.txt}}>{pg.name}</div>
+                    <div style={{fontSize:12,color:th.txt3}}>{pg.description}</div>
                   </div>
+                  {isApproved
+                    ? <button onClick={()=>setActivePage(pg)} style={{background:pt.c,border:"none",borderRadius:10,padding:"7px 16px",color:"#fff",fontSize:12,fontWeight:700,cursor:"pointer"}}>Enter →</button>
+                    : <span style={{fontSize:11,color:th.txt3,background:th.surf2,border:`1px solid ${th.bdr}`,borderRadius:8,padding:"5px 10px"}}>🔒 Locked</span>
+                  }
+                </div>
+              </Card>
+            );
+          })}
+
+          {myPageIds.length<pages.length && myRequest?.status!=="pending" && (
+            <div style={{textAlign:"center",padding:"14px 0"}}>
+              <button onClick={()=>setShowJoin(true)} style={{background:"transparent",border:"1.5px dashed #3b82f660",borderRadius:12,padding:"10px 24px",color:"#3b82f6",fontSize:13,fontWeight:700,cursor:"pointer"}}>
+                + Request access to more pages
+              </button>
+            </div>
+          )}
+
+          {/* Updates */}
+          {updates.length>0 && (
+            <>
+              <div style={{fontWeight:700,fontSize:15,color:th.txt,margin:"20px 0 10px"}}>📢 Updates</div>
+              {updates.map(u=>{
+                const author=profiles[u.created_by]||{name:"Founder"};
+                return (
+                  <Card dk={dk} key={u.id}>
+                    <div style={{display:"flex",gap:10}}>
+                      <Av profile={author} size={32}/>
+                      <div style={{flex:1}}>
+                        <div style={{display:"flex",gap:6,alignItems:"center",marginBottom:5}}>
+                          <span style={{fontWeight:700,fontSize:13,color:th.txt}}>{author.name}</span>
+                          <span style={{fontSize:11,color:th.txt3}}>{ago(new Date(u.created_at).getTime())}</span>
+                        </div>
+                        <p style={{margin:0,fontSize:14,color:th.txt,lineHeight:1.65}}>{u.content}</p>
+                      </div>
+                    </div>
+                  </Card>
                 );
               })}
             </>
           )}
 
           {/* Feedback */}
-          <FeedbackSection startup={startup} me={me} profiles={profiles} dk={dk} isFounder={false} />
+          <FeedbackSection startupId={startup.id} me={me} profiles={profiles} isFounder={false} dk={dk}/>
         </>
       )}
     </div>
   );
 }
 
-// ============================================================
-// ─── STARTUP CARD ─────────────────────────────────────────────
-// ============================================================
-function StartupCard({ startup, me, profiles, dk, onClick, isOwner }) {
-  const th = T(dk);
-  const founders = (startup.founders || [startup.created_by]).map(id => profiles[id]).filter(Boolean);
-  return (
-    <div onClick={onClick} style={{ background: th.surf, border: `1px solid ${th.bdr}`, borderRadius: 16, padding: 16, marginBottom: 10, cursor: "pointer", transition: "all .2s", animation: "fadeUp .3s ease" }}
-      onMouseEnter={e => { e.currentTarget.style.borderColor = "#3b82f640"; e.currentTarget.style.transform = "translateY(-1px)"; }}
-      onMouseLeave={e => { e.currentTarget.style.borderColor = th.bdr; e.currentTarget.style.transform = "translateY(0)"; }}
-    >
-      <div style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
-        <div style={{ width: 54, height: 54, borderRadius: 14, background: "linear-gradient(135deg,#3b82f6,#8b5cf6)", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-          {startup.logo ? <img src={startup.logo} style={{ width: "100%", height: "100%", objectFit: "cover" }} alt="" /> : <span style={{ fontSize: 26 }}>🚀</span>}
-        </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
-            <div style={{ fontWeight: 800, fontSize: 15, color: th.txt }}>{startup.name}</div>
-            {isOwner && <Badge label="FOUNDER" color="#3b82f6" />}
-          </div>
-          <p style={{ fontSize: 13, color: th.txt2, margin: "4px 0 10px", lineHeight: 1.5 }}>{(startup.description || "").slice(0, 100)}{startup.description?.length > 100 ? "…" : ""}</p>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            {founders.length > 0 && <>
-              <StackedAv uids={founders.map(f => f.id)} profiles={profiles} size={22} />
-              <span style={{ fontSize: 12, color: th.txt3 }}>{founders.slice(0, 2).map(f => f.name?.split(" ")[0]).join(", ")}{founders.length > 2 ? ` +${founders.length - 2}` : ""}</span>
-            </>}
-            <span style={{ fontSize: 11, color: th.txt3, marginLeft: "auto" }}>View →</span>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ============================================================
-// ─── MAIN COLAB VIEW (exported default) ──────────────────────
-// ============================================================
-export default function ColabView({ me, dk, profiles, onProfile, addNotif, myProfile }) {
+// ─── COLAB LISTING ────────────────────────────────────────────────
+function ColabView({ me, dk, profiles, bals, onProfile, addNotif }) {
   const th = T(dk);
   const [startups, setStartups] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [activeStartup, setActiveStartup] = useState(null);
+  const [active, setActive] = useState(null);
   const [showCreate, setShowCreate] = useState(false);
   const [showReferral, setShowReferral] = useState(false);
   const [search, setSearch] = useState("");
+  const [updateMap, setUpdateMap] = useState({});
+  const [feedbackMap, setFeedbackMap] = useState({});
   const [bookmarkedIds, setBookmarkedIds] = useState([]);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async()=>{
     setLoading(true);
-    const [data, bk] = await Promise.all([
-      db.get("rs_startups", "order=created_at.desc&limit=50"),
-      db.get("rs_startup_bookmarks", `user_id=eq.${me}&select=startup_id`),
-    ]);
-    setStartups(data || []);
-    setBookmarkedIds((bk || []).map(b => b.startup_id));
+    const data = await db.get("rs_startups","order=created_at.desc&limit=60");
+    setStartups(data||[]);
+    if(data?.length){
+      const ids=data.map(s=>s.id);
+      const idStr=ids.join(",");
+      const [us,fb,bk] = await Promise.all([
+        db.get("rs_startup_updates",`startup_id=in.(${idStr})&room_id=is.null&order=created_at.desc`),
+        db.get("rs_startup_feedback",`startup_id=in.(${idStr})&order=created_at.desc`),
+        db.get("rs_startup_bookmarks",`user_id=eq.${me}`),
+      ]);
+      const um={};
+      (us||[]).forEach(u=>{if(!um[u.startup_id])um[u.startup_id]=u;});
+      const fm={};
+      (fb||[]).forEach(f=>{if(!fm[f.startup_id])fm[f.startup_id]=[];fm[f.startup_id].push(f);});
+      setUpdateMap(um);
+      setFeedbackMap(fm);
+      setBookmarkedIds((bk||[]).map(b=>b.startup_id));
+    }
     setLoading(false);
-  }, [me]);
+  },[me]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(()=>{load();},[load]);
 
-  const handleCreated = s => {
-    if (!s) return;
-    setStartups(ss => [s, ...ss.filter(x => x.id !== s.id)]);
-    setActiveStartup(s);
+  const handleCreated = s=>{
+    if(s){setStartups(ss=>[s,...ss.filter(x=>x.id!==s.id)]);setActive(s);}
   };
 
-  const handleJoinSuccess = s => addNotif?.({ type: "sandbox", msg: `🚀 Join request sent to ${s.name}!` });
-
-  if (activeStartup) return (
-    <StartupDetail startup={activeStartup} me={me} myProfile={myProfile} profiles={profiles} dk={dk} onBack={() => { setActiveStartup(null); load(); }} />
+  const filtered = startups.filter(s=>
+    !search||s.name?.toLowerCase().includes(search.toLowerCase())||s.description?.toLowerCase().includes(search.toLowerCase())
   );
 
-  const myStartups = startups.filter(s => s.created_by === me || (s.founders || []).includes(me));
-  const otherStartups = startups.filter(s => s.created_by !== me && !(s.founders || []).includes(me));
-  const saved = startups.filter(s => bookmarkedIds.includes(s.id) && !myStartups.find(x => x.id === s.id));
-
-  const searchFilter = s => !search.trim() || s.name?.toLowerCase().includes(search.toLowerCase()) || s.description?.toLowerCase().includes(search.toLowerCase());
+  if(active) return (
+    <StartupDetail startup={active} me={me} profiles={profiles} bals={bals} dk={dk}
+      onBack={()=>{setActive(null);load();}} onProfile={onProfile}/>
+  );
 
   return (
     <div>
-      {showCreate && <CreateStartupModal me={me} myProfile={myProfile} existing={null} onClose={() => setShowCreate(false)} onSave={handleCreated} dk={dk} />}
-      {showReferral && <ReferralModal me={me} myProfile={myProfile} onClose={() => setShowReferral(false)} onSuccess={handleJoinSuccess} dk={dk} />}
+      {showCreate && <CreateStartupModal me={me} onClose={()=>setShowCreate(false)} onSave={handleCreated} dk={dk}/>}
+      {showReferral && <ReferralJoinModal me={me} onClose={()=>setShowReferral(false)} onSuccess={s=>{addNotif({type:"sandbox",msg:`🚀 Request sent to join ${s.name}`});}} dk={dk}/>}
 
       {/* Header */}
-      <div style={{ background: "linear-gradient(135deg,#1e3a8a,#5b21b6)", borderRadius: 20, padding: 24, marginBottom: 18 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 14 }}>
+      <div style={{background:"linear-gradient(135deg,#0f172a,#1e3a8a,#312e81)",borderRadius:20,padding:24,marginBottom:20}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:14,marginBottom:18}}>
           <div>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
-              <div style={{ fontSize: 28 }}>🚀</div>
-              <h2 style={{ margin: 0, fontSize: 24, fontWeight: 900, color: "#fff" }}>Colab</h2>
-            </div>
-            <p style={{ color: "rgba(255,255,255,.6)", fontSize: 13, margin: 0 }}>Build startups together · collaborate · grow</p>
+            <h2 style={{margin:"0 0 4px",fontSize:24,fontWeight:900,color:"#fff"}}>🚀 Colab</h2>
+            <p style={{margin:0,fontSize:14,color:"rgba(255,255,255,.55)"}}>Startup operating system · Discover · Join · Build</p>
           </div>
-          <div style={{ display: "flex", gap: 8 }}>
-            <button onClick={() => setShowReferral(true)} style={{ display: "flex", alignItems: "center", gap: 6, background: "rgba(255,255,255,.12)", border: "1px solid rgba(255,255,255,.2)", borderRadius: 11, padding: "9px 16px", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
-              <Link size={14} /> Join via Code
+          <div style={{display:"flex",gap:8}}>
+            <button onClick={()=>setShowReferral(true)} style={{display:"flex",alignItems:"center",gap:6,background:"rgba(255,255,255,.1)",border:"1px solid rgba(255,255,255,.2)",borderRadius:10,padding:"8px 14px",color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer"}}>
+              <Hash size={13}/>Enter Code
             </button>
-            <button onClick={() => setShowCreate(true)} style={{ display: "flex", alignItems: "center", gap: 6, background: "#fff", border: "none", borderRadius: 11, padding: "9px 18px", color: "#1e3a8a", fontSize: 13, fontWeight: 800, cursor: "pointer", fontFamily: "inherit" }}>
-              <Plus size={14} /> Create Startup
+            <button onClick={()=>setShowCreate(true)} style={{display:"flex",alignItems:"center",gap:6,background:"#fff",border:"none",borderRadius:10,padding:"8px 16px",color:"#1e3a8a",fontSize:13,fontWeight:800,cursor:"pointer"}}>
+              <Plus size={13}/>Create Startup
             </button>
           </div>
         </div>
+        <div style={{position:"relative"}}>
+          <Search size={14} style={{position:"absolute",left:12,top:"50%",transform:"translateY(-50%)",color:"rgba(255,255,255,.4)"}}/>
+          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search startups…" style={{width:"100%",background:"rgba(255,255,255,.1)",border:"1px solid rgba(255,255,255,.15)",borderRadius:10,padding:"9px 12px 9px 34px",fontSize:13,outline:"none",color:"#fff",boxSizing:"border-box"}}/>
+        </div>
       </div>
 
-      {/* Search */}
-      <div style={{ position: "relative", marginBottom: 16 }}>
-        <Search size={14} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: th.txt3 }} />
-        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search startups…" style={{ ...InpStyle(dk), paddingLeft: 36, borderRadius: 12 }} />
-      </div>
+      {loading ? <Spin dk={dk} msg="Loading startups…"/> : filtered.length===0 ? (
+        <div style={{textAlign:"center",padding:60,color:th.txt3}}>
+          <div style={{fontSize:56,marginBottom:12}}>🚀</div>
+          <p style={{fontSize:16,fontWeight:600,margin:"0 0 6px",color:th.txt}}>No startups yet</p>
+          <p style={{fontSize:14,margin:"0 0 20px"}}>Be the first to create one!</p>
+          <button onClick={()=>setShowCreate(true)} style={{background:"linear-gradient(135deg,#3b82f6,#8b5cf6)",border:"none",borderRadius:12,padding:"10px 24px",color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer"}}>Create Startup</button>
+        </div>
+      ) : filtered.map(s=>{
+        const isFounder=s.created_by===me||(s.founders||[]).includes(me);
+        const founders=(s.founders||[s.created_by]).filter(Boolean);
+        const latestUpdate=updateMap[s.id];
+        const fbCount=(feedbackMap[s.id]||[]).length;
+        const isBookmarked=bookmarkedIds.includes(s.id);
 
-      {loading ? <Spin dk={dk} /> : (
-        <>
-          {/* My Startups */}
-          {myStartups.filter(searchFilter).length > 0 && (
-            <>
-              <div style={{ fontSize: 11, fontWeight: 700, color: th.txt3, letterSpacing: 0.5, marginBottom: 8 }}>YOUR STARTUPS</div>
-              {myStartups.filter(searchFilter).map(s => <StartupCard key={s.id} startup={s} me={me} profiles={profiles} dk={dk} onClick={() => setActiveStartup(s)} isOwner />)}
-            </>
-          )}
-
-          {/* Saved */}
-          {!search && saved.length > 0 && (
-            <>
-              <div style={{ fontSize: 11, fontWeight: 700, color: th.txt3, letterSpacing: 0.5, margin: "16px 0 8px" }}>SAVED</div>
-              {saved.map(s => <StartupCard key={s.id} startup={s} me={me} profiles={profiles} dk={dk} onClick={() => setActiveStartup(s)} />)}
-            </>
-          )}
-
-          {/* Discover */}
-          {otherStartups.filter(searchFilter).length > 0 && (
-            <>
-              <div style={{ fontSize: 11, fontWeight: 700, color: th.txt3, letterSpacing: 0.5, margin: `${myStartups.length || saved.length ? "16px" : "0"} 0 8px` }}>DISCOVER</div>
-              {otherStartups.filter(searchFilter).map(s => <StartupCard key={s.id} startup={s} me={me} profiles={profiles} dk={dk} onClick={() => setActiveStartup(s)} />)}
-            </>
-          )}
-
-          {/* Empty */}
-          {startups.filter(searchFilter).length === 0 && (
-            <div style={{ textAlign: "center", padding: 56, color: th.txt3 }}>
-              <div style={{ fontSize: 52, marginBottom: 14 }}>🚀</div>
-              <h3 style={{ fontWeight: 700, color: th.txt, margin: "0 0 8px" }}>No startups yet</h3>
-              <p style={{ fontSize: 14, margin: "0 0 20px" }}>Create one or join with a referral code.</p>
-              <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
-                <Btn onClick={() => setShowCreate(true)}>Create Startup</Btn>
-                <Btn onClick={() => setShowReferral(true)} outline color="#3b82f6">Join via Code</Btn>
+        return (
+          <Card dk={dk} key={s.id}>
+            <div onClick={()=>setActive(s)} style={{cursor:"pointer"}}>
+              <div style={{display:"flex",gap:14,alignItems:"flex-start",marginBottom:12}}>
+                <div style={{width:56,height:56,borderRadius:16,background:"linear-gradient(135deg,#3b82f6,#8b5cf6)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:28,flexShrink:0,overflow:"hidden"}}>
+                  {s.logo?.startsWith("data:")?<img src={s.logo} style={{width:"100%",height:"100%",objectFit:"cover"}}/>:s.logo||"🚀"}
+                </div>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8,marginBottom:4}}>
+                    <div style={{fontWeight:800,fontSize:16,color:th.txt}}>{s.name}</div>
+                    <div style={{display:"flex",gap:5,flexShrink:0}}>
+                      {isBookmarked && <span style={{fontSize:10,color:"#3b82f6"}}>🔖</span>}
+                      {isFounder && <span style={{background:"#f59e0b18",color:"#f59e0b",fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:99,border:"1px solid #f59e0b40"}}>OWNER</span>}
+                    </div>
+                  </div>
+                  <p style={{margin:"0 0 8px",fontSize:13,color:th.txt2,lineHeight:1.55}}>{s.description?.slice(0,120)}{s.description?.length>120?"…":""}</p>
+                  {/* Social links */}
+                  <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:8}}>
+                    {s.website&&<a href={s.website} onClick={e=>e.stopPropagation()} target="_blank" rel="noopener noreferrer" style={{display:"flex",alignItems:"center",gap:3,background:th.surf2,border:`1px solid ${th.bdr}`,borderRadius:6,padding:"2px 7px",fontSize:11,color:th.txt2,fontWeight:600}}><Globe size={10}/>Web</a>}
+                    {s.github_link&&<a href={s.github_link} onClick={e=>e.stopPropagation()} target="_blank" rel="noopener noreferrer" style={{display:"flex",alignItems:"center",gap:3,background:th.surf2,border:`1px solid ${th.bdr}`,borderRadius:6,padding:"2px 7px",fontSize:11,color:th.txt2,fontWeight:600}}>⚡ Git</a>}
+                    {s.social_links?.twitter&&<a href={s.social_links.twitter} onClick={e=>e.stopPropagation()} target="_blank" rel="noopener noreferrer" style={{display:"flex",alignItems:"center",background:"#1da1f215",border:"1px solid #1da1f230",borderRadius:6,padding:"2px 7px",fontSize:11,color:"#1da1f2",fontWeight:600}}><Twitter size={10}/></a>}
+                    {s.social_links?.linkedin&&<a href={s.social_links.linkedin} onClick={e=>e.stopPropagation()} target="_blank" rel="noopener noreferrer" style={{display:"flex",alignItems:"center",background:"#0a66c215",border:"1px solid #0a66c230",borderRadius:6,padding:"2px 7px",fontSize:11,color:"#0a66c2",fontWeight:600}}><Linkedin size={10}/></a>}
+                  </div>
+                  {/* Stacked founders */}
+                  {founders.length>0&&(
+                    <div style={{display:"flex",alignItems:"center",gap:7}}>
+                      <StackedAvatars userIds={founders} profiles={profiles} onProfile={onProfile} max={4} size={22}/>
+                      <span style={{fontSize:11,color:th.txt3}}>{founders.length} founder{founders.length!==1?"s":""}</span>
+                    </div>
+                  )}
+                </div>
               </div>
+              {/* Latest update */}
+              {latestUpdate&&(
+                <div style={{background:th.surf2,border:`1px solid ${th.bdr}`,borderRadius:10,padding:"8px 12px",marginBottom:8}}>
+                  <div style={{fontSize:10,fontWeight:700,color:th.txt3,marginBottom:2}}>📢 LATEST UPDATE</div>
+                  <div style={{fontSize:12,color:th.txt2,lineHeight:1.5}}>{latestUpdate.content?.slice(0,120)}{latestUpdate.content?.length>120?"…":""}</div>
+                </div>
+              )}
+              {fbCount>0&&<div style={{fontSize:11,color:th.txt3,display:"flex",alignItems:"center",gap:4,marginTop:4}}><MessageCircle size={11}/>{fbCount} feedback</div>}
             </div>
-          )}
-        </>
-      )}
+            <div style={{borderTop:`1px solid ${th.bdr}`,marginTop:12,paddingTop:12,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <span style={{fontSize:12,color:th.txt3}}>{s.created_at?ago(new Date(s.created_at).getTime())+" ago":""}</span>
+              <button onClick={()=>setActive(s)} style={{background:"linear-gradient(135deg,#3b82f6,#8b5cf6)",border:"none",borderRadius:10,padding:"7px 18px",color:"#fff",fontSize:12,fontWeight:700,cursor:"pointer"}}>
+                {isFounder?"Manage →":"Join →"}
+              </button>
+            </div>
+          </Card>
+        );
+      })}
     </div>
   );
 }
-
 // ═══════════════════════════════════════════════════════════════
 // ─── ADMIN PORTAL ────────────────────────────────────────────────
 // ═══════════════════════════════════════════════════════════════
